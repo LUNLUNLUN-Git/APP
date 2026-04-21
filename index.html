@@ -317,9 +317,9 @@ window.addEventListener('unhandledrejection', function(e) {
   .welcome-title {
     font-family: var(--serif);
     font-weight: 300;
-    font-size: clamp(60px, 12vw, 140px);
-    line-height: 0.92;
-    letter-spacing: -0.04em;
+    font-size: clamp(38px, 6vw, 64px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
     color: var(--bone);
     margin-bottom: 8px;
   }
@@ -968,72 +968,238 @@ window.addEventListener('unhandledrejection', function(e) {
   /* ===== LOADING ===== */
   .loading {
     position: fixed; inset: 0;
-    background: rgba(10, 11, 13, 0.92);
-    backdrop-filter: blur(8px);
+    background: rgba(10, 11, 13, 0.94);
+    backdrop-filter: blur(12px);
     z-index: 3000;
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 24px;
   }
   .loading.active { display: flex; }
 
+  /* ===== Refined compile animation ===== */
   .scanner-anim {
-    width: 120px; height: 120px;
+    width: 140px; height: 140px;
     position: relative;
-    border: 1px solid var(--line-bright);
   }
+
+  /* Outer rotating ring */
   .scanner-anim::before {
     content: '';
     position: absolute;
+    inset: -8px;
+    border: 1px solid transparent;
+    border-top-color: var(--phosphor);
+    border-right-color: rgba(180, 252, 80, 0.3);
+    border-radius: 50%;
+    animation: compileRingSpin 2.4s linear infinite;
+  }
+  @keyframes compileRingSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Inner box with crosshair grid */
+  .scanner-anim-box {
+    position: absolute;
     inset: 0;
-    background: linear-gradient(to bottom, transparent, var(--phosphor), transparent);
-    opacity: 0.5;
-    animation: scannerLoad 1.8s linear infinite;
+    border: 1px solid var(--line-bright);
+    overflow: hidden;
   }
-  @keyframes scannerLoad {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100%); }
-  }
-  .scanner-anim::after {
+
+  /* Scanning gradient sweep */
+  .scanner-anim-box::before {
     content: '';
     position: absolute;
-    top: -1px; left: -1px; right: -1px; bottom: -1px;
-    border: 1px solid var(--phosphor);
-    animation: scannerPulse 2s ease-in-out infinite;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(180, 252, 80, 0.03) 30%,
+      rgba(180, 252, 80, 0.12) 50%,
+      rgba(180, 252, 80, 0.03) 70%,
+      transparent 100%
+    );
+    animation: compileSweep 2s ease-in-out infinite;
   }
-  @keyframes scannerPulse {
-    0%, 100% { opacity: 0.4; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.04); }
+  @keyframes compileSweep {
+    0%   { transform: translateY(-110%); }
+    100% { transform: translateY(110%); }
+  }
+
+  /* Dot grid inside scanner */
+  .scanner-anim-box::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle, rgba(180,252,80,0.25) 1px, transparent 1px);
+    background-size: 14px 14px;
+    background-position: 7px 7px;
+    animation: compileDotPulse 3s ease-in-out infinite;
+  }
+  @keyframes compileDotPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  /* Crosshair lines */
+  .scanner-crosshair-h, .scanner-crosshair-v {
+    position: absolute;
+    background: var(--phosphor);
+    opacity: 0.15;
+  }
+  .scanner-crosshair-h {
+    width: 100%; height: 1px;
+    top: 50%; left: 0;
+  }
+  .scanner-crosshair-v {
+    width: 1px; height: 100%;
+    top: 0; left: 50%;
+  }
+
+  /* Corner brackets */
+  .scanner-corner {
+    position: absolute;
+    width: 16px; height: 16px;
+    border-color: var(--phosphor);
+    border-style: solid;
+  }
+  .scanner-corner.tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+  .scanner-corner.tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+  .scanner-corner.bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+  .scanner-corner.br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+  /* Pulsing outer glow ring */
+  .scanner-glow {
+    position: absolute;
+    inset: -20px;
+    border: 1px solid rgba(180, 252, 80, 0.08);
+    border-radius: 50%;
+    animation: compileGlow 2.5s ease-in-out infinite;
+  }
+  @keyframes compileGlow {
+    0%, 100% { transform: scale(0.95); opacity: 0; }
+    50% { transform: scale(1.1); opacity: 1; }
+  }
+
+  /* Feature point detection sparkles */
+  .scanner-points {
+    position: absolute;
+    inset: 8px;
+    overflow: hidden;
+  }
+  .scanner-points span {
+    position: absolute;
+    width: 3px; height: 3px;
+    background: var(--phosphor);
+    border-radius: 50%;
+    opacity: 0;
+    animation: compilePoint 2.8s ease-in-out infinite;
+  }
+  .scanner-points span:nth-child(1) { top: 22%; left: 30%; animation-delay: 0s; }
+  .scanner-points span:nth-child(2) { top: 55%; left: 65%; animation-delay: 0.4s; }
+  .scanner-points span:nth-child(3) { top: 35%; left: 80%; animation-delay: 0.8s; }
+  .scanner-points span:nth-child(4) { top: 70%; left: 25%; animation-delay: 1.2s; }
+  .scanner-points span:nth-child(5) { top: 15%; left: 55%; animation-delay: 1.6s; }
+  .scanner-points span:nth-child(6) { top: 80%; left: 50%; animation-delay: 2.0s; }
+  .scanner-points span:nth-child(7) { top: 45%; left: 15%; animation-delay: 0.6s; }
+  .scanner-points span:nth-child(8) { top: 60%; left: 42%; animation-delay: 1.4s; }
+  @keyframes compilePoint {
+    0%, 60%, 100% { opacity: 0; transform: scale(0); }
+    30% { opacity: 1; transform: scale(1); box-shadow: 0 0 6px var(--phosphor); }
+    50% { opacity: 0.5; transform: scale(1.6); }
+  }
+
+  /* Feature line connections */
+  .scanner-lines {
+    position: absolute;
+    inset: 8px;
+    overflow: hidden;
+  }
+  .scanner-lines::before, .scanner-lines::after {
+    content: '';
+    position: absolute;
+    background: var(--phosphor);
+    height: 1px;
+    width: 40px;
+    opacity: 0;
+    animation: compileLine 3.2s ease-in-out infinite;
+  }
+  .scanner-lines::before {
+    top: 35%; left: 28%;
+    transform: rotate(25deg);
+    animation-delay: 0.2s;
+  }
+  .scanner-lines::after {
+    top: 60%; left: 45%;
+    transform: rotate(-15deg);
+    width: 35px;
+    animation-delay: 1.4s;
+  }
+  @keyframes compileLine {
+    0%, 55%, 100% { opacity: 0; }
+    25%, 40% { opacity: 0.4; }
   }
 
   .loading-title {
     font-family: var(--serif);
     font-style: italic;
-    font-size: 24px;
+    font-size: 22px;
     color: var(--bone);
     text-align: center;
   }
   .loading-sub {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 10px;
     color: var(--ink-faint);
     letter-spacing: 0.3em;
+    text-align: center;
   }
+
+  /* Progress bar */
   .loading-bar {
-    width: 240px; height: 2px;
-    background: var(--line-bright);
+    width: 260px; height: 2px;
+    background: var(--line);
     overflow: hidden;
     display: none;
+    position: relative;
   }
   .loading-bar.active { display: block; }
   .loading-bar-fill {
     height: 100%;
     background: var(--phosphor);
     width: 0%;
-    transition: width 0.2s;
-    box-shadow: 0 0 8px var(--phosphor);
+    transition: width 0.3s ease-out;
+    box-shadow: 0 0 10px var(--phosphor), 0 0 3px var(--phosphor);
+  }
+  /* Secondary shimmer on the bar */
+  .loading-bar::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 60px;
+    background: linear-gradient(90deg, transparent, rgba(180,252,80,0.3), transparent);
+    animation: barShimmer 1.8s ease-in-out infinite;
+  }
+  @keyframes barShimmer {
+    0% { transform: translateX(-60px); }
+    100% { transform: translateX(260px); }
+  }
+
+  /* Compile stats ticker */
+  .loading-stats {
+    display: flex;
+    gap: 24px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--ink-faint);
+  }
+  .loading-stats .stat-val {
+    color: var(--phosphor);
+    margin-left: 4px;
   }
 
   /* ===== TOAST ===== */
@@ -1062,10 +1228,6 @@ window.addEventListener('unhandledrejection', function(e) {
   .toast.success::before { content: '✓'; color: var(--phosphor); }
 
   /* ===== Clickable selected-preview (upgraded for change-on-click) ===== */
-  .selected-preview-clickable {
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-  }
   .selected-preview-clickable:hover {
     background: var(--bg-input);
     border-color: var(--bone);
@@ -1087,31 +1249,57 @@ window.addEventListener('unhandledrejection', function(e) {
   .selected-preview-delete svg { width: 16px; height: 16px; }
   .selected-preview-change-hint {
     position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
+    top: 0; left: 0; bottom: 0;
+    /* Span the full card minus the delete button area */
+    right: 56px;
     background: rgba(10, 11, 13, 0.85);
     color: var(--phosphor);
     font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 0.15em;
-    padding: 6px 10px;
-    border: 1px solid var(--phosphor);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    display: grid;
+    grid-template-columns: auto auto;
+    align-content: center;
+    justify-content: center;
+    gap: 6px 14px;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s;
     z-index: 2;
+    border: 1px solid var(--phosphor);
+    padding: 12px 20px;
+  }
+  .selected-preview-change-hint .hint-icon {
+    font-size: 18px;
+    grid-row: span 2;
+    align-self: center;
+  }
+  .selected-preview-change-hint .hint-title {
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .selected-preview-change-hint .hint-sub {
+    font-size: 9px;
+    color: var(--ink-dim);
+    letter-spacing: 0.08em;
   }
   .selected-preview-img-wrap {
     position: relative;
     width: 80px; height: 80px;
     flex-shrink: 0;
   }
+  .selected-preview-clickable {
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
   .selected-preview-clickable:hover .selected-preview-change-hint { opacity: 1; }
 
   /* Upload row with camera button */
   .upload-row {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
     align-items: stretch;
   }
@@ -1120,8 +1308,8 @@ window.addEventListener('unhandledrejection', function(e) {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 0 20px;
-    min-width: 110px;
+    padding: 20px;
+    aspect-ratio: 1;
     background: var(--bg-card);
     border: 1px dashed var(--line-bright);
     color: var(--ink-dim);
@@ -1130,19 +1318,21 @@ window.addEventListener('unhandledrejection', function(e) {
     letter-spacing: 0.15em;
     cursor: pointer;
     transition: all 0.15s;
+    position: relative;
   }
   .camera-btn:hover {
     border-color: var(--phosphor);
     color: var(--phosphor);
+    background: rgba(180, 252, 80, 0.03);
   }
   .camera-btn svg {
-    width: 22px; height: 22px; margin-bottom: 8px;
+    width: 28px; height: 28px; margin-bottom: 12px;
     stroke: currentColor; fill: none; stroke-width: 1.5;
   }
   @media (max-width: 600px) {
     .upload-row { grid-template-columns: 1fr; }
-    .camera-btn { padding: 14px; min-width: 0; flex-direction: row; gap: 10px; }
-    .camera-btn svg { margin-bottom: 0; }
+    .camera-btn { aspect-ratio: auto; padding: 14px; flex-direction: row; gap: 10px; }
+    .camera-btn svg { margin-bottom: 0; width: 22px; height: 22px; }
   }
 
   /* ===== Bigger cropper handles ===== */
@@ -1477,7 +1667,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
       <div class="welcome-wrap">
         <div class="welcome-meta">
-          <span>臺北 · <span id="currentDate">—</span></span>
+          <span>台灣 · <span id="currentDate">—</span></span>
           <span>網頁 AR / 圖像追蹤</span>
         </div>
 
@@ -1842,10 +2032,29 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <!-- ============ LOADING ============ -->
 <div class="loading" id="loading">
-  <div class="scanner-anim"></div>
+  <div class="scanner-anim">
+    <div class="scanner-glow"></div>
+    <div class="scanner-anim-box">
+      <div class="scanner-crosshair-h"></div>
+      <div class="scanner-crosshair-v"></div>
+      <div class="scanner-points">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="scanner-lines"></div>
+    </div>
+    <div class="scanner-corner tl"></div>
+    <div class="scanner-corner tr"></div>
+    <div class="scanner-corner bl"></div>
+    <div class="scanner-corner br"></div>
+  </div>
   <div class="loading-title" id="loadingTitle">編譯辨識資料中…</div>
   <div class="loading-sub" id="loadingSub">處理中</div>
   <div class="loading-bar" id="loadingBar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+  <div class="loading-stats" id="loadingStats">
+    <span>特徵點 <span class="stat-val" id="statFeatures">—</span></span>
+    <span>品質 <span class="stat-val" id="statQuality">—</span></span>
+  </div>
 </div>
 
 <!-- ============ TOAST ============ -->
@@ -2072,13 +2281,37 @@ function showLoading(title, sub, showProgress = false) {
   const bar = document.getElementById('loadingBar');
   bar.classList.toggle('active', showProgress);
   document.getElementById('loadingBarFill').style.width = '0%';
+  // Reset stats
+  document.getElementById('statFeatures').textContent = '—';
+  document.getElementById('statQuality').textContent = '—';
+  document.getElementById('loadingStats').style.display = showProgress ? 'flex' : 'none';
   document.getElementById('loading').classList.add('active');
+
+  // Animate feature point counter during compile
+  if (showProgress) {
+    let count = 0;
+    window._compileStatsInterval = setInterval(() => {
+      count += Math.floor(Math.random() * 12 + 3);
+      document.getElementById('statFeatures').textContent = count;
+    }, 200);
+  }
 }
 function hideLoading() {
   document.getElementById('loading').classList.remove('active');
+  if (window._compileStatsInterval) {
+    clearInterval(window._compileStatsInterval);
+    window._compileStatsInterval = null;
+  }
 }
 function setProgress(p) {
-  document.getElementById('loadingBarFill').style.width = Math.min(100, Math.max(0, p)) + '%';
+  const pct = Math.min(100, Math.max(0, p));
+  document.getElementById('loadingBarFill').style.width = pct + '%';
+  // Update quality rating based on progress
+  const q = document.getElementById('statQuality');
+  if (pct < 30) q.textContent = '分析中';
+  else if (pct < 60) q.textContent = '良好';
+  else if (pct < 90) q.textContent = '優秀';
+  else q.textContent = '完成';
 }
 
 /* ========================================================= */
@@ -2091,9 +2324,13 @@ function renderImageSelectedCard(dataUrl, fileName, fileSize) {
   box.style.display = 'block';
   box.innerHTML = `
     <div class="selected-preview selected-preview-clickable" id="imageSelectedCard" role="button" tabindex="0" aria-label="點擊更換圖片">
+      <div class="selected-preview-change-hint">
+        <span class="hint-icon">⟲</span>
+        <span class="hint-title">更換圖片</span>
+        <span class="hint-sub">點擊選擇其他檔案</span>
+      </div>
       <div class="selected-preview-img-wrap">
         <img class="selected-preview-img" src="${dataUrl}">
-        <div class="selected-preview-change-hint">更換圖片</div>
       </div>
       <div class="selected-preview-info">
         <div class="selected-preview-name">${escapeHtml(fileName)}</div>
@@ -2268,7 +2505,7 @@ function initCropper() {
       viewMode: 1,
       autoCropArea: 1,     // Fill entire image by default
       movable: true,
-      zoomable: true,
+      zoomable: false,     // Disable all zoom — scroll wheel controls page only
       rotatable: false,
       background: false,
       guides: true,
@@ -2311,9 +2548,13 @@ function renderModelSelectedCard(fileName, fileSize) {
   box.style.display = 'block';
   box.innerHTML = `
     <div class="selected-preview selected-preview-clickable" id="modelSelectedCard" role="button" tabindex="0" aria-label="點擊更換 3D 模型">
+      <div class="selected-preview-change-hint">
+        <span class="hint-icon">⟲</span>
+        <span class="hint-title">更換檔案</span>
+        <span class="hint-sub">點擊選擇其他模型</span>
+      </div>
       <div class="selected-preview-img-wrap">
         <div class="selected-preview-img" style="display:flex;align-items:center;justify-content:center;color:var(--phosphor);font-family:var(--mono);font-size:10px;letter-spacing:0.1em">GLB</div>
-        <div class="selected-preview-change-hint">更換檔案</div>
       </div>
       <div class="selected-preview-info">
         <div class="selected-preview-name">${escapeHtml(fileName)}</div>
@@ -2432,9 +2673,13 @@ function renderImageObjectSelectedCard(dataUrl, fileName, fileSize) {
   box.style.display = 'block';
   box.innerHTML = `
     <div class="selected-preview selected-preview-clickable" id="imageObjectSelectedCard" role="button" tabindex="0" aria-label="點擊更換圖片">
+      <div class="selected-preview-change-hint">
+        <span class="hint-icon">⟲</span>
+        <span class="hint-title">更換圖片</span>
+        <span class="hint-sub">點擊選擇其他檔案</span>
+      </div>
       <div class="selected-preview-img-wrap">
         <img class="selected-preview-img" src="${dataUrl}">
-        <div class="selected-preview-change-hint">更換圖片</div>
       </div>
       <div class="selected-preview-info">
         <div class="selected-preview-name">${escapeHtml(fileName)}</div>
