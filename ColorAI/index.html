@@ -1,0 +1,729 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Lock, Unlock, X, Plus, RotateCcw, 
+  Check, Move, Grid, 
+  History, LayoutTemplate, LayoutList,
+  Trash2, Circle, CheckCircle2, Edit3, Heart,
+  Camera, Upload, ImageIcon, ImagePlus, Maximize, Minimize, RefreshCw
+} from 'lucide-react';
+
+/**
+ * ColorAI v15.2 - Camera View Optimization
+ * * Optimization: Applied `object-cover` to camera preview to auto-fill the area and remove black bars.
+ * * UI: Implemented Fullscreen & Split View Identification.
+ * * Fix: Managed camera race conditions with Callback Refs and `muted` attributes.
+ */
+
+// --- 1. Color Logic ---
+
+const hslToHex = (h, s, l) => {
+  l /= 100;
+  const a = s * Math.min(l, 1 - l) / 100;
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`.toUpperCase();
+};
+
+const hexToHsl = (hex) => {
+  let r = 0, g = 0, b = 0;
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) {
+    r = parseInt(cleanHex[0] + cleanHex[0], 16);
+    g = parseInt(cleanHex[1] + cleanHex[1], 16);
+    b = parseInt(cleanHex[2] + cleanHex[2], 16);
+  } else if (cleanHex.length === 6) {
+    r = parseInt(cleanHex.substring(0, 2), 16);
+    g = parseInt(cleanHex.substring(2, 4), 16);
+    b = parseInt(cleanHex.substring(4, 6), 16);
+  }
+  
+  r /= 255; g /= 255; b /= 255;
+  let cmin = Math.min(r,g,b), cmax = Math.max(r,g,b), delta = cmax - cmin;
+  let h = 0, s = 0, l = 0;
+
+  if (delta === 0) h = 0;
+  else if (cmax === r) h = ((g - b) / delta) % 6;
+  else if (cmax === g) h = (b - r) / delta + 2;
+  else h = (r - g) / delta + 4;
+
+  h = Math.round(h * 60);
+  if (h < 0) h += 360;
+  l = (cmax + cmin) / 2;
+  s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+  s = +(s * 100).toFixed(1);
+  l = +(l * 100).toFixed(1);
+
+  return { h, s, l };
+};
+
+const getContrastColor = (hex) => {
+  const r = parseInt(hex.replace('#','').substr(0, 2), 16);
+  const g = parseInt(hex.replace('#','').substr(2, 2), 16);
+  const b = parseInt(hex.replace('#','').substr(4, 2), 16);
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return yiq >= 128 ? '#1a1a1a' : '#FFFFFF';
+};
+
+const generateShades = (hex, count = 20) => {
+  const hsl = hexToHsl(hex);
+  const shades = [];
+  for (let i = 0; i < count; i++) {
+    const l = 95 - (i * (90 / (count - 1))); 
+    shades.push(hslToHex(hsl.h, hsl.s, l));
+  }
+  return shades;
+};
+
+const generateHex = () => {
+  const h = Math.floor(Math.random() * 360);
+  const s = Math.floor(Math.random() * 40) + 50; 
+  const l = Math.floor(Math.random() * 40) + 40;
+  return hslToHex(h, s, l);
+};
+
+// --- Modular Poetic Color Naming Algorithm ---
+const getPoeticPaletteName = (colors = []) => {
+  if (!colors || colors.length === 0) return '未知的詩篇';
+  let avgH = 0, avgS = 0, avgL = 0;
+  colors.forEach(c => {
+      const hex = typeof c === 'string' ? c : c.hex;
+      const hsl = hexToHsl(hex);
+      avgH += hsl.h; avgS += hsl.s; avgL += hsl.l;
+  });
+  const len = colors.length;
+  avgH /= len; avgS /= len; avgL /= len;
+
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  let adjs = [];
+  if (avgL < 35) adjs = ['幽暗的', '深邃的', '午夜的', '沉睡的', '隱秘的', '寂靜的', '深淵的', '迷離的', '無光的', '靜謐的'];
+  else if (avgL > 75) adjs = ['晨曦的', '初雪的', '明朗的', '白晝的', '輕盈的', '透明的', '雲端的', '微光的', '純白的', '空靈的'];
+  else if (avgS < 30) adjs = ['褪色的', '斑駁的', '忘卻的', '灰燼的', '沉默的', '老舊的', '霧中的', '乾燥的', '微涼的', '懷舊的'];
+  else if (avgS > 70) adjs = ['狂熱的', '鮮明的', '燦爛的', '盛放的', '耀眼的', '奔放的', '迷幻的', '喧囂的', '躍動的', '濃烈的'];
+  else adjs = ['溫潤的', '柔和的', '午後的', '微風的', '平靜的', '日常的', '流動的', '和煦的', '微醺的', '初秋的'];
+
+  let nouns = [];
+  if (avgH >= 330 || avgH < 20) nouns = ['玫瑰', '餘暉', '烈焰', '心跳', '紅酒', '晚霞', '珊瑚', '蘋果', '告別'];
+  else if (avgH >= 20 && avgH < 60) nouns = ['琥珀', '秋葉', '街燈', '壁爐', '麥浪', '荒野', '落日', '沙丘', '舊信'];
+  else if (avgH >= 60 && avgH < 150) nouns = ['森林', '初嵐', '精靈', '螢火', '苔蘚', '春雨', '綠洲', '茶園', '晨露'];
+  else if (avgH >= 150 && avgH < 210) nouns = ['冰川', '深海', '潮汐', '眼淚', '星空', '玻璃', '冬雨', '幻影', '極光'];
+  else if (avgH >= 210 && avgH < 270) nouns = ['群青', '蔚藍', '夜曲', '爵士樂', '航際線', '深淵', '呢喃', '藍調', '海港'];
+  else if (avgH >= 270 && avgH < 330) nouns = ['紫羅蘭', '霓虹', '咒語', '幻夢', '迷宮', '香氣', '魔法', '夜蝶', '紫晶'];
+
+  const abstracts = ['的記憶', '的殘影', '的迴音', '的詩篇', '的邊界', '的獨白', '的碎片'];
+  let name = pick(adjs) + pick(nouns);
+  if (Math.random() > 0.85) name += pick(abstracts);
+  return name;
+};
+
+// --- Harmony Algorithm ---
+const generateHarmoniousPalette = (existingColors, totalCount) => {
+  const lockedColors = existingColors.filter(c => c.locked);
+  let anchorHsl = null;
+  if (lockedColors.length > 0) anchorHsl = hexToHsl(lockedColors[0].hex);
+
+  const strategies = [
+    { name: 'morandi', sMin: 10, sMax: 30, lMin: 40, lMax: 70 },
+    { name: 'vintage', sMin: 40, sMax: 60, lMin: 40, lMax: 65, warm: true },
+    { name: 'modern-pop', sMin: 70, sMax: 95, lMin: 45, lMax: 60, highContrast: true },
+    { name: 'nordic', sMin: 5, sMax: 20, lMin: 75, lMax: 90 },
+    { name: 'dark-mode', sMin: 50, sMax: 70, lMin: 15, lMax: 30 },
+    { name: 'natural', sMin: 20, sMax: 50, lMin: 30, lMax: 60 }
+  ];
+
+  const strategy = strategies[Math.floor(Math.random() * strategies.length)];
+  const baseHue = anchorHsl ? anchorHsl.h : Math.floor(Math.random() * 360);
+  const hasPopAccent = Math.random() > 0.8;
+  const popIndex = Math.floor(Math.random() * totalCount);
+
+  return Array.from({ length: totalCount }).map((_, i) => {
+    if (existingColors[i] && existingColors[i].locked) return existingColors[i];
+    let h, s, l;
+    if (hasPopAccent && i === popIndex) {
+        h = (baseHue + 180) % 360; s = Math.min(100, strategy.sMax + 20); l = strategy.name === 'dark-mode' ? 60 : 50; 
+    } else {
+        if (strategy.name === 'modern-pop') {
+            if (i === 0) { s = 5; l = 95; h = baseHue; } 
+            else if (i === 1) { s = 10; l = 15; h = baseHue; } 
+            else { s = Math.random() * (strategy.sMax - strategy.sMin) + strategy.sMin; l = Math.random() * (strategy.lMax - strategy.lMin) + strategy.lMin; h = (baseHue + (i * 30)) % 360; }
+        } else {
+            s = Math.random() * (strategy.sMax - strategy.sMin) + strategy.sMin; l = Math.random() * (strategy.lMax - strategy.lMin) + strategy.lMin;
+            if (strategy.warm) h = (baseHue + Math.random() * 40 - 20) % 360; 
+            else if (strategy.name === 'morandi') h = (baseHue + Math.random() * 60 - 30) % 360; 
+            else h = (baseHue + (i * 25)) % 360; 
+        }
+    }
+    if (anchorHsl && (!hasPopAccent || i !== popIndex) && Math.random() > 0.9) h = (h + 180) % 360; 
+    if (h < 0) h += 360;
+    return { id: existingColors[i]?.id || Date.now() + i + Math.random(), hex: hslToHex(h, Math.min(100, Math.max(0, s)), Math.min(100, Math.max(0, l))), locked: false };
+  });
+};
+
+// --- Local Image Extraction Logic (K-means) ---
+const analyzePixels = (pixels, colorCount = 5) => {
+    let centroids = [];
+    for(let i=0; i<colorCount; i++) centroids.push(pixels[Math.floor(Math.random() * pixels.length)]);
+    let clusters = [];
+    for (let iter = 0; iter < 10; iter++) {
+        clusters = Array.from({length: colorCount}, () => []);
+        for (let p of pixels) {
+            let minDist = Infinity; let minIdx = 0;
+            for (let i = 0; i < colorCount; i++) {
+                const c = centroids[i];
+                const dist = Math.sqrt((p.r-c.r)**2 + (p.g-c.g)**2 + (p.b-c.b)**2);
+                if (dist < minDist) { minDist = dist; minIdx = i; }
+            }
+            clusters[minIdx].push(p);
+        }
+        for (let i = 0; i < colorCount; i++) {
+            if (clusters[i].length === 0) continue;
+            let rSum = 0, gSum = 0, bSum = 0;
+            for (let p of clusters[i]) { rSum += p.r; gSum += p.g; bSum += p.b; }
+            centroids[i] = { r: Math.round(rSum / clusters[i].length), g: Math.round(gSum / clusters[i].length), b: Math.round(bSum / clusters[i].length) };
+        }
+    }
+    return centroids
+        .map((c, i) => ({ color: c, size: clusters[i].length }))
+        .sort((a, b) => b.size - a.size)
+        .map(item => {
+            const {r, g, b} = item.color;
+            return '#' + [r,g,b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+        });
+};
+
+const extractColorsFromImageSource = (source, colorCount = 5) => {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const maxSize = 100;
+        let width = source.width || source.videoWidth;
+        let height = source.height || source.videoHeight;
+        if (width > height) { if (width > maxSize) { height *= maxSize / width; width = maxSize; } }
+        else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
+        canvas.width = width; canvas.height = height;
+        ctx.drawImage(source, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+        const pixels = [];
+        for (let i = 0; i < imageData.length; i += 4) {
+            if (imageData[i+3] > 125) pixels.push({ r: imageData[i], g: imageData[i+1], b: imageData[i+2] });
+        }
+        resolve(analyzePixels(pixels, colorCount));
+    });
+};
+
+// --- Main Application ---
+
+export default function App() {
+  const [colors, setColors] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [favorites, setFavorites] = useState([]); 
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState('history');
+  const [viewMode, setViewMode] = useState('editor'); 
+  const [activeShadeId, setActiveShadeId] = useState(null); 
+  const [editingId, setEditingId] = useState(null); 
+  const [isMobile, setIsMobile] = useState(false);
+  const [schemes, setSchemes] = useState([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
+
+  // Camera State
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState('environment'); 
+  const [draggedItem, setDraggedItem] = useState(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
+  // UI Selection Mode (Mobile)
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  useEffect(() => {
+    const initial = generateHarmoniousPalette([], 5);
+    setColors(initial);
+    setHistory([{ id: Date.now(), colors: initial, name: getPoeticPaletteName(initial) }]);
+    setHistoryIndex(0);
+    regenerateSchemes();
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+        window.removeEventListener('resize', checkMobile);
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        stopCamera();
+    };
+  }, []);
+
+  // --- Handlers ---
+  function handleDragStart(e, index) {
+    setDraggedItem(index);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragEnter(e, index) {
+    if (draggedItem !== null && draggedItem !== index) {
+      const newColors = [...colors];
+      const itemToMove = newColors[draggedItem];
+      newColors.splice(draggedItem, 1);
+      newColors.splice(index, 0, itemToMove);
+      setColors(newColors);
+      setDraggedItem(index); 
+    }
+  }
+
+  function handleDragEnd() {
+    setDraggedItem(null);
+    pushToHistory(colors, history[historyIndex]?.name);
+  }
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else if (document.exitFullscreen) document.exitFullscreen();
+  };
+
+  const pushToHistory = (newColors, newName = null) => {
+    const nextHistory = history.slice(0, historyIndex + 1); 
+    const newItem = { id: Date.now(), colors: newColors, name: newName || getPoeticPaletteName(newColors) };
+    nextHistory.push(newItem);
+    if (nextHistory.length > 50) nextHistory.shift();
+    setHistory(nextHistory);
+    setHistoryIndex(nextHistory.length - 1);
+  };
+
+  const jumpToHistory = (index) => {
+    setHistoryIndex(index);
+    setColors(history[index].colors);
+    setViewMode('editor');
+    setShowSidebar(false);
+  };
+
+  const toggleFavoriteCurrent = () => {
+      const currentHash = colors.map(c => c.hex).join(',');
+      const isFavorited = favorites.some(fav => fav.colors.map(c => c.hex).join(',') === currentHash);
+      if (isFavorited) setFavorites(favorites.filter(fav => fav.colors.map(c => c.hex).join(',') !== currentHash));
+      else setFavorites([{ id: Date.now(), colors: [...colors], name: history[historyIndex]?.name || getPoeticPaletteName(colors) }, ...favorites]);
+  };
+
+  const regenerateSchemes = () => {
+    const newSchemes = Array.from({length: 24}).map((_, i) => {
+        const schemeColors = generateHarmoniousPalette([], 5).map(c => c.hex);
+        return { id: i, name: getPoeticPaletteName(schemeColors), colors: schemeColors };
+    });
+    setSchemes(newSchemes);
+  };
+
+  const generatePalette = () => {
+    const newColors = generateHarmoniousPalette(colors, colors.length);
+    setColors(newColors);
+    setActiveShadeId(null);
+    pushToHistory(newColors);
+  };
+
+  const updateColor = (id, newHex) => {
+    const newColors = colors.map(c => c.id === id ? { ...c, hex: newHex } : c);
+    setColors(newColors);
+    setActiveShadeId(null); 
+    pushToHistory(newColors, history[historyIndex]?.name); 
+  };
+
+  const toggleLock = (id) => setColors(prev => prev.map(c => c.id === id ? { ...c, locked: !c.locked } : c));
+  
+  const removeColor = (id) => {
+    if (colors.length <= 2) return;
+    const newColors = colors.filter(c => c.id !== id);
+    setColors(newColors);
+    pushToHistory(newColors);
+  };
+
+  const addColor = (index) => {
+    if (colors.length >= 10) return;
+    const newColors = [...colors];
+    newColors.splice(index !== undefined ? index + 1 : newColors.length, 0, { id: Date.now(), hex: generateHex(), locked: false });
+    setColors(newColors);
+    pushToHistory(newColors);
+  };
+
+  // --- Camera & Image Fixes ---
+  const startCamera = async () => {
+      stopCamera();
+      setIsCameraActive(true);
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } }
+          });
+          streamRef.current = stream;
+          
+          if (videoRef.current && videoRef.current.srcObject !== stream) {
+              videoRef.current.srcObject = stream;
+              videoRef.current.play().catch(e => console.error("Video play error:", e));
+          }
+      } catch (err) {
+          console.error(err);
+          alert("無法開啟相機，請檢查權限。");
+          setIsCameraActive(false);
+      }
+  };
+
+  const stopCamera = () => {
+      if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+      }
+      setIsCameraActive(false);
+  };
+
+  const flipCamera = () => setCameraFacing(prev => prev === 'user' ? 'environment' : 'user');
+
+  useEffect(() => { if (isCameraActive) startCamera(); }, [cameraFacing]);
+
+  const capturePhoto = async () => {
+      if (!videoRef.current) return;
+      setExtracting(true);
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoRef.current, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      setUploadedImage(dataUrl);
+      const hexes = await extractColorsFromImageSource(videoRef.current, 5);
+      const newColors = hexes.map((hex, i) => ({ id: Date.now() + i, hex, locked: false }));
+      setColors(newColors);
+      pushToHistory(newColors);
+      stopCamera();
+      setExtracting(false);
+  };
+
+  const handleImageUpload = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      setExtracting(true);
+      const img = new Image();
+      img.onload = async () => {
+          setUploadedImage(URL.createObjectURL(file));
+          const hexes = await extractColorsFromImageSource(img, 5);
+          const newCols = hexes.map((hex, i) => ({ id: Date.now() + i, hex, locked: false }));
+          setColors(newCols);
+          pushToHistory(newCols);
+          setExtracting(false);
+      };
+      img.src = URL.createObjectURL(file);
+  };
+
+  const resetExtraction = () => setUploadedImage(null);
+
+  // --- Selection Mode ---
+  const handleLongPress = (id) => {
+    setSelectionMode(true);
+    setSelectedIds(new Set([id]));
+    if (navigator.vibrate) navigator.vibrate(50);
+  };
+  const toggleSelection = (id) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) newSet.delete(id); else newSet.add(id);
+    setSelectedIds(newSet);
+  };
+  const deleteSelected = () => {
+    if (colors.length - selectedIds.size < 2) { alert("至少保留 2 個顏色"); return; }
+    const newColors = colors.filter(c => !selectedIds.has(c.id));
+    setColors(newColors);
+    pushToHistory(newColors);
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+  const cancelSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+
+  return (
+    <div className="h-screen w-full bg-white flex flex-col font-sans text-gray-900 overflow-hidden relative">
+      <header className="h-16 flex-none bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-4 z-40 relative">
+        <div className="flex items-center gap-2 md:gap-4 shrink-0 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('editor')}>
+             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-bold shrink-0">C</div>
+             <span className="font-bold text-xl tracking-tight hidden sm:block">ColorAI</span>
+          </div>
+          <div className="h-6 w-px bg-gray-200 mx-1 md:mx-2 hidden sm:block"></div>
+          <nav className="flex gap-1 bg-gray-100/50 p-1 rounded-lg shrink-0">
+             <button onClick={() => { setViewMode('editor'); stopCamera(); }} className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'editor' ? 'text-black bg-white shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}>
+                <LayoutTemplate size={16} /> <span className="hidden sm:inline">編輯器</span>
+             </button>
+             <button onClick={() => { setViewMode('schemes'); stopCamera(); }} className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'schemes' ? 'text-black bg-white shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}>
+                <LayoutList size={16} /> <span className="hidden sm:inline">方案</span>
+             </button>
+             <button onClick={() => setViewMode('extract')} className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'extract' ? 'text-black bg-white shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}>
+                <ImageIcon size={16} /> <span className="hidden sm:inline">識別</span>
+             </button>
+          </nav>
+        </div>
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+           {(viewMode === 'editor' || uploadedImage) && (
+              <button onClick={toggleFavoriteCurrent} className={`p-2 rounded-lg transition-colors ${favorites.some(fav => fav.colors.map(c => c.hex).join(',') === colors.map(c => c.hex).join(',')) ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}>
+                <Heart size={22} className={favorites.some(fav => fav.colors.map(c => c.hex).join(',') === colors.map(c => c.hex).join(',')) ? 'fill-red-500' : ''} />
+              </button>
+           )}
+           <button onClick={() => { setSidebarTab('history'); setShowSidebar(true); }} className="p-2 md:px-3 md:py-2 flex items-center gap-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition-colors">
+             <History size={20} /> <span className="hidden md:inline text-sm font-medium">紀錄</span>
+           </button>
+           <button onClick={viewMode === 'editor' || uploadedImage ? generatePalette : regenerateSchemes} className={`flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white p-2 md:px-4 md:py-2 rounded-lg font-medium shadow-sm active:scale-95 transition-all ${isMobile || (viewMode === 'extract' && !uploadedImage) ? 'hidden' : ''}`}>
+              <RotateCcw size={18} className="group-hover:-rotate-180 transition-transform" /> <span className="hidden md:inline">刷新</span>
+           </button>
+           <button onClick={toggleFullscreen} className="p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition-colors">
+               {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+           </button>
+        </div>
+      </header>
+
+      {showSidebar && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-[60] backdrop-blur-[2px]" onClick={() => setShowSidebar(false)}></div>
+          <div className="fixed top-0 right-0 h-full w-80 max-w-[90vw] bg-white shadow-2xl z-[70] flex flex-col border-l border-gray-200">
+             <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+               <div className="flex gap-4">
+                  <button className={`font-bold pb-1 border-b-2 flex items-center gap-1 ${sidebarTab === 'history' ? 'border-black text-black' : 'text-gray-400'}`} onClick={() => setSidebarTab('history')}><History size={16}/> 歷史紀錄</button>
+                  <button className={`font-bold pb-1 border-b-2 flex items-center gap-1 ${sidebarTab === 'favorites' ? 'border-red-500 text-red-500' : 'text-gray-400'}`} onClick={() => setSidebarTab('favorites')}><Heart size={16}/> 我的最愛</button>
+               </div>
+               <button onClick={() => setShowSidebar(false)} className="p-1 hover:bg-gray-200 rounded text-gray-500"><X size={18}/></button>
+             </div>
+             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
+               {(sidebarTab === 'history' ? history.slice().reverse() : favorites).map((item) => (
+                    <div key={item.id} className="bg-white border rounded-lg overflow-hidden cursor-pointer shadow-sm hover:border-blue-300" onClick={() => jumpToHistory(history.findIndex(h => h.id === item.id))}>
+                        <div className="h-10 md:h-12 flex w-full relative">
+                            {item.colors.map((c, i) => <div key={i} style={{backgroundColor: c.hex}} className="flex-1 h-full"></div>)}
+                        </div>
+                        <div className="p-2 flex items-center bg-white gap-2 text-xs font-bold text-gray-600">{sidebarTab === 'favorites' && <Heart size={12} className="fill-red-500 text-red-500" />} {String(item.name)}</div>
+                    </div>
+               ))}
+             </div>
+          </div>
+        </>
+      )}
+
+      <main className="flex-1 relative overflow-hidden flex flex-col">
+        {viewMode === 'editor' && (
+            <div className={`flex-1 w-full flex bg-gray-50 ${isMobile ? 'flex-col overflow-x-hidden' : 'flex-row'}`}>
+                {colors.map((color, index) => (
+                    <ColorStrip key={color.id} color={color} index={index} total={colors.length} isMobile={isMobile} updateColor={updateColor} toggleLock={toggleLock} removeColor={removeColor} addColor={addColor} activeShadeId={activeShadeId} setActiveShadeId={setActiveShadeId} editingId={editingId} setEditingId={setEditingId} onDragStart={handleDragStart} onDragEnter={handleDragEnter} onDragEnd={handleDragEnd} isDragging={draggedItem === index} onLongPress={handleLongPress} isSelectionMode={selectionMode} isSelected={selectedIds.has(color.id)} onSelectionToggle={toggleSelection} />
+                ))}
+                {isMobile && selectionMode && <div className="absolute bottom-0 left-0 w-full bg-white border-t p-4 z-[60] flex items-center justify-between shadow-2xl animate-in slide-in-from-bottom-2">
+                    <button onClick={cancelSelection} className="px-6 py-2 rounded-lg bg-gray-100 text-gray-700 font-bold">取消</button>
+                    <span className="text-sm font-bold text-gray-500">已選取 {selectedIds.size} 個</span>
+                    <button onClick={deleteSelected} className="px-6 py-2 rounded-lg bg-red-500 text-white font-bold flex items-center gap-2"><Trash2 size={18} /> 刪除</button>
+                </div>}
+            </div>
+        )}
+
+        {viewMode === 'schemes' && (
+            <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-gray-50">
+                <div className="max-w-[1600px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8 pb-20">
+                    {schemes.map((scheme) => (
+                        <div key={scheme.id} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-gray-200 group cursor-pointer" onClick={() => { const newCols = scheme.colors.map((hex, i) => ({id: Date.now()+i, hex, locked: false})); setColors(newCols); pushToHistory(newCols, scheme.name); setViewMode('editor'); }}>
+                            <div className="h-24 md:h-28 flex w-full">{scheme.colors.map((c, i) => <div key={i} style={{backgroundColor: c}} className="flex-1 h-full"></div>)}</div>
+                            <div className="p-3 flex justify-between items-center bg-white border-t text-sm font-bold text-gray-700">{String(scheme.name)}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
+        {viewMode === 'extract' && (
+            <div className={`flex-1 flex ${uploadedImage && !isMobile ? 'flex-row' : 'flex-col'} bg-gray-50 overflow-hidden relative`}>
+                {!uploadedImage && !isCameraActive && (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-6">
+                        <div className="bg-white max-w-xl w-full p-8 rounded-2xl shadow-sm border border-gray-200 text-center relative overflow-hidden">
+                            <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><ImageIcon size={32} className="text-blue-500" /></div>
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">圖片色彩識別</h2>
+                            <p className="text-gray-500 mb-8 text-sm">提取圖片中的主要氛圍色票。<br/><span className="text-xs text-gray-400">(本地端運算，確保隱私)</span></p>
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                <label className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-xl font-medium cursor-pointer shadow-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"><Upload size={18} /><span>選擇本機照片</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>
+                                <button onClick={startCamera} className="flex-1 bg-white border-2 border-blue-600 text-blue-600 py-3 px-6 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors"><Camera size={18} /><span>開啟相機拍攝</span></button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 相機預覽畫面：優化為 w-full h-full object-cover 以填滿區域 */}
+                {isCameraActive && (
+                    <div className="w-full h-full bg-black relative flex items-center justify-center overflow-hidden">
+                        <video 
+                            ref={(node) => {
+                                videoRef.current = node;
+                                if (node && streamRef.current && node.srcObject !== streamRef.current) {
+                                    node.srcObject = streamRef.current;
+                                    node.play().catch(e => console.error("Video play error:", e));
+                                }
+                            }}
+                            autoPlay 
+                            playsInline 
+                            muted 
+                            className="w-full h-full object-cover" 
+                        />
+                        <div className="absolute bottom-8 left-0 w-full flex items-center justify-center gap-6 z-20">
+                            <button onClick={stopCamera} className="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center backdrop-blur-md hover:bg-white/30 transition-all"><X size={24}/></button>
+                            <button onClick={capturePhoto} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center active:scale-90 transition-transform"><div className="w-14 h-14 bg-white rounded-full"></div></button>
+                            <button onClick={flipCamera} className="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center backdrop-blur-md hover:bg-white/30 transition-all"><RefreshCw size={24}/></button>
+                        </div>
+                    </div>
+                )}
+
+                {uploadedImage && !isCameraActive && (
+                    <>
+                        <div className={`relative flex flex-col items-center justify-center bg-gray-100 ${isMobile ? 'h-[35vh] border-b' : 'w-1/3 border-r'} border-gray-200 p-4`}>
+                            <img src={uploadedImage} alt="Extracted" className="max-w-full max-h-full object-contain shadow-sm rounded-md" />
+                            <div className="absolute bottom-4 right-4 flex gap-2">
+                                <button onClick={resetExtraction} className="bg-white/90 text-red-500 p-3 rounded-full shadow-lg hover:bg-red-50 transition-colors"><Trash2 size={20} /></button>
+                                <button onClick={startCamera} className="bg-white/90 text-blue-600 p-3 rounded-full shadow-lg hover:bg-blue-50 transition-colors"><Camera size={20} /></button>
+                                <label className="bg-white/90 text-gray-800 p-3 rounded-full shadow-lg cursor-pointer hover:bg-gray-100 transition-colors"><ImagePlus size={20} /><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>
+                            </div>
+                        </div>
+                        <div className={`flex-1 flex ${isMobile ? 'flex-col overflow-x-hidden' : 'flex-row'}`}>
+                            {colors.map((color, index) => (
+                                <ColorStrip key={color.id} color={color} index={index} total={colors.length} isMobile={isMobile} updateColor={updateColor} toggleLock={toggleLock} removeColor={removeColor} addColor={addColor} activeShadeId={activeShadeId} setActiveShadeId={setActiveShadeId} editingId={editingId} setEditingId={setEditingId} onDragStart={handleDragStart} onDragEnter={handleDragEnter} onDragEnd={handleDragEnd} isDragging={draggedItem === index} isSelectionMode={selectionMode} isSelected={selectedIds.has(color.id)} onSelectionToggle={toggleSelection} onLongPress={handleLongPress} />
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+        )}
+
+        {isMobile && ((viewMode === 'editor' && !selectionMode) || viewMode === 'schemes') && (
+            <button 
+                onClick={viewMode === 'editor' ? generatePalette : regenerateSchemes} 
+                className="absolute bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-xl flex items-center justify-center z-50 active:scale-95 transition-transform"
+            >
+                <RotateCcw size={26} />
+            </button>
+        )}
+      </main>
+    </div>
+  );
+}
+
+// --- Component: Color Strip ---
+
+function ColorStrip({ color, index, total, isMobile, updateColor, toggleLock, removeColor, addColor, activeShadeId, setActiveShadeId, editingId, setEditingId, isDragging, onDragStart, onDragEnter, onDragEnd, isSelectionMode, isSelected, onSelectionToggle, onLongPress }) {
+  const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [isEdgeHovered, setIsEdgeHovered] = useState(false);
+  const [tempHex, setTempHex] = useState(color.hex);
+  const touchTimerRef = useRef(null);
+  
+  const isShadesOpen = activeShadeId === color.id;
+  const isEditing = editingId === color.id;
+  const shades = isShadesOpen ? generateShades(color.hex, isMobile ? 10 : 20) : [];
+  const displayHex = color.hex.replace('#', '');
+  const textColor = getContrastColor(color.hex);
+  
+  const handleCopy = () => {
+    if (editingId || isSelectionMode) return;
+    const textToCopy = color.hex;
+    const fallbackCopy = () => {
+        try { 
+            const t = document.createElement("textarea"); 
+            t.value = textToCopy; t.style.position = "fixed"; t.style.left = "-9999px"; 
+            document.body.appendChild(t); t.select(); 
+            document.execCommand('copy'); 
+            document.body.removeChild(t); 
+            setCopied(true); setTimeout(() => setCopied(false), 800); 
+        } catch (err) {}
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) { 
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => { setCopied(true); setTimeout(() => setCopied(false), 800); })
+            .catch(() => fallbackCopy()); 
+    } else fallbackCopy();
+  };
+
+  const submitEdit = () => {
+    let val = tempHex; if (!val.startsWith('#')) val = '#' + val;
+    if (/^#[0-9A-F]{6}$/i.test(val)) updateColor(color.id, val);
+    setEditingId(null);
+  };
+
+  const handleEditClick = (e) => {
+    e.stopPropagation();
+    setEditingId(color.id);
+    setTempHex(color.hex);
+  };
+
+  return (
+    <div 
+      className={`relative flex group select-none ${isMobile ? 'flex-1 min-h-[80px] w-full flex-row items-center' : 'h-full flex-1 flex-col justify-end'} ${isDragging ? 'opacity-50' : 'opacity-100'} transition-all`} 
+      onMouseEnter={() => setHovered(true)} 
+      onMouseLeave={() => setHovered(false)} 
+      draggable={!isMobile && !isShadesOpen && !editingId} 
+      onDragStart={(e) => !isMobile && onDragStart(e, index)} 
+      onDragEnter={(e) => !isMobile && onDragEnter(e, index)} 
+      onDragEnd={() => !isMobile && onDragEnd()} 
+      onDragOver={(e) => e.preventDefault()} 
+      onTouchStart={() => isMobile && !isSelectionMode && !editingId && (touchTimerRef.current = setTimeout(() => onLongPress(color.id), 500))} 
+      onTouchEnd={() => clearTimeout(touchTimerRef.current)} 
+      onTouchMove={() => clearTimeout(touchTimerRef.current)} 
+      style={{ backgroundColor: color.hex }} 
+      onClick={() => editingId ? setEditingId(null) : isSelectionMode ? onSelectionToggle(color.id) : !isShadesOpen && handleCopy()}
+    >
+        {isEditing && <div className="fixed inset-0 z-40 bg-black/5 backdrop-blur-[1px]" onPointerDown={(e) => { e.stopPropagation(); submitEdit(); }} />}
+        
+        {isMobile && isSelectionMode && (
+            <div className="absolute left-6 z-30 pointer-events-none">
+                {isSelected ? <CheckCircle2 className="text-white fill-blue-500 w-8 h-8 drop-shadow-md" /> : <Circle className="text-white/70 w-8 h-8 drop-shadow-md" strokeWidth={1.5} />}
+            </div>
+        )}
+
+        {isShadesOpen && (
+           <div className={`absolute inset-0 bg-white z-20 animate-in fade-in zoom-in-95 ${isMobile ? 'flex flex-row h-full w-full pl-10 pr-2' : 'flex flex-col no-scrollbar'}`} onClick={(e) => e.stopPropagation()}>
+                 <button className={`bg-black/50 text-white p-1 rounded-full z-30 ${isMobile ? 'absolute left-2 top-1/2 -translate-y-1/2' : 'absolute top-2 right-2'} hover:bg-black transition-colors`} onClick={() => setActiveShadeId(null)}><X size={14} /></button>
+                 {shades.map((shade, idx) => (
+                    <div key={idx} className={`cursor-pointer transition-transform relative flex items-center justify-center ${isMobile ? 'flex-1 h-full' : 'w-full flex-1'} ${shade.toUpperCase() === color.hex.toUpperCase() ? 'ring-inset ring-4 ring-blue-500 z-10' : ''} hover:scale-105 hover:z-10`} style={{ backgroundColor: shade }} onClick={() => updateColor(color.id, shade)} />
+                 ))}
+           </div>
+        )}
+
+        {copied && <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"><span className="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold tracking-wide animate-in zoom-in shadow-xl">已複製</span></div>}
+
+        {!isMobile && !isShadesOpen && (hovered || color.locked) && !isDragging && total > 2 && (
+            <button onClick={(e) => { e.stopPropagation(); removeColor(color.id); }} className="absolute top-4 right-1/2 translate-x-1/2 p-2 text-white/50 hover:text-white transition-colors z-10"><X size={20} /></button>
+        )}
+
+        {!isShadesOpen && !isSelectionMode && (
+            <div className={`flex items-center gap-4 ${isMobile ? 'w-full justify-start flex-row h-full pl-6 relative' : 'flex-col mb-16 justify-end w-full'}`}>
+                {isMobile && !isEditing && (
+                    <div className={`flex items-center gap-2 transition-opacity z-10 ${(hovered || color.locked || isMobile) ? 'opacity-100' : 'opacity-0'}`}>
+                        <button className="p-2 opacity-80 hover:opacity-100 active:scale-90 transition-transform" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); setActiveShadeId(color.id); }}><Grid size={22} /></button>
+                        <button className="p-2 opacity-80 hover:opacity-100 active:scale-90 transition-transform" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); toggleLock(color.id); }}>{color.locked ? <Lock size={22} strokeWidth={2.5} /> : <Unlock size={22} strokeWidth={1.5} />}</button>
+                    </div>
+                )}
+                {isEditing ? (
+                    <div className={`flex items-center gap-2 bg-white p-1 rounded shadow-xl z-50 ${isMobile ? 'ml-4' : ''}`} onClick={e => e.stopPropagation()}>
+                        <input type="text" value={tempHex} onChange={(e) => setTempHex(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitEdit()} autoFocus className={`font-mono uppercase outline-none text-gray-800 text-center ${isMobile ? 'h-10 w-28 text-lg' : 'w-20 text-sm'}`} />
+                        <button onClick={submitEdit} className="p-2 hover:bg-gray-100 rounded text-green-600"><Check size={20}/></button>
+                    </div>
+                ) : (
+                    <div className={`group/text relative flex items-center justify-center ${isMobile ? 'ml-4' : ''}`}>
+                        <span className={`font-bold tracking-wider font-mono select-none uppercase transition-transform cursor-pointer ${isMobile ? 'text-lg' : 'text-3xl hover:scale-105'}`} style={{ color: textColor }} onClick={(e) => isMobile && !editingId && handleEditClick(e)}>{displayHex}</span>
+                        {!isMobile && <div className={`absolute p-1 rounded cursor-pointer transition-opacity left-[calc(100%+8px)] opacity-0 group-hover/text:opacity-100`} style={{ color: textColor }} onClick={handleEditClick}><Edit3 size={14} /></div>}
+                    </div>
+                )}
+                {!isMobile && !isEditing && (
+                    <div className={`flex items-center gap-1 transition-opacity ${(hovered || color.locked) ? 'opacity-100' : 'opacity-0'}`}>
+                        <button className="p-2 rounded-full hover:bg-black/10 transition-colors" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); setActiveShadeId(color.id); }}><Grid size={20} /></button>
+                        <button className="p-2 rounded-full hover:bg-black/10 transition-colors" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); toggleLock(color.id); }}>{color.locked ? <Lock size={20} strokeWidth={2.5} /> : <Unlock size={20} strokeWidth={1.5} className="opacity-60 hover:opacity-100"/>}</button>
+                        <div className="p-2 cursor-grab active:cursor-grabbing opacity-50 hover:opacity-100 transition-opacity" style={{ color: textColor }}><Move size={20} /></div>
+                    </div>
+                )}
+            </div>
+        )}
+
+      {!isMobile && !isShadesOpen && !isDragging && !editingId && total < 10 && (
+          <div className="absolute right-0 top-0 bottom-0 w-8 z-40 bg-transparent cursor-pointer" onMouseEnter={() => setIsEdgeHovered(true)} onMouseLeave={() => setIsEdgeHovered(false)} onClick={(e) => { e.stopPropagation(); addColor(index); }} />
+      )}
+      {isEdgeHovered && !isMobile && !isShadesOpen && !isDragging && !editingId && total < 10 && (
+          <div className="absolute -right-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-none border border-gray-100 animate-in fade-in zoom-in duration-200"><Plus size={24} className="text-gray-400" /></div>
+      )}
+    </div>
+  );
+}
