@@ -17,6 +17,20 @@
             -ms-overflow-style: none;  /* IE and Edge */
             scrollbar-width: none;  /* Firefox */
         }
+
+        /* 修正圖示模糊問題的渲染優化 */
+        svg {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            shape-rendering: geometricPrecision; /* 強制高精度幾何渲染 */
+            transform: translateZ(0); /* 開啟硬體加速預防渲染發散 */
+        }
+        
+        /* 針對 Lucide 圖示的微調 */
+        .lucide {
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 m-0 p-0 overflow-hidden">
@@ -503,13 +517,14 @@
                       </button>
                    )}
                    <button onClick={() => { setSidebarTab('history'); setShowSidebar(true); }} className="p-2 md:px-3 md:py-2 flex items-center gap-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition-colors">
-                     <History size={20} /> <span className="hidden md:inline text-sm font-medium">紀錄</span>
+                     {/* 優化線條粗細以解決模糊問題 */}
+                     <History size={20} strokeWidth={2.2} /> <span className="hidden md:inline text-sm font-medium">紀錄</span>
                    </button>
                    <button onClick={viewMode === 'editor' || uploadedImage ? generatePalette : regenerateSchemes} className={`flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white p-2 md:px-4 md:py-2 rounded-lg font-medium shadow-sm active:scale-95 transition-all ${isMobile || (viewMode === 'extract' && !uploadedImage) ? 'hidden' : ''}`}>
-                      <RotateCcw size={18} className="group-hover:-rotate-180 transition-transform" /> <span className="hidden md:inline">刷新</span>
+                      <RotateCcw size={18} strokeWidth={2.5} className="group-hover:-rotate-180 transition-transform" /> <span className="hidden md:inline">刷新</span>
                    </button>
                    <button onClick={toggleFullscreen} className="p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition-colors">
-                       {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                       {isFullscreen ? <Minimize size={20} strokeWidth={2.2} /> : <Maximize size={20} strokeWidth={2.2} />}
                    </button>
                 </div>
               </header>
@@ -520,8 +535,8 @@
                   <div className="fixed top-0 right-0 h-full w-80 max-w-[90vw] bg-white shadow-2xl z-[70] flex flex-col border-l border-gray-200">
                      <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
                        <div className="flex gap-4">
-                          <button className={`font-bold pb-1 border-b-2 flex items-center gap-1 ${sidebarTab === 'history' ? 'border-black text-black' : 'text-gray-400'}`} onClick={() => setSidebarTab('history')}><History size={16}/> 歷史紀錄</button>
-                          <button className={`font-bold pb-1 border-b-2 flex items-center gap-1 ${sidebarTab === 'favorites' ? 'border-red-500 text-red-500' : 'text-gray-400'}`} onClick={() => setSidebarTab('favorites')}><Heart size={16}/> 我的最愛</button>
+                          <button className={`font-bold pb-1 border-b-2 flex items-center gap-1 ${sidebarTab === 'history' ? 'border-black text-black' : 'text-gray-400'}`} onClick={() => setSidebarTab('history')}><History size={16} strokeWidth={2.5} /> 歷史紀錄</button>
+                          <button className={`font-bold pb-1 border-b-2 flex items-center gap-1 ${sidebarTab === 'favorites' ? 'border-red-500 text-red-500' : 'text-gray-400'}`} onClick={() => setSidebarTab('favorites')}><Heart size={16} strokeWidth={2.5} /> 我的最愛</button>
                        </div>
                        <button onClick={() => setShowSidebar(false)} className="p-1 hover:bg-gray-200 rounded text-gray-500"><X size={18}/></button>
                      </div>
@@ -631,7 +646,7 @@
                         onClick={viewMode === 'editor' ? generatePalette : regenerateSchemes} 
                         className="absolute bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-xl flex items-center justify-center z-50 active:scale-95 transition-transform"
                     >
-                        <RotateCcw size={26} />
+                        <RotateCcw size={26} strokeWidth={2.5} />
                     </button>
                 )}
               </main>
@@ -706,7 +721,7 @@
                 
                 {isMobile && isSelectionMode && (
                     <div className="absolute left-6 z-30 pointer-events-none">
-                        {isSelected ? <CheckCircle2 className="text-white fill-blue-500 w-8 h-8 drop-shadow-md" /> : <Circle className="text-white/70 w-8 h-8 drop-shadow-md" strokeWidth={1.5} />}
+                        {isSelected ? <CheckCircle2 className="text-white fill-blue-500 w-8 h-8 drop-shadow-md" strokeWidth={2.5} /> : <Circle className="text-white/70 w-8 h-8 drop-shadow-md" strokeWidth={1.5} />}
                     </div>
                 )}
 
@@ -722,33 +737,33 @@
                 {copied && <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"><span className="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold tracking-wide shadow-xl">已複製</span></div>}
 
                 {!isMobile && !isShadesOpen && (hovered || color.locked) && !isDragging && total > 2 && (
-                    <button onClick={(e) => { e.stopPropagation(); removeColor(color.id); }} className="absolute top-4 right-1/2 translate-x-1/2 p-2 text-white/50 hover:text-white transition-colors z-10"><X size={20} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); removeColor(color.id); }} className="absolute top-4 right-1/2 translate-x-1/2 p-2 text-white/50 hover:text-white transition-colors z-10"><X size={20} strokeWidth={2.5} /></button>
                 )}
 
                 {!isShadesOpen && !isSelectionMode && (
                     <div className={`flex items-center gap-4 ${isMobile ? 'w-full justify-start flex-row h-full pl-6 relative' : 'flex-col mb-16 justify-end w-full'}`}>
                         {isMobile && !isEditing && (
                             <div className={`flex items-center gap-2 transition-opacity z-10 ${(hovered || color.locked || isMobile) ? 'opacity-100' : 'opacity-0'}`}>
-                                <button className="p-2 opacity-80 hover:opacity-100 active:scale-90 transition-transform" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); setActiveShadeId(color.id); }}><Grid size={22} /></button>
+                                <button className="p-2 opacity-80 hover:opacity-100 active:scale-90 transition-transform" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); setActiveShadeId(color.id); }}><Grid size={22} strokeWidth={2.2} /></button>
                                 <button className="p-2 opacity-80 hover:opacity-100 active:scale-90 transition-transform" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); toggleLock(color.id); }}>{color.locked ? <Lock size={22} strokeWidth={2.5} /> : <Unlock size={22} strokeWidth={1.5} />}</button>
                             </div>
                         )}
                         {isEditing ? (
                             <div className={`flex items-center gap-2 bg-white p-1 rounded shadow-xl z-50 ${isMobile ? 'ml-4' : ''}`} onClick={e => e.stopPropagation()}>
                                 <input type="text" value={tempHex} onChange={(e) => setTempHex(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitEdit()} autoFocus className={`font-mono uppercase outline-none text-gray-800 text-center ${isMobile ? 'h-10 w-28 text-lg' : 'w-20 text-sm'}`} />
-                                <button onClick={submitEdit} className="p-2 hover:bg-gray-100 rounded text-green-600"><Check size={20}/></button>
+                                <button onClick={submitEdit} className="p-2 hover:bg-gray-100 rounded text-green-600"><Check size={20} strokeWidth={3} /></button>
                             </div>
                         ) : (
                             <div className={`group/text relative flex items-center justify-center ${isMobile ? 'ml-4' : ''}`}>
                                 <span className={`font-bold tracking-wider font-mono select-none uppercase transition-transform cursor-pointer ${isMobile ? 'text-lg' : 'text-3xl hover:scale-105'}`} style={{ color: textColor }} onClick={(e) => isMobile && !editingId && handleEditClick(e)}>{displayHex}</span>
-                                {!isMobile && <div className={`absolute p-1 rounded cursor-pointer transition-opacity left-[calc(100%+8px)] opacity-0 group-hover/text:opacity-100`} style={{ color: textColor }} onClick={handleEditClick}><Edit3 size={14} /></div>}
+                                {!isMobile && <div className={`absolute p-1 rounded cursor-pointer transition-opacity left-[calc(100%+8px)] opacity-0 group-hover/text:opacity-100`} style={{ color: textColor }} onClick={handleEditClick}><Edit3 size={14} strokeWidth={2.5} /></div>}
                             </div>
                         )}
                         {!isMobile && !isEditing && (
                             <div className={`flex items-center gap-1 transition-opacity ${(hovered || color.locked) ? 'opacity-100' : 'opacity-0'}`}>
-                                <button className="p-2 rounded-full hover:bg-black/10 transition-colors" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); setActiveShadeId(color.id); }}><Grid size={20} /></button>
+                                <button className="p-2 rounded-full hover:bg-black/10 transition-colors" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); setActiveShadeId(color.id); }}><Grid size={20} strokeWidth={2.2} /></button>
                                 <button className="p-2 rounded-full hover:bg-black/10 transition-colors" style={{ color: textColor }} onClick={(e) => { e.stopPropagation(); toggleLock(color.id); }}>{color.locked ? <Lock size={20} strokeWidth={2.5} /> : <Unlock size={20} strokeWidth={1.5} className="opacity-60 hover:opacity-100"/>}</button>
-                                <div className="p-2 cursor-grab active:cursor-grabbing opacity-50 hover:opacity-100 transition-opacity" style={{ color: textColor }}><Move size={20} /></div>
+                                <div className="p-2 cursor-grab active:cursor-grabbing opacity-50 hover:opacity-100 transition-opacity" style={{ color: textColor }}><Move size={20} strokeWidth={2.2} /></div>
                             </div>
                         )}
                     </div>
@@ -758,7 +773,7 @@
                   <div className="absolute right-0 top-0 bottom-0 w-8 z-40 bg-transparent cursor-pointer" onMouseEnter={() => setIsEdgeHovered(true)} onMouseLeave={() => setIsEdgeHovered(false)} onClick={(e) => { e.stopPropagation(); addColor(index); }} />
               )}
               {isEdgeHovered && !isMobile && !isShadesOpen && !isDragging && !editingId && total < 10 && (
-                  <div className="absolute -right-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-none border border-gray-100 transition-all"><Plus size={24} className="text-gray-400" /></div>
+                  <div className="absolute -right-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-none border border-gray-100 transition-all"><Plus size={24} strokeWidth={2.5} className="text-gray-400" /></div>
               )}
             </div>
           );
