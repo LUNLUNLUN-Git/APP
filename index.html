@@ -298,7 +298,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
   /* ===== WELCOME ===== */
   .welcome-wrap {
-    padding: 60px 0;
+    padding: 32px 0;
     position: relative;
   }
 
@@ -309,19 +309,33 @@ window.addEventListener('unhandledrejection', function(e) {
     font-size: 11px;
     color: var(--ink-faint);
     letter-spacing: 0.2em;
-    margin-bottom: 40px;
+    margin-bottom: 32px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--line);
+  }
+
+  /* Two-column welcome layout on desktop */
+  .welcome-columns {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 40px;
+    align-items: start;
+  }
+  @media (min-width: 860px) {
+    .welcome-columns {
+      grid-template-columns: 1.3fr 1fr;
+      gap: 48px;
+    }
   }
 
   .welcome-title {
     font-family: var(--serif);
     font-weight: 300;
-    font-size: clamp(38px, 6vw, 64px);
-    line-height: 0.95;
+    font-size: clamp(48px, 8vw, 86px);
+    line-height: 0.92;
     letter-spacing: -0.03em;
     color: var(--bone);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .welcome-title em {
     font-style: italic;
@@ -337,18 +351,18 @@ window.addEventListener('unhandledrejection', function(e) {
     font-size: 11px;
     color: var(--ink-dim);
     letter-spacing: 0.3em;
-    margin-bottom: 48px;
+    margin-bottom: 28px;
   }
   .welcome-tag::before { content: '→ '; color: var(--phosphor); }
 
   .welcome-desc {
     font-family: var(--serif);
     font-weight: 300;
-    font-size: 22px;
+    font-size: 20px;
     line-height: 1.45;
     color: var(--ink);
     max-width: 620px;
-    margin-bottom: 48px;
+    margin-bottom: 32px;
   }
 
   .primary-cta {
@@ -396,15 +410,15 @@ window.addEventListener('unhandledrejection', function(e) {
     transform: translateY(-50%) rotate(45deg);
   }
 
+  /* Specs on right column (vertical stack) */
   .spec-grid {
-    margin-top: 80px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
     border-left: 1px solid var(--line);
+    border-top: 1px solid var(--line);
   }
   .spec {
-    padding: 24px 20px;
+    padding: 18px 20px;
     border-right: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
   }
@@ -413,18 +427,18 @@ window.addEventListener('unhandledrejection', function(e) {
     font-size: 10px;
     color: var(--ink-faint);
     letter-spacing: 0.2em;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
   .spec-title {
     font-family: var(--serif);
     font-style: italic;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 400;
     color: var(--bone);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
   .spec-desc {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--ink-dim);
     line-height: 1.5;
   }
@@ -433,7 +447,7 @@ window.addEventListener('unhandledrejection', function(e) {
   .upload {
     display: block;
     border: 1px dashed var(--line-bright);
-    padding: 56px 24px;
+    padding: 28px 24px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
@@ -469,16 +483,16 @@ window.addEventListener('unhandledrejection', function(e) {
   .upload .corners > span::after { bottom: 8px; right: 8px; border-width: 0 1px 1px 0; position: absolute; content: ''; }
 
   .upload-ico {
-    width: 56px; height: 56px;
+    width: 40px; height: 40px;
     border: 1px solid var(--line-bright);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 20px;
+    margin: 0 auto 12px;
     position: relative;
     color: var(--ink-dim);
   }
-  .upload-ico svg { width: 24px; height: 24px; }
+  .upload-ico svg { width: 20px; height: 20px; }
   .upload:hover .upload-ico, .upload.dragover .upload-ico {
     border-color: var(--phosphor);
     color: var(--phosphor);
@@ -636,7 +650,7 @@ window.addEventListener('unhandledrejection', function(e) {
     padding: 16px;
   }
   .crop-inner {
-    max-height: 520px;
+    max-height: 364px;
     background: #000;
     position: relative;
   }
@@ -965,6 +979,11 @@ window.addEventListener('unhandledrejection', function(e) {
     width: 64px; height: 64px;
   }
 
+  /* Hide A-Frame VR button globally (the green-bordered black square) */
+  .a-enter-vr, .a-enter-ar, .a-enter-vr-button, .a-enter-ar-button {
+    display: none !important;
+  }
+
   /* ===== LOADING ===== */
   .loading {
     position: fixed; inset: 0;
@@ -1252,7 +1271,7 @@ window.addEventListener('unhandledrejection', function(e) {
     top: 0; left: 0; bottom: 0;
     /* Span the full card minus the delete button area */
     right: 56px;
-    background: rgba(10, 11, 13, 0.85);
+    background: rgba(10, 11, 13, 0.42);
     color: var(--phosphor);
     font-family: var(--mono);
     font-size: 11px;
@@ -1309,7 +1328,6 @@ window.addEventListener('unhandledrejection', function(e) {
     align-items: center;
     justify-content: center;
     padding: 20px;
-    aspect-ratio: 1;
     background: var(--bg-card);
     border: 1px dashed var(--line-bright);
     color: var(--ink-dim);
@@ -1605,12 +1623,12 @@ window.addEventListener('unhandledrejection', function(e) {
     .progress { padding: 10px 16px; font-size: 9px; }
     .header-right .header-status { display: none; }
     .welcome-desc { font-size: 18px; }
-    .upload { padding: 40px 20px; }
+    .upload { padding: 20px 16px; }
     .btn { padding: 12px 16px; font-size: 11px; }
     .split-row { grid-template-columns: 1fr; }
-    .ar-controls { bottom: 60px; }
-    .welcome-wrap { padding: 20px 0; }
-    .spec-grid { margin-top: 48px; }
+    .ar-controls { bottom: 110px; }
+    .welcome-wrap { padding: 16px 0; }
+    .spec-grid { margin-top: 24px; }
     .tab-nav button { padding: 10px 4px; font-size: 9px; }
     .cropper-point { width: 20px !important; height: 20px !important; }
   }
@@ -1671,40 +1689,46 @@ window.addEventListener('unhandledrejection', function(e) {
           <span>網頁 AR / 圖像追蹤</span>
         </div>
 
-        <h1 class="welcome-title">
-          擴增<br>
-          <em class="welcome-title-accent">實境</em> <em>工坊</em>
-        </h1>
-        <div class="welcome-tag">自訂辨識圖 · 自訂 AR 物件 · 瀏覽器內建</div>
+        <div class="welcome-columns">
+          <!-- Left: hero content -->
+          <div>
+            <h1 class="welcome-title">
+              擴增<br>
+              <em class="welcome-title-accent">實境</em> <em>工坊</em>
+            </h1>
+            <div class="welcome-tag">自訂辨識圖 · 自訂 AR 物件 · 瀏覽器內建</div>
 
-        <p class="welcome-desc">
-          上傳任何圖片作為觸發目標，搭配 3D 物件、圖片、文字或影片，在瀏覽器裡建立你專屬的擴增實境體驗。完全本機運算，不上傳任何檔案到伺服器。
-        </p>
+            <p class="welcome-desc">
+              上傳任何圖片作為觸發目標，搭配 3D 物件、圖片、文字或影片，在瀏覽器裡建立你專屬的擴增實境體驗。完全本機運算，不上傳任何檔案到伺服器。
+            </p>
 
-        <button class="primary-cta" onclick="goToStep(1)">
-          開始建立 <span class="arrow"></span>
-        </button>
+            <button class="primary-cta" onclick="goToStep(1)">
+              開始建立 <span class="arrow"></span>
+            </button>
+          </div>
 
-        <div class="spec-grid">
-          <div class="spec">
-            <div class="spec-num">/ 01</div>
-            <div class="spec-title">任意圖片辨識</div>
-            <div class="spec-desc">上傳任何圖片作為辨識目標：海報、插畫、商標、照片都可以。</div>
-          </div>
-          <div class="spec">
-            <div class="spec-num">/ 02</div>
-            <div class="spec-title">多種 AR 物件</div>
-            <div class="spec-desc">支援 3D 模型（GLB/GLTF）、2D 圖片、文字、YouTube 影片。</div>
-          </div>
-          <div class="spec">
-            <div class="spec-num">/ 03</div>
-            <div class="spec-title">即時掃描追蹤</div>
-            <div class="spec-desc">手機後鏡頭或電腦 Webcam 即時掃描，追蹤穩定流暢。</div>
-          </div>
-          <div class="spec">
-            <div class="spec-num">/ 04</div>
-            <div class="spec-title">隱私優先</div>
-            <div class="spec-desc">所有運算都在瀏覽器內完成，素材不會傳輸到任何伺服器。</div>
+          <!-- Right: spec cards vertically stacked -->
+          <div class="spec-grid">
+            <div class="spec">
+              <div class="spec-num">/ 01</div>
+              <div class="spec-title">任意圖片辨識</div>
+              <div class="spec-desc">上傳任何圖片作為辨識目標：海報、插畫、商標、照片都可以。</div>
+            </div>
+            <div class="spec">
+              <div class="spec-num">/ 02</div>
+              <div class="spec-title">多種 AR 物件</div>
+              <div class="spec-desc">支援 3D 模型（GLB/GLTF）、2D 圖片、文字、YouTube 影片。</div>
+            </div>
+            <div class="spec">
+              <div class="spec-num">/ 03</div>
+              <div class="spec-title">即時掃描追蹤</div>
+              <div class="spec-desc">手機後鏡頭或電腦 Webcam 即時掃描，追蹤穩定流暢。</div>
+            </div>
+            <div class="spec">
+              <div class="spec-num">/ 04</div>
+              <div class="spec-title">隱私優先</div>
+              <div class="spec-desc">所有運算都在瀏覽器內完成，素材不會傳輸到任何伺服器。</div>
+            </div>
           </div>
         </div>
       </div>
@@ -2176,7 +2200,7 @@ function updateStartArBtn() {
 /* ---- Init ---- */
 window.addEventListener('load', () => {
   const d = new Date();
-  const fmt = `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+  const fmt = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
   const el = document.getElementById('currentDate');
   if (el) el.textContent = fmt;
 
@@ -2901,8 +2925,41 @@ function updateModelPreview() {
   scene.setAttribute('background', 'color: transparent');
   scene.style.width = '100%';
   scene.style.height = '100%';
-  // Allow page scroll through preview
   scene.style.touchAction = 'pan-y';
+
+  // Assets — A-Frame needs <a-assets> to properly load images for materials
+  const assets = document.createElement('a-assets');
+  assets.setAttribute('timeout', '3000');
+
+  // Target reference image
+  const targetSrc = state.croppedImageDataUrl || state.imageDataUrl;
+  if (targetSrc) {
+    const tImg = document.createElement('img');
+    tImg.id = 'previewTargetImg';
+    tImg.src = targetSrc;
+    tImg.setAttribute('crossorigin', 'anonymous');
+    assets.appendChild(tImg);
+  }
+
+  // If 2D image tab, also add the AR image object
+  if (state.contentType === 'image' && state.imageObjectUrl) {
+    const oImg = document.createElement('img');
+    oImg.id = 'previewObjectImg';
+    oImg.src = state.imageObjectUrl;
+    oImg.setAttribute('crossorigin', 'anonymous');
+    assets.appendChild(oImg);
+  }
+
+  // If video tab, add YouTube thumbnail
+  if (state.contentType === 'video' && state.youtubeId) {
+    const vImg = document.createElement('img');
+    vImg.id = 'previewVideoThumb';
+    vImg.src = `https://img.youtube.com/vi/${state.youtubeId}/hqdefault.jpg`;
+    vImg.setAttribute('crossorigin', 'anonymous');
+    assets.appendChild(vImg);
+  }
+
+  scene.appendChild(assets);
 
   // Lights
   const ambient = document.createElement('a-light');
@@ -2912,28 +2969,26 @@ function updateModelPreview() {
   dir.setAttribute('type', 'directional'); dir.setAttribute('intensity', '0.9'); dir.setAttribute('position', '1 2 1'); dir.setAttribute('color', '#ffffff');
   scene.appendChild(dir);
 
-  // Static preview group (no rotation) — shows target image reference + AR object in correct spatial relationship
+  // Static preview group — tilted to show depth
   const wrap = document.createElement('a-entity');
   wrap.setAttribute('data-preview-wrap', '');
-  // Tilt the whole scene slightly so the user can see depth; target image is on "ground"
   wrap.setAttribute('position', '0 -0.2 -2.8');
   wrap.setAttribute('rotation', '-20 0 0');
 
-  // Target-image reference plane (represents scanned target)
-  // In AR, the AR object sits on top of (z+) the detected marker. Rotate the plane to lie flat.
+  // Target-image reference plane (represents the scanned marker, lying flat)
   const targetPlane = document.createElement('a-plane');
   targetPlane.setAttribute('width', '1.4');
   targetPlane.setAttribute('height', '1');
   targetPlane.setAttribute('rotation', '-90 0 0');
   targetPlane.setAttribute('position', '0 0 0');
-  if (state.croppedImageDataUrl || state.imageDataUrl) {
-    targetPlane.setAttribute('material', `src: ${state.croppedImageDataUrl || state.imageDataUrl}; shader: flat; side: double; transparent: true`);
+  if (targetSrc) {
+    targetPlane.setAttribute('material', 'src: #previewTargetImg; shader: flat; side: double; transparent: true');
   } else {
     targetPlane.setAttribute('material', 'color: #1a1e24; shader: flat; side: double');
   }
   wrap.appendChild(targetPlane);
 
-  // Subtle frame border on the target plane
+  // Subtle frame border
   const frame = document.createElement('a-entity');
   frame.setAttribute('geometry', 'primitive: plane; width: 1.42; height: 1.02');
   frame.setAttribute('rotation', '-90 0 0');
@@ -2996,8 +3051,9 @@ function createModelEntity() {
         const h = state.imageObjectAspect >= 1 ? 1 / state.imageObjectAspect : 1;
         plane.setAttribute('width', w);
         plane.setAttribute('height', h);
-        plane.setAttribute('material', `src: ${state.imageObjectUrl}; transparent: true; side: double; shader: flat`);
-        // Stand upright above target
+        // Use asset selector if in preview context, raw URL in AR context
+        const imgSrc = document.getElementById('previewObjectImg') ? '#previewObjectImg' : state.imageObjectUrl;
+        plane.setAttribute('material', `src: ${imgSrc}; transparent: true; side: double; shader: flat`);
         plane.setAttribute('rotation', '0 0 0');
         entity.appendChild(plane);
       }
@@ -3019,11 +3075,11 @@ function createModelEntity() {
 
     case 'video':
       if (state.youtubeId) {
-        // Plane with YouTube thumbnail texture + play icon overlay
         const plane = document.createElement('a-plane');
         plane.setAttribute('width', '1.2');
-        plane.setAttribute('height', '0.675');  // 16:9
-        plane.setAttribute('material', `src: https://img.youtube.com/vi/${state.youtubeId}/hqdefault.jpg; shader: flat; side: double`);
+        plane.setAttribute('height', '0.675');
+        const vidSrc = document.getElementById('previewVideoThumb') ? '#previewVideoThumb' : `https://img.youtube.com/vi/${state.youtubeId}/hqdefault.jpg`;
+        plane.setAttribute('material', `src: ${vidSrc}; shader: flat; side: double`);
         plane.setAttribute('class', 'clickable-video');
         entity.appendChild(plane);
 
@@ -3251,6 +3307,10 @@ async function startAR() {
     document.getElementById('statusLine').classList.add('tracked');
     document.getElementById('scanPrompt').classList.add('hidden');
     document.getElementById('reticle').classList.add('hidden');
+    // Auto-play video when target is found
+    if (state.contentType === 'video' && state.youtubeId) {
+      openVideoModal();
+    }
   });
   target.addEventListener('targetLost', () => {
     document.getElementById('statusText').textContent = '掃描中';
