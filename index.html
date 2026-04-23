@@ -290,10 +290,10 @@ window.addEventListener('unhandledrejection', function(e) {
 
   .screen-lead {
     color: var(--ink-dim);
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.6;
     max-width: 560px;
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
 
   /* ===== WELCOME ===== */
@@ -550,6 +550,7 @@ window.addEventListener('unhandledrejection', function(e) {
     background: var(--bg-card);
     border: 1px solid var(--phosphor);
     margin-top: 16px;
+    overflow: hidden;
   }
   .selected-preview-img {
     width: 80px; height: 80px;
@@ -557,12 +558,13 @@ window.addEventListener('unhandledrejection', function(e) {
     object-fit: cover;
     flex-shrink: 0;
   }
-  .selected-preview-info { flex: 1; min-width: 0; }
+  .selected-preview-info { flex: 1; min-width: 0; overflow: hidden; }
   .selected-preview-name {
     font-family: var(--mono); font-size: 12px;
     color: var(--phosphor);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     margin-bottom: 4px;
+    max-width: 100%;
   }
   .selected-preview-meta {
     font-family: var(--mono); font-size: 10px;
@@ -578,8 +580,8 @@ window.addEventListener('unhandledrejection', function(e) {
 
   /* ===== TIPS ===== */
   .tips {
-    margin-top: 20px;
-    padding: 16px;
+    margin-top: 14px;
+    padding: 12px 16px;
     border-left: 2px solid var(--phosphor);
     background: rgba(180, 252, 80, 0.03);
     display: flex; gap: 14px;
@@ -593,9 +595,9 @@ window.addEventListener('unhandledrejection', function(e) {
     padding-top: 2px;
   }
   .tips-body {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--ink-dim);
-    line-height: 1.7;
+    line-height: 1.6;
   }
   .tips-body strong {
     color: var(--bone); font-weight: 500;
@@ -603,7 +605,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
   /* ===== BUTTONS ROW ===== */
   .btn-row {
-    margin-top: 32px;
+    margin-top: 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -647,10 +649,10 @@ window.addEventListener('unhandledrejection', function(e) {
   .crop-wrap {
     background: var(--bg-card);
     border: 1px solid var(--line);
-    padding: 16px;
+    padding: 10px;
   }
   .crop-inner {
-    max-height: 364px;
+    max-height: 340px;
     background: #000;
     position: relative;
   }
@@ -979,9 +981,40 @@ window.addEventListener('unhandledrejection', function(e) {
     width: 64px; height: 64px;
   }
 
-  /* Hide A-Frame VR button globally (the green-bordered black square) */
-  .a-enter-vr, .a-enter-ar, .a-enter-vr-button, .a-enter-ar-button {
+  /* Hide ALL A-Frame built-in UI elements */
+  .a-enter-vr, .a-enter-ar, .a-enter-vr-button, .a-enter-ar-button,
+  .a-orientation-modal, .a-loader-title, .a-loader,
+  .a-dialog, .a-canvas + div,
+  a-scene .a-enter-vr, a-scene .a-enter-ar,
+  a-scene > .a-loader-title,
+  a-scene > .a-orientation-modal {
     display: none !important;
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* Inline AR video player (attached to AR overlay, not modal) */
+  .ar-video-player {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    max-width: 480px;
+    aspect-ratio: 16/9;
+    z-index: 1001;
+    display: none;
+    border: 1px solid var(--phosphor);
+    box-shadow: 0 0 40px rgba(180, 252, 80, 0.2);
+    background: #000;
+  }
+  .ar-video-player.active { display: block; }
+  .ar-video-player iframe {
+    width: 100%; height: 100%;
+    border: 0;
   }
 
   /* ===== LOADING ===== */
@@ -1246,61 +1279,14 @@ window.addEventListener('unhandledrejection', function(e) {
   .toast.error::before { content: '⚠'; color: var(--crimson); }
   .toast.success::before { content: '✓'; color: var(--phosphor); }
 
-  /* ===== Clickable selected-preview (upgraded for change-on-click) ===== */
-  .selected-preview-clickable:hover {
-    background: var(--bg-input);
-    border-color: var(--bone);
-  }
-  .selected-preview-delete {
-    flex-shrink: 0;
-    background: none;
-    border: 1px solid var(--line-bright);
-    color: var(--ink-dim);
-    width: 40px; height: 40px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .selected-preview-delete:hover {
-    border-color: var(--crimson);
-    color: var(--crimson);
-  }
-  .selected-preview-delete svg { width: 16px; height: 16px; }
   .selected-preview-change-hint {
     position: absolute;
-    top: 0; left: 0; bottom: 0;
-    /* Span the full card minus the delete button area */
-    right: 56px;
+    inset: 0;
     background: rgba(10, 11, 13, 0.42);
-    color: var(--phosphor);
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    display: grid;
-    grid-template-columns: auto auto;
-    align-content: center;
-    justify-content: center;
-    gap: 6px 14px;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s;
     z-index: 2;
-    border: 1px solid var(--phosphor);
-    padding: 12px 20px;
-  }
-  .selected-preview-change-hint .hint-icon {
-    font-size: 18px;
-    grid-row: span 2;
-    align-self: center;
-  }
-  .selected-preview-change-hint .hint-title {
-    font-weight: 600;
-    line-height: 1.2;
-  }
-  .selected-preview-change-hint .hint-sub {
-    font-size: 9px;
-    color: var(--ink-dim);
-    letter-spacing: 0.08em;
   }
   .selected-preview-img-wrap {
     position: relative;
@@ -1314,6 +1300,24 @@ window.addEventListener('unhandledrejection', function(e) {
     overflow: hidden;
   }
   .selected-preview-clickable:hover .selected-preview-change-hint { opacity: 1; }
+  /* Delete button always above overlay */
+  .selected-preview-delete {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--line-bright);
+    color: var(--ink-dim);
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    z-index: 5;
+  }
+  .selected-preview-delete:hover {
+    border-color: var(--crimson);
+    color: var(--crimson);
+  }
+  .selected-preview-delete svg { width: 16px; height: 16px; }
 
   /* Upload row with camera button */
   .upload-row {
@@ -2045,6 +2049,11 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="ar-bottom">
       <div class="scan-prompt" id="scanPrompt">將相機對準辨識圖片</div>
     </div>
+
+    <!-- Inline video player (shown when video target is found) -->
+    <div class="ar-video-player" id="arVideoPlayer">
+      <div id="arVideoContent"></div>
+    </div>
   </div>
 
   <div class="ar-controls">
@@ -2247,7 +2256,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   if (state.cropper) state.cropper.destroy();
   if (state.compiledTargetUrl) URL.revokeObjectURL(state.compiledTargetUrl);
   if (state.modelUrl && state.modelType === 'file') URL.revokeObjectURL(state.modelUrl);
-  if (state.imageObjectUrl) URL.revokeObjectURL(state.imageObjectUrl);
+  // imageObjectUrl is a data URL, no need to revoke
   Object.assign(state, {
     currentStep: 0,
     imageFile: null, imageDataUrl: null,
@@ -2348,11 +2357,7 @@ function renderImageSelectedCard(dataUrl, fileName, fileSize) {
   box.style.display = 'block';
   box.innerHTML = `
     <div class="selected-preview selected-preview-clickable" id="imageSelectedCard" role="button" tabindex="0" aria-label="點擊更換圖片">
-      <div class="selected-preview-change-hint">
-        <span class="hint-icon">⟲</span>
-        <span class="hint-title">更換圖片</span>
-        <span class="hint-sub">點擊選擇其他檔案</span>
-      </div>
+      <div class="selected-preview-change-hint"></div>
       <div class="selected-preview-img-wrap">
         <img class="selected-preview-img" src="${dataUrl}">
       </div>
@@ -2572,11 +2577,7 @@ function renderModelSelectedCard(fileName, fileSize) {
   box.style.display = 'block';
   box.innerHTML = `
     <div class="selected-preview selected-preview-clickable" id="modelSelectedCard" role="button" tabindex="0" aria-label="點擊更換 3D 模型">
-      <div class="selected-preview-change-hint">
-        <span class="hint-icon">⟲</span>
-        <span class="hint-title">更換檔案</span>
-        <span class="hint-sub">點擊選擇其他模型</span>
-      </div>
+      <div class="selected-preview-change-hint"></div>
       <div class="selected-preview-img-wrap">
         <div class="selected-preview-img" style="display:flex;align-items:center;justify-content:center;color:var(--phosphor);font-family:var(--mono);font-size:10px;letter-spacing:0.1em">GLB</div>
       </div>
@@ -2697,11 +2698,7 @@ function renderImageObjectSelectedCard(dataUrl, fileName, fileSize) {
   box.style.display = 'block';
   box.innerHTML = `
     <div class="selected-preview selected-preview-clickable" id="imageObjectSelectedCard" role="button" tabindex="0" aria-label="點擊更換圖片">
-      <div class="selected-preview-change-hint">
-        <span class="hint-icon">⟲</span>
-        <span class="hint-title">更換圖片</span>
-        <span class="hint-sub">點擊選擇其他檔案</span>
-      </div>
+      <div class="selected-preview-change-hint"></div>
       <div class="selected-preview-img-wrap">
         <img class="selected-preview-img" src="${dataUrl}">
       </div>
@@ -2734,7 +2731,7 @@ function clearImageObjectSelectedUI() {
 
 function clearImageObjectSelection(ev) {
   if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-  if (state.imageObjectUrl) URL.revokeObjectURL(state.imageObjectUrl);
+  // imageObjectUrl is a data URL, no need to revoke
   state.imageObjectFile = null;
   state.imageObjectUrl = null;
   state.imageObjectAspect = 1;
@@ -2775,22 +2772,25 @@ function handleImageObjectFile(file) {
   if (!file.type.startsWith('image/')) return toast('請上傳圖片檔案', 'error');
   if (file.size > 10 * 1024 * 1024) return toast('圖片過大（> 10MB）', 'error');
 
-  if (state.imageObjectUrl) URL.revokeObjectURL(state.imageObjectUrl);
   state.imageObjectFile = file;
-  state.imageObjectUrl = URL.createObjectURL(file);
 
-  // Measure aspect ratio for plane proportions
-  const img = new Image();
-  img.onload = () => {
-    state.imageObjectAspect = img.width / img.height;
-    document.getElementById('imageObjectStatus').textContent = '已載入';
-    const reader = new FileReader();
-    reader.onload = e => renderImageObjectSelectedCard(e.target.result, file.name, file.size);
-    reader.readAsDataURL(file);
-    updateModelPreview();
-    updateStartArBtn();
+  // Read as data URL — A-Frame needs this (blob URLs don't work for materials)
+  const reader = new FileReader();
+  reader.onload = e => {
+    state.imageObjectUrl = e.target.result;  // data:image/...;base64,...
+
+    // Measure aspect ratio
+    const img = new Image();
+    img.onload = () => {
+      state.imageObjectAspect = img.width / img.height;
+      document.getElementById('imageObjectStatus').textContent = '已載入';
+      renderImageObjectSelectedCard(state.imageObjectUrl, file.name, file.size);
+      updateModelPreview();
+      updateStartArBtn();
+    };
+    img.src = state.imageObjectUrl;
   };
-  img.src = state.imageObjectUrl;
+  reader.readAsDataURL(file);
 }
 
 /* ========================================================= */
@@ -2972,13 +2972,13 @@ function updateModelPreview() {
   // Static preview group — tilted to show depth
   const wrap = document.createElement('a-entity');
   wrap.setAttribute('data-preview-wrap', '');
-  wrap.setAttribute('position', '0 -0.2 -2.8');
-  wrap.setAttribute('rotation', '-20 0 0');
+  wrap.setAttribute('position', '0 -0.15 -1.8');
+  wrap.setAttribute('rotation', '-25 0 0');
 
   // Target-image reference plane (represents the scanned marker, lying flat)
   const targetPlane = document.createElement('a-plane');
-  targetPlane.setAttribute('width', '1.4');
-  targetPlane.setAttribute('height', '1');
+  targetPlane.setAttribute('width', '1.2');
+  targetPlane.setAttribute('height', '0.85');
   targetPlane.setAttribute('rotation', '-90 0 0');
   targetPlane.setAttribute('position', '0 0 0');
   if (targetSrc) {
@@ -2990,7 +2990,7 @@ function updateModelPreview() {
 
   // Subtle frame border
   const frame = document.createElement('a-entity');
-  frame.setAttribute('geometry', 'primitive: plane; width: 1.42; height: 1.02');
+  frame.setAttribute('geometry', 'primitive: plane; width: 1.22; height: 0.87');
   frame.setAttribute('rotation', '-90 0 0');
   frame.setAttribute('position', '0 -0.001 0');
   frame.setAttribute('material', 'color: #b4fc50; shader: flat; opacity: 0.3; transparent: true; side: double');
@@ -3006,12 +3006,22 @@ function updateModelPreview() {
 
   const camera = document.createElement('a-camera');
   camera.setAttribute('position', '0 0 0');
-  camera.setAttribute('look-controls', 'enabled: false');
+  // Enable orbit rotation by mouse drag on PC
+  camera.setAttribute('look-controls', 'enabled: true; touchEnabled: false; magicWindowTrackingEnabled: false');
   camera.setAttribute('wasd-controls', 'enabled: false');
   scene.appendChild(camera);
 
   container.appendChild(scene);
   state.previewScene = scene;
+
+  // Add scroll-wheel zoom for PC — move the wrap entity closer/farther
+  container.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const currentZ = parseFloat(wrap.getAttribute('position').z) || -1.8;
+    const newZ = Math.max(-4, Math.min(-0.8, currentZ + (e.deltaY > 0 ? -0.15 : 0.15)));
+    const pos = wrap.getAttribute('position');
+    wrap.setAttribute('position', `${pos.x} ${pos.y} ${newZ}`);
+  }, { passive: false });
 
   setTimeout(() => document.getElementById('previewStatus').textContent = '即時', 1000);
 }
@@ -3051,9 +3061,25 @@ function createModelEntity() {
         const h = state.imageObjectAspect >= 1 ? 1 / state.imageObjectAspect : 1;
         plane.setAttribute('width', w);
         plane.setAttribute('height', h);
-        // Use asset selector if in preview context, raw URL in AR context
-        const imgSrc = document.getElementById('previewObjectImg') ? '#previewObjectImg' : state.imageObjectUrl;
-        plane.setAttribute('material', `src: ${imgSrc}; transparent: true; side: double; shader: flat`);
+        // Create a temporary img element as texture source
+        const texImg = document.createElement('img');
+        texImg.id = 'arImgTex_' + Date.now();
+        texImg.src = state.imageObjectUrl;
+        // Attach to nearest a-scene assets or just set src directly
+        plane.setAttribute('material', 'shader: flat; transparent: true; side: double');
+        // After scene renders, apply the texture manually
+        plane.addEventListener('loaded', function() {
+          try {
+            const mesh = this.getObject3D('mesh');
+            if (mesh && mesh.material) {
+              const loader = new THREE.TextureLoader();
+              loader.load(state.imageObjectUrl, tex => {
+                mesh.material.map = tex;
+                mesh.material.needsUpdate = true;
+              });
+            }
+          } catch(e) { console.warn('Texture load:', e); }
+        });
         plane.setAttribute('rotation', '0 0 0');
         entity.appendChild(plane);
       }
@@ -3149,7 +3175,21 @@ function openVideoModal() {
 }
 function closeVideoModal() {
   document.getElementById('videoModal').classList.remove('active');
-  document.getElementById('videoModalContent').innerHTML = '';  // stops playback
+  document.getElementById('videoModalContent').innerHTML = '';
+}
+
+/* ---- Inline AR video player (plays inside AR overlay, not a top-level modal) ---- */
+function showArVideo() {
+  if (!state.youtubeId) return;
+  const player = document.getElementById('arVideoPlayer');
+  const content = document.getElementById('arVideoContent');
+  content.innerHTML = `<iframe src="https://www.youtube.com/embed/${state.youtubeId}?autoplay=1&mute=1&rel=0&playsinline=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+  player.classList.add('active');
+}
+function hideArVideo() {
+  const player = document.getElementById('arVideoPlayer');
+  player.classList.remove('active');
+  document.getElementById('arVideoContent').innerHTML = '';
 }
 
 /* ---- Crop + Compile ---- */
@@ -3307,9 +3347,9 @@ async function startAR() {
     document.getElementById('statusLine').classList.add('tracked');
     document.getElementById('scanPrompt').classList.add('hidden');
     document.getElementById('reticle').classList.add('hidden');
-    // Auto-play video when target is found
+    // Auto-play inline video when target is found
     if (state.contentType === 'video' && state.youtubeId) {
-      openVideoModal();
+      showArVideo();
     }
   });
   target.addEventListener('targetLost', () => {
@@ -3317,6 +3357,8 @@ async function startAR() {
     document.getElementById('statusLine').classList.remove('tracked');
     document.getElementById('scanPrompt').classList.remove('hidden');
     if (state.reticleVisible) document.getElementById('reticle').classList.remove('hidden');
+    // Hide inline video when target lost
+    if (state.contentType === 'video') hideArVideo();
   });
 
   scene.addEventListener('arReady', () => hideLoading());
@@ -3329,7 +3371,7 @@ async function startAR() {
 
 /* ---- Exit AR ---- */
 function exitAR() {
-  closeVideoModal();  // ensure YouTube iframe is stopped
+  closeVideoModal(); hideArVideo();  // stop all video playback
   const host = document.getElementById('arScene');
   const scene = host.querySelector('a-scene');
   try {
