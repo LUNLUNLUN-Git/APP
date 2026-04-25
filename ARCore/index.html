@@ -135,7 +135,7 @@
     font-family: var(--mono);
     font-weight: 700;
     font-size: clamp(32px, 9vw, 48px);
-    line-height: 0.95;
+    line-height: 1.15;
     letter-spacing: -0.02em;
     margin-bottom: 14px;
   }
@@ -340,7 +340,10 @@
     display: none;
   }
   #ar-overlay.active { display: block; }
+  /* All direct children block pointer events so they don't bleed to the canvas */
   #ar-overlay > * { pointer-events: auto; }
+  /* The AR instruction and coords are display-only — pass through */
+  #ar-instruction, #ar-coords { pointer-events: none; }
 
   .ar-hud-top {
     position: absolute;
@@ -351,7 +354,7 @@
     align-items: flex-start;
     gap: 12px;
     background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
-    pointer-events: none;
+    pointer-events: auto;  /* block pass-through */
   }
   .ar-btn {
     pointer-events: auto;
@@ -864,6 +867,26 @@
   * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
   input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
 
+  /* PC crosshair */
+  #pc-crosshair {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px; height: 24px;
+    pointer-events: none;
+    z-index: 55;
+    display: none;
+  }
+  #pc-crosshair::before, #pc-crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,140,66,0.85);
+    border-radius: 2px;
+  }
+  #pc-crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+  #pc-crosshair::after  { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
+  #pc-crosshair .ch-dot { position: absolute; width: 4px; height: 4px; background: var(--amber); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+
   /* Hide mobile-only AR overlay buttons on desktop */
   @media (min-width: 1024px) {
     #ar-3d-mode, #ar-grid-toggle { display: none !important; }
@@ -936,6 +959,9 @@
       <button class="ar-btn icon" id="ar-grid-toggle" title="平面網格開關">
         <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>
       </button>
+      <button class="ar-btn icon" id="ar-light-btn" title="場景燈光切換">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
     </div>
     <div class="ar-hud-info">
       <div class="exp-name" id="hud-exp-name">EXPERIENCE</div>
@@ -969,6 +995,9 @@
     </div>
   </div>
 </div>
+
+<!-- PC crosshair (center placement point) -->
+<div id="pc-crosshair"><div class="ch-dot"></div></div>
 
 <!-- Flash effect -->
 <div class="flash" id="flash"></div>
@@ -1040,6 +1069,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /* ===========================================================
    AR LAB — Spatial Playground
@@ -1055,15 +1085,15 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><path d="M15 75 L50 55 L85 75 L50 95 Z"/><path d="M50 15 L50 55"/><rect x="40" y="20" width="20" height="25"/><circle cx="50" cy="55" r="2" fill="currentColor"/></svg>`,
     instruction: '移動手機掃描平面<br>點擊畫面放置物件',
     hudLabel: 'objects',
-    tools: ['shape', 'color', 'scale', 'delete', 'capture']
+    tools: ['shape', 'color', 'scale', 'upload', 'delete', 'capture']
   },
   {
-    id: 'measure', num: '02', title: 'AR 測量',
-    desc: 'DISTANCE · 空間長度量測',
-    icon: `<svg viewBox="0 0 100 100"><line x1="15" y1="82" x2="85" y2="82" stroke-width="2.5" stroke-linecap="round"/><line x1="15" y1="82" x2="15" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="85" y1="82" x2="85" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="35" y1="82" x2="35" y2="72" stroke-width="1.5" stroke-linecap="round"/><line x1="50" y1="82" x2="50" y2="69" stroke-width="1.5" stroke-linecap="round"/><line x1="65" y1="82" x2="65" y2="72" stroke-width="1.5" stroke-linecap="round"/><circle cx="15" cy="62" r="4"/><circle cx="85" cy="62" r="4"/></svg>`,
-    instruction: '點擊第一點<br>移動後再點擊第二點',
-    hudLabel: 'points',
-    tools: ['undo', 'clear', 'capture']
+    id: 'pet', num: '02', title: '虛擬寵物',
+    desc: 'AGENT · 自主移動角色',
+    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="40" r="20"/><circle cx="43" cy="35" r="2" fill="currentColor"/><circle cx="57" cy="35" r="2" fill="currentColor"/><path d="M45 45 Q50 50 55 45"/><path d="M35 55 L30 75 M65 55 L70 75"/></svg>`,
+    instruction: '點擊地面召喚寵物<br>牠會自由移動',
+    hudLabel: 'pets',
+    tools: ['color', 'upload', 'trick', 'clear', 'capture']
   },
   {
     id: 'draw', num: '03', title: 'AR 繪畫',
@@ -1090,20 +1120,28 @@ const EXPERIENCES = [
     tools: ['color', 'shoot', 'clear', 'capture']
   },
   {
-    id: 'particles', num: '06', title: '粒子噴泉',
+    id: 'measure', num: '06', title: 'AR 測量',
+    desc: 'DISTANCE · 空間長度量測',
+    icon: `<svg viewBox="0 0 100 100"><line x1="15" y1="82" x2="85" y2="82" stroke-width="2.5" stroke-linecap="round"/><line x1="15" y1="82" x2="15" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="85" y1="82" x2="85" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="35" y1="82" x2="35" y2="72" stroke-width="1.5" stroke-linecap="round"/><line x1="50" y1="82" x2="50" y2="69" stroke-width="1.5" stroke-linecap="round"/><line x1="65" y1="82" x2="65" y2="72" stroke-width="1.5" stroke-linecap="round"/><circle cx="15" cy="62" r="4"/><circle cx="85" cy="62" r="4"/></svg>`,
+    instruction: '點擊第一點<br>移動後再點擊第二點',
+    hudLabel: 'points',
+    tools: ['undo', 'clear', 'capture']
+  },
+  {
+    id: 'shooter', num: '08', title: '空間射擊',
+    desc: 'FPS · 陀螺儀空間射擊遊戲',
+    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="6" fill="none" stroke-width="2"/><line x1="50" y1="10" x2="50" y2="38" stroke-width="2"/><line x1="50" y1="62" x2="50" y2="90" stroke-width="2"/><line x1="10" y1="50" x2="38" y2="50" stroke-width="2"/><line x1="62" y1="50" x2="90" y2="50" stroke-width="2"/><circle cx="50" cy="20" r="4" fill="currentColor" opacity="0.7"/><circle cx="80" cy="30" r="5" fill="currentColor" opacity="0.6"/></svg>`,
+    instruction: '轉動手機瞄準敵人<br>點擊畫面射擊',
+    hudLabel: '擊殺',
+    tools: ['capture']
+  },
+  {
+    id: 'particles', num: '07', title: '粒子噴泉',
     desc: 'EMIT · 粒子系統生成',
-    icon: `<svg viewBox="0 0 100 100"><line x1="50" y1="80" x2="50" y2="80" stroke-linecap="round"/><path d="M50 78 L50 55" stroke-width="2.5" stroke-linecap="round"/><path d="M50 55 Q50 30 35 18" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q50 28 50 15" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q50 30 65 18" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q48 35 28 28" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.6"/><path d="M50 55 Q52 35 72 28" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.6"/><circle cx="35" cy="18" r="2.5" fill="currentColor"/><circle cx="50" cy="15" r="2.5" fill="currentColor"/><circle cx="65" cy="18" r="2.5" fill="currentColor"/><circle cx="28" cy="28" r="2" fill="currentColor" opacity="0.7"/><circle cx="72" cy="28" r="2" fill="currentColor" opacity="0.7"/><line x1="30" y1="82" x2="70" y2="82" stroke-width="2" stroke-linecap="round" opacity="0.4"/></svg>`,
+    icon: `<svg viewBox="0 0 100 100"><path d="M50 78 L50 55" stroke-width="2.5" stroke-linecap="round"/><path d="M50 55 Q50 30 35 18" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q50 28 50 15" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q50 30 65 18" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q48 35 28 28" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.6"/><path d="M50 55 Q52 35 72 28" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.6"/><circle cx="35" cy="18" r="2.5" fill="currentColor"/><circle cx="50" cy="15" r="2.5" fill="currentColor"/><circle cx="65" cy="18" r="2.5" fill="currentColor"/><circle cx="28" cy="28" r="2" fill="currentColor" opacity="0.7"/><circle cx="72" cy="28" r="2" fill="currentColor" opacity="0.7"/><line x1="30" y1="82" x2="70" y2="82" stroke-width="2" stroke-linecap="round" opacity="0.4"/></svg>`,
     instruction: '點擊平面放置噴泉<br>可放置多個',
     hudLabel: 'emitters',
     tools: ['color', 'preset', 'clear', 'capture']
-  },
-  {
-    id: 'pet', num: '07', title: '虛擬寵物',
-    desc: 'AGENT · 自主移動角色',
-    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="40" r="20"/><circle cx="43" cy="35" r="2" fill="currentColor"/><circle cx="57" cy="35" r="2" fill="currentColor"/><path d="M45 45 Q50 50 55 45"/><path d="M35 55 L30 75 M65 55 L70 75"/></svg>`,
-    instruction: '點擊地面召喚寵物<br>牠會自由移動',
-    hudLabel: 'pets',
-    tools: ['color', 'trick', 'clear', 'capture']
   }
 ];
 
@@ -1133,9 +1171,18 @@ const state = {
   inPortal: false,
   gridEnabled: false,
   arGrid: null,
+  uiBlocked: false,
+  customModel: null,
+  scalePreview: null,
+  gyroActive: false,
+  pcMode: false,
+  pcReticlePos: null,
+  sceneLights: [],
+  lightOn: true,
+  uploadMode: 'shape',  // 'shape' | 'model'
   // experience-specific
   drawing: { isDrawing: false, current: null, strokes: [], thickness: 0.008 },
-  measure: { points: [], lines: [] },
+  measure: { points: [], lines: [], liveLine: null, liveDot: null },
   physics: { balls: [], floorY: null, floorSet: false },
   laser: { shots: [], mode: 'single', holding: false },
   particles: { emitters: [], preset: 'fountain' },
@@ -1218,13 +1265,13 @@ function showLaunchModal(exp) {
 
 function getSteps(id) {
   const steps = {
-    placement: ['允許相機權限', '移動手機掃描平面', '看到橘色圓環後點擊畫面', '切換形狀、顏色、比例', '點擊拍照鍵儲存'],
-    measure: ['尋找起點並點擊', '移動手機瞄準終點', '再次點擊完成量測', '可多次量測，工具列可清除'],
+    placement: ['允許相機權限', '移動手機掃描平面', '看到橘色圓環後點擊畫面', '可點擊上傳鍵載入自訂 3D 模型', '切換形狀、顏色、比例後點擊放置'],
+    pet: ['點擊地面召喚寵物', '可點擊上傳鍵載入自訂 3D 模型角色', '牠會自由漫步', '點擊「特技」互動'],
     draw: ['找到空間位置', '按住螢幕開始繪製', '移動手機在空中作畫', '鬆開手指結束一筆', '可切換顏色與粗細'],
     portal: ['對準一片牆面或地面', '點擊放置傳送門', '靠近觀察另一個世界', '點擊「場景」切換異世界主題'],
     physics: ['先點擊地面設定基準', '再點擊畫面丟出球體', '球會彈跳並堆疊', '可切換顏色'],
+    measure: ['尋找起點並點擊', '移動手機瞄準終點', '再次點擊完成量測', '可多次量測，工具列可清除'],
     particles: ['點擊平面放置噴泉', '可放置多個不同位置', '切換粒子預設 (火、雪、煙)', '粒子會隨重力運動'],
-    pet: ['點擊地面召喚寵物', '牠會自由漫步', '點擊「特技」互動', '長按拍照鍵錄製動作']
   };
   return steps[id] || ['開始體驗'];
 }
@@ -1330,11 +1377,12 @@ async function initXR() {
   state.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 40);
 
   // Lights
+  state.sceneLights = [];
   const ambient = new THREE.HemisphereLight(0xffffff, 0x444422, 1.2);
-  state.scene.add(ambient);
+  state.scene.add(ambient); state.sceneLights.push(ambient);
   const directional = new THREE.DirectionalLight(0xffffff, 1.5);
   directional.position.set(1, 2, 1);
-  state.scene.add(directional);
+  state.scene.add(directional); state.sceneLights.push(directional);
 
   // Main Reticle (scanning ring - for most experiences)
   const ringGeom = new THREE.RingGeometry(0.09, 0.1, 32).rotateX(-Math.PI / 2);
@@ -1401,12 +1449,7 @@ async function initXR() {
 // --------- Fallback mode (non-AR) ---------
 function initFallback() {
   const canvas = document.createElement('canvas');
-  canvas.style.position = 'fixed';
-  canvas.style.inset = '0';
-  canvas.style.width = '100%';
-  canvas.style.height = '100%';
-  canvas.style.zIndex = '50';
-  canvas.style.background = 'linear-gradient(180deg, #1a1a1d 0%, #0a0a0b 100%)';
+  canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:50;background:linear-gradient(180deg,#1a1a1d 0%,#0a0a0b 100%)';
   document.body.appendChild(canvas);
   state.canvas = canvas;
 
@@ -1417,30 +1460,30 @@ function initFallback() {
   state.renderer.autoClear = false;
 
   state.scene = new THREE.Scene();
-
-  // Add grid floor for fallback
   const gridHelper = new THREE.GridHelper(10, 20, 0xff8c42, 0x222222);
   gridHelper.position.y = -1;
   state.scene.add(gridHelper);
 
-  state.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 100);
-  state.camera.position.set(0, 0, 2);
+  // 45° isometric-style starting angle
+  state.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
+  state.camera.position.set(0, 1.4, 1.4);  // elevated 45°
+  state.camera.lookAt(0, 0, -1);
 
+  state.sceneLights = [];
   const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
-  state.scene.add(ambient);
+  state.scene.add(ambient); state.sceneLights.push(ambient);
   const directional = new THREE.DirectionalLight(0xffffff, 1.2);
   directional.position.set(1, 2, 1);
-  state.scene.add(directional);
+  state.scene.add(directional); state.sceneLights.push(directional);
 
-  // Reticle fixed in fallback
+  // Reticle
   const ringGeom = new THREE.RingGeometry(0.09, 0.1, 32).rotateX(-Math.PI / 2);
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.9 });
   state.reticle = new THREE.Mesh(ringGeom, ringMat);
-  state.reticle.position.set(0, -0.5, -1);
   state.reticle.visible = true;
   state.scene.add(state.reticle);
 
-  // Draw cursor - tiny dot
+  // Draw cursor
   const cursorGeom = new THREE.SphereGeometry(0.005, 8, 6);
   const cursorMat = new THREE.MeshBasicMaterial({ color: 0xff8c42 });
   state.drawCursor = new THREE.Mesh(cursorGeom, cursorMat);
@@ -1456,31 +1499,44 @@ function initFallback() {
 
   // Portal RT
   state.portalRT = new THREE.WebGLRenderTarget(256, 256, {
-    minFilter: THREE.LinearFilter,
-    magFilter: THREE.LinearFilter,
-    format: THREE.RGBAFormat
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat
   });
 
-  // OrbitControls for exploration
   state.controls = new OrbitControls(state.camera, canvas);
   state.controls.enableDamping = true;
   state.controls.dampingFactor = 0.1;
   state.controls.target.set(0, 0, -1);
 
-  // Try to use device orientation for "pseudo-AR"
   tryDeviceOrientation();
 
-  // Fake touch as "select"
+  // ---- Crosshair-based placement point ----
+  // In PC mode the reticle always sits at the world-space point under the crosshair.
+  // We raycast from screen center on every frame.
+  state.pcMode = true;
+  $('#ar-overlay').classList.add('pc-mode');
+  $('#pc-crosshair').style.display = 'block';
+  $('#ar-instruction').classList.add('hidden');    // no scanning instruction on PC
+
+  // Drag vs click detection: only fire select on clean click (no significant drag)
+  let pointerDownX = 0, pointerDownY = 0, dragging = false;
   canvas.addEventListener('pointerdown', (e) => {
+    pointerDownX = e.clientX; pointerDownY = e.clientY;
+    dragging = false;
     if (e.target !== canvas) return;
     onSelectStart();
   });
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.buttons > 0) {
+      const dx = e.clientX - pointerDownX, dy = e.clientY - pointerDownY;
+      if (Math.sqrt(dx*dx + dy*dy) > 5) dragging = true;
+    }
+  });
   canvas.addEventListener('pointerup', (e) => {
     onSelectEnd();
-    onSelect();
+    if (!dragging) onSelect();   // only place on clean click, not drag-release
   });
 
-  $('#instruction-text').innerHTML = '⚠ 非 AR 模式<br>拖曳畫面探索，點擊互動';
+  $('#instruction-text').innerHTML = '3D 預覽模式<br>點擊放置，拖曳旋轉';
 
   state.renderer.setAnimationLoop(renderLoop);
 }
@@ -1568,17 +1624,24 @@ function renderLoop(timestamp, frame) {
         state.arGrid.visible = true;
       }
 
-      // Update live measure preview line (first point placed, awaiting second)
+      // Update scale preview position to current reticle
+      if (state.scalePreview && state.reticle.visible) {
+        const m2 = new THREE.Matrix4().fromArray(pose.transform.matrix);
+        const p2 = new THREE.Vector3().setFromMatrixPosition(m2);
+        state.scalePreview.position.copy(p2);
+        state.scalePreview.position.y += 0.08;
+      }
+
+      // Update live measure rubber-band (first point placed, awaiting second)
       if (state.experience?.id === 'measure' && state.measure.liveLine && state.measure.points.length === 1) {
-        const reticlePos = new THREE.Vector3();
-        const reticleMat = new THREE.Matrix4().fromArray(pose.transform.matrix);
-        reticlePos.setFromMatrixPosition(reticleMat);
-        const posArr = new Float32Array([
-          state.measure.points[0].x, state.measure.points[0].y, state.measure.points[0].z,
+        const reticleMat4 = new THREE.Matrix4().fromArray(pose.transform.matrix);
+        const reticlePos = new THREE.Vector3().setFromMatrixPosition(reticleMat4);
+        const p0 = state.measure.points[0];
+        state.measure.liveLine.geometry.setPositions([
+          p0.x, p0.y, p0.z,
           reticlePos.x, reticlePos.y, reticlePos.z
         ]);
-        state.measure.liveLine.geometry.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
-        state.measure.liveLine.geometry.attributes.position.needsUpdate = true;
+        state.measure.liveLine.computeLineDistances();
       }
       if (state.experience?.id === 'draw' && state.drawCursor && !state.drawing.isDrawing) {
         const { pos: camPos, quat: camQuat } = getCameraPose();
@@ -1600,9 +1663,24 @@ function renderLoop(timestamp, frame) {
       state.reticle.visible = false;
     }
   } else if (!frame) {
-    // Fallback mode
-    $('#ar-coords').innerHTML = `FALLBACK MODE<br>FPS: ${state.fps}`;
+    // Fallback / PC mode
+    $('#ar-coords').innerHTML = `PC 模式<br>FPS: ${state.fps}`;
     if (state.controls) state.controls.update();
+
+    // Raycast from screen center to place reticle at world intersection
+    if (state.pcMode && state.reticle && state.camera) {
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), state.camera);
+      // Intersect a large ground plane at y = -1
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1);
+      const target = new THREE.Vector3();
+      raycaster.ray.intersectPlane(plane, target);
+      if (target.length() < 20) {
+        state.reticle.position.copy(target);
+        state.reticle.visible = true;
+        state.pcReticlePos = target.clone();
+      }
+    }
   }
 
   // Experience update
@@ -1616,26 +1694,41 @@ function renderLoop(timestamp, frame) {
     updatePortalCamera();
     updatePortalWorld(dt, timestamp);
     state.renderer.setRenderTarget(state.portalRT);
-    state.renderer.clear();
+    state.renderer.clearColor();
+    state.renderer.clearDepth();
     state.renderer.render(state.portalWorldData.scene, state.portalWorldData.cam);
     state.renderer.setRenderTarget(null);
   }
 
-  state.renderer.clear();
+  // Main scene render — clearColor only (camera feed is behind from WebXR, we don't want black overlay)
+  if (state.inSession) {
+    // WebXR: renderer.clear() would wipe the camera feed — just render on top
+    state.renderer.clearDepth();
+  } else {
+    state.renderer.clear();
+  }
   state.renderer.render(state.scene, state.camera);
 }
 
 // --------- On select ---------
 function onSelect() {
   if (!state.experience) return;
+  if (state.uiBlocked) return;
 
-  // Get reticle position / direction
-  const pos = new THREE.Vector3();
-  const quat = new THREE.Quaternion();
-  const matrix = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
-  matrix.decompose(pos, quat, new THREE.Vector3());
+  let pos = new THREE.Vector3();
+  let quat = new THREE.Quaternion();
 
-  // Only allow if reticle visible (i.e. we have a hit) — except draw mode uses camera position
+  if (state.pcMode && state.pcReticlePos) {
+    // PC mode: use crosshair raycasted position
+    pos.copy(state.pcReticlePos);
+    quat.identity();
+  } else if (state.reticle && state.reticle.matrix) {
+    const matrix = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
+    matrix.decompose(pos, quat, new THREE.Vector3());
+  } else {
+    return;
+  }
+
   if (!state.reticle.visible && state.xrSupported && state.experience.id !== 'draw') {
     toast('請先瞄準平面');
     return;
@@ -1692,16 +1785,15 @@ function buildToolbar(exp) {
       $('#scale-row').style.display = 'flex';
       const slider = $('#scale-slider');
       const val = $('#scale-value');
-      slider.value = 1;
-      val.textContent = '1.0x';
+      slider.value = 1; val.textContent = '1.0x';
+      slider.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+      slider.addEventListener('touchstart',  e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+      slider.addEventListener('pointerup',   () => setTimeout(() => { state.uiBlocked = false; removeScalePreview(); }, 300));
+      slider.addEventListener('touchend',    () => setTimeout(() => { state.uiBlocked = false; removeScalePreview(); }, 300));
       slider.oninput = () => {
         state.scale = parseFloat(slider.value);
         val.textContent = state.scale.toFixed(1) + 'x';
-        // Apply to last placed object if object placement
-        if (exp.id === 'placement' && state.objects.length > 0) {
-          const last = state.objects[state.objects.length - 1];
-          last.scale.setScalar(state.scale);
-        }
+        updateScalePreview();
       };
       return;
     }
@@ -1709,8 +1801,10 @@ function buildToolbar(exp) {
     const btn = document.createElement('button');
     btn.className = 'ar-tool';
     btn.dataset.tool = tool;
-    btn.addEventListener('pointerdown', e => e.stopPropagation());
-    btn.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+    btn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+    btn.addEventListener('touchstart',  e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+    btn.addEventListener('pointerup',   () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    btn.addEventListener('touchend',    () => setTimeout(() => { state.uiBlocked = false; }, 120));
 
     switch (tool) {
       case 'shape':
@@ -1725,7 +1819,10 @@ function buildToolbar(exp) {
         btn.innerHTML = '';
         btn.onclick = () => cycleColor(btn);
         break;
-      case 'scale':
+      case 'upload':
+        btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+        btn.title = '載入 3D 模型 (.glb/.gltf)';
+        btn.onclick = () => triggerModelUpload(exp.id);
         break;
       case 'delete':
         btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg>`;
@@ -1822,6 +1919,125 @@ function cyclePortalScene(btn) {
   toast('場景: ' + state.portalSceneType.toUpperCase());
 }
 
+// --------- Scale Preview ---------
+function makePreviewGeom(shape) {
+  switch(shape) {
+    case 'sphere':   return new THREE.SphereGeometry(0.08, 16, 12);
+    case 'cylinder': return new THREE.CylinderGeometry(0.07, 0.07, 0.16, 16);
+    case 'cone':     return new THREE.ConeGeometry(0.08, 0.16, 16);
+    case 'torus':    return new THREE.TorusGeometry(0.08, 0.03, 8, 24);
+    default:         return new THREE.BoxGeometry(0.14, 0.14, 0.14);
+  }
+}
+
+function updateScalePreview() {
+  if (!state.scene || !state.reticle) return;
+  removeScalePreview();
+  const shapeBtn = $('[data-tool="shape"]');
+  const shape = shapeBtn ? shapeBtn.dataset.shape : 'cube';
+  const geom = makePreviewGeom(shape);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x44ff88,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  // Position at current reticle
+  const m = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
+  const pos = new THREE.Vector3(); m.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
+  mesh.position.copy(pos);
+  mesh.position.y += 0.08;
+  mesh.scale.setScalar(state.scale);
+  mesh.userData.isPreview = true;
+  state.scene.add(mesh);
+  state.scalePreview = mesh;
+}
+
+function removeScalePreview() {
+  if (state.scalePreview && state.scene) {
+    state.scene.remove(state.scalePreview);
+    state.scalePreview = null;
+  }
+}
+
+// --------- 3D Model Upload ---------
+let _modelFileInput = null;
+function triggerModelUpload(expId) {
+  if (!_modelFileInput) {
+    _modelFileInput = document.createElement('input');
+    _modelFileInput.type = 'file';
+    _modelFileInput.accept = '.glb,.gltf';
+    _modelFileInput.style.display = 'none';
+    document.body.appendChild(_modelFileInput);
+  }
+  _modelFileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const loader = new GLTFLoader();
+    toast('載入模型中...');
+    loader.load(url, (gltf) => {
+      URL.revokeObjectURL(url);
+      // Normalize scale: fit model into 0.2m bounding box
+      const box = new THREE.Box3().setFromObject(gltf.scene);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim > 0) gltf.scene.scale.setScalar(0.2 / maxDim);
+      state.customModel = gltf.scene;
+      toast('✓ 模型已載入，點擊放置');
+      _modelFileInput.value = '';
+    }, undefined, (err) => {
+      toast('模型載入失敗');
+      console.error(err);
+    });
+  };
+  _modelFileInput.click();
+}
+
+function placeCustomModel(pos, quat) {
+  if (!state.customModel) return false;
+  const clone = state.customModel.clone(true);
+  clone.position.copy(pos);
+  clone.position.y += 0.05;
+  clone.quaternion.copy(quat);
+  clone.scale.multiplyScalar(state.scale);
+  clone.traverse(c => { if (c.isMesh) c.frustumCulled = false; });
+  state.scene.add(clone);
+  state.objects.push(clone);
+  return true;
+}
+
+// --------- Gyroscope for 3D pseudo-AR mode ---------
+const _gyroQ = new THREE.Quaternion();
+const _screenQ = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+const _worldQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0);
+function startGyroscope(camera) {
+  const activate = () => {
+    window.addEventListener('deviceorientation', (e) => {
+      if (!e.alpha && e.alpha !== 0) return;
+      const deg = THREE.MathUtils.degToRad;
+      const alpha = deg(e.alpha), beta = deg(e.beta), gamma = deg(e.gamma);
+      const euler = new THREE.Euler(beta, alpha, -gamma, 'YXZ');
+      _gyroQ.setFromEuler(euler);
+      _gyroQ.multiply(_screenQ);
+      camera.quaternion.copy(_gyroQ);
+    }, true);
+    state.gyroActive = true;
+    toast('陀螺儀已啟動');
+  };
+
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(r => { if (r === 'granted') activate(); else toast('請允許陀螺儀權限'); })
+      .catch(() => toast('陀螺儀權限拒絕'));
+  } else if (typeof DeviceOrientationEvent !== 'undefined') {
+    activate();
+  }
+}
+
+// --------- Toolbar actions ---------
 function deleteLast() {
   if (state.experience.id === 'placement' && state.objects.length > 0) {
     const obj = state.objects.pop();
@@ -1869,6 +2085,16 @@ function clearAll() {
   } else if (exp === 'pet') {
     state.pet.pets.forEach(p => state.scene.remove(p));
     state.pet.pets = [];
+  } else if (exp === 'shooter') {
+    if (state.shooter) {
+      state.shooter.enemies.forEach(e => state.scene.remove(e));
+      state.shooter.bullets.forEach(b => state.scene.remove(b));
+      state.shooter.enemies = [];
+      state.shooter.bullets = [];
+      state.shooter.score = 0;
+      state.shooter.spawnTimer = 0;
+      state.shooter.spawnInterval = 3.5;
+    }
   }
   updateCounter();
   toast('已清除');
@@ -1883,6 +2109,7 @@ function updateCounter() {
   else if (exp === 'physics') count = state.physics.balls.length;
   else if (exp === 'particles') count = state.particles.emitters.length;
   else if (exp === 'pet') count = state.pet.pets.length;
+  else if (exp === 'shooter') count = state.shooter?.score ?? 0;
   else if (exp === 'portal') count = state.objects.length;
   $('#hud-counter').textContent = count;
 }
@@ -1890,6 +2117,7 @@ function updateCounter() {
 // --------- Experience initialization ---------
 function initExperience(exp) {
   if (exp.id === 'portal') initPortalSceneResources();
+  if (exp.id === 'shooter') initShooter();
 }
 
 // --------- Selection handlers per experience ---------
@@ -1901,11 +2129,14 @@ function handleSelect(exp, pos, quat) {
     case 'physics': handlePhysicsSelect(pos, quat); break;
     case 'particles': placeEmitter(pos); break;
     case 'pet': placePet(pos); break;
+    case 'shooter': shooterFire(); break;
   }
 }
 
 // --------- 1. Object Placement ---------
 function placeObject(pos, quat) {
+  if (placeCustomModel(pos, quat)) return; // use uploaded model if available
+
   const shapeBtn = $('[data-tool="shape"]');
   const shape = shapeBtn ? shapeBtn.dataset.shape : 'cube';
   let geom;
@@ -1955,10 +2186,20 @@ function addMeasurePoint(pos) {
   state.scene.add(dot);
 
   if (state.measure.points.length === 1) {
-    // Create a live "rubber-band" line that tracks to the reticle
-    const liveGeom = new THREE.BufferGeometry().setFromPoints([pos, pos.clone()]);
-    const liveMat = new THREE.LineBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.55 });
-    const liveLine = new THREE.Line(liveGeom, liveMat);
+    // Live rubber-band Line2 - thick, frustum-culled off so always visible
+    const liveGeom = new LineGeometry();
+    liveGeom.setPositions([pos.x, pos.y, pos.z, pos.x + 0.001, pos.y, pos.z]);
+    const liveMat = new LineMaterial({
+      color: 0xff8c42,
+      linewidth: 3,
+      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+      dashed: true,
+      dashSize: 0.04,
+      gapSize: 0.02,
+    });
+    const liveLine = new Line2(liveGeom, liveMat);
+    liveLine.frustumCulled = false;
+    liveLine.renderOrder = 998;
     state.measure.livePoint = pos.clone();
     state.measure.liveLine = liveLine;
     state.measure.liveDot = dot;
@@ -2017,20 +2258,19 @@ function startDrawStroke() {
   state.drawing.currentPoints = [];
 
   const lineGeom = new LineGeometry();
-  // seed with 2 identical points so geometry is valid immediately
-  lineGeom.setPositions([0,0,0, 0,0,0]);
+  lineGeom.setPositions([0, 0, 0, 0.001, 0, 0]); // two distinct seed points
   const lineMat = new LineMaterial({
     color: new THREE.Color(state.color).getHex(),
     linewidth: 5,
     resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-    transparent: true,
-    opacity: 0.9,
-    depthTest: true
+    dashed: false,
   });
   const line = new Line2(lineGeom, lineMat);
-  line.frustumCulled = false;  // prevent disappearing when near edge of frustum
+  line.frustumCulled = false;
+  line.renderOrder = 999;
   state.drawing.currentLine = line;
   state.scene.add(line);
+
   if (state.reticle) state.reticle.visible = false;
   if (state.drawCursor) state.drawCursor.visible = true;
   $('#ar-instruction').classList.add('hidden');
@@ -2049,12 +2289,17 @@ function updateDrawStroke() {
 
   const pts = state.drawing.currentPoints;
   const lastPt = pts[pts.length - 1];
-  if (!lastPt || lastPt.distanceTo(drawPos) > 0.007) {
+  // Sample every ~6mm of movement
+  if (!lastPt || lastPt.distanceTo(drawPos) > 0.006) {
     pts.push(drawPos.clone());
+  }
 
-    if (pts.length >= 2 && state.drawing.currentLine) {
+  // Rebuild Line2 every frame from all points (ensures visible even with 1 point)
+  if (state.drawing.currentLine) {
+    const workPts = pts.length >= 2 ? pts : (pts.length === 1 ? [pts[0], pts[0].clone().addScalar(0.0001)] : null);
+    if (workPts) {
       const coords = [];
-      pts.forEach(p => coords.push(p.x, p.y, p.z));
+      workPts.forEach(p => coords.push(p.x, p.y, p.z));
       state.drawing.currentLine.geometry.setPositions(coords);
       state.drawing.currentLine.computeLineDistances();
     }
@@ -2401,29 +2646,25 @@ function placePortal(pos, quat) {
 
 // --------- 5. Physics ---------
 function handlePhysicsSelect(pos, quat) {
+  // Auto-set floor from hit position if not set yet
   if (!state.physics.floorSet) {
     state.physics.floorY = pos.y;
     state.physics.floorSet = true;
-
-    // Visualize floor plane
-    const floorGeom = new THREE.RingGeometry(0.3, 0.35, 32).rotateX(-Math.PI / 2);
-    const floorMat = new THREE.MeshBasicMaterial({ color: 0x5eead4, transparent: true, opacity: 0.6 });
-    const floor = new THREE.Mesh(floorGeom, floorMat);
-    floor.position.copy(pos);
-    state.scene.add(floor);
-    state.objects.push(floor);
-
-    toast('地板已設定，再點擊丟出球體');
-    return;
   }
-
   shootBall();
 }
 
 function shootBall() {
+  // Auto-set floor from reticle if not yet set
+  if (!state.physics.floorSet && state.reticle?.visible) {
+    const reticleMat = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
+    const rPos = new THREE.Vector3().setFromMatrixPosition(reticleMat);
+    state.physics.floorY = rPos.y;
+    state.physics.floorSet = true;
+  }
   if (!state.physics.floorSet) {
-    toast('請先點擊地面設定基準');
-    return;
+    state.physics.floorY = -0.5; // default floor
+    state.physics.floorSet = true;
   }
 
   const { pos: camPos, quat: camQuat } = getCameraPose();
@@ -2602,6 +2843,163 @@ function resetParticle(i, pos, vel, life, size, preset) {
   size[i] = 0.5 + Math.random() * 1.5;
 }
 
+// --------- 8. Space Shooter ---------
+function initShooter() {
+  state.shooter = {
+    score: 0,
+    enemies: [],
+    bullets: [],
+    spawnTimer: 0,
+    spawnInterval: 3.5,  // seconds between enemy spawns
+    maxEnemies: 2,
+    active: true
+  };
+  // Crosshair sphere (always at screen center, 2m ahead)
+  const chGeom = new THREE.RingGeometry(0.04, 0.048, 32);
+  const chMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, side: THREE.DoubleSide });
+  state.shooter.crosshair = new THREE.Mesh(chGeom, chMat);
+  state.shooter.crosshair.renderOrder = 999;
+  state.scene.add(state.shooter.crosshair);
+
+  // Request gyroscope for shooter
+  startGyroscope(state.camera);
+  toast('轉動手機瞄準，點擊射擊！');
+}
+
+function spawnShooterEnemy() {
+  const { pos: camPos } = getCameraPose();
+  // Pick random direction from camera, 4-6m away
+  const angle = Math.random() * Math.PI * 2;
+  const elevation = (Math.random() - 0.5) * 0.8; // -0.4 to +0.4 rad
+  const dist = 4 + Math.random() * 2;
+  const dir = new THREE.Vector3(
+    Math.cos(angle) * Math.cos(elevation),
+    Math.sin(elevation),
+    Math.sin(angle) * Math.cos(elevation)
+  );
+  const spawnPos = camPos.clone().add(dir.clone().multiplyScalar(dist));
+
+  const group = new THREE.Group();
+  // Enemy body
+  const bodyGeom = new THREE.OctahedronGeometry(0.12, 0);
+  const hue = Math.random();
+  const enemyColor = new THREE.Color().setHSL(hue, 1, 0.5);
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: enemyColor, emissive: enemyColor, emissiveIntensity: 0.6,
+    metalness: 0.7, roughness: 0.2
+  });
+  const body = new THREE.Mesh(bodyGeom, bodyMat);
+  group.add(body);
+
+  // Glow ring
+  const ringGeom = new THREE.TorusGeometry(0.16, 0.012, 6, 24);
+  const ringMat = new THREE.MeshBasicMaterial({ color: enemyColor, transparent: true, opacity: 0.6 });
+  group.add(new THREE.Mesh(ringGeom, ringMat));
+
+  group.position.copy(spawnPos);
+  group.userData = {
+    hp: 1,
+    dir: dir.clone().negate(), // fly toward player
+    speed: 0.6 + Math.random() * 0.5,
+    rotSpeed: (Math.random() - 0.5) * 3,
+    spawnTime: performance.now()
+  };
+  state.scene.add(group);
+  state.shooter.enemies.push(group);
+}
+
+function fireShooterBullet() {
+  const { pos: camPos, quat: camQuat } = getCameraPose();
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+
+  const bulletGeom = new THREE.SphereGeometry(0.025, 8, 6);
+  const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffd080 });
+  const bullet = new THREE.Mesh(bulletGeom, bulletMat);
+  bullet.position.copy(camPos).addScaledVector(forward, 0.3);
+  bullet.userData = { velocity: forward.clone().multiplyScalar(12), life: 0, maxLife: 1.5 };
+  state.scene.add(bullet);
+  state.shooter.bullets.push(bullet);
+}
+
+function updateShooter(dt, t) {
+  if (!state.shooter?.active) return;
+  const sh = state.shooter;
+  const { pos: camPos, quat: camQuat } = getCameraPose();
+
+  // Update crosshair position (2m ahead of camera)
+  const ahead = new THREE.Vector3(0, 0, -2).applyQuaternion(camQuat);
+  sh.crosshair.position.copy(camPos).add(ahead);
+  sh.crosshair.quaternion.copy(camQuat);
+
+  // Spawn enemies
+  sh.spawnTimer += dt;
+  if (sh.spawnTimer >= sh.spawnInterval && sh.enemies.length < sh.maxEnemies) {
+    sh.spawnTimer = 0;
+    sh.spawnInterval = Math.max(1.5, sh.spawnInterval - 0.05); // gets faster
+    spawnShooterEnemy();
+  }
+
+  // Move enemies toward player
+  sh.enemies = sh.enemies.filter(en => {
+    en.position.addScaledVector(en.userData.dir, en.userData.speed * dt);
+    en.rotation.y += en.userData.rotSpeed * dt;
+
+    // Reached player?
+    if (en.position.distanceTo(camPos) < 0.3) {
+      state.scene.remove(en);
+      toast('被擊中！', true);
+      return false;
+    }
+    return true;
+  });
+
+  // Move bullets + hit detection
+  sh.bullets = sh.bullets.filter(b => {
+    b.userData.life += dt;
+    b.position.addScaledVector(b.userData.velocity, dt);
+    if (b.userData.life > b.userData.maxLife) {
+      state.scene.remove(b); return false;
+    }
+    // Check hit with each enemy
+    for (let i = sh.enemies.length - 1; i >= 0; i--) {
+      const en = sh.enemies[i];
+      if (b.position.distanceTo(en.position) < 0.18) {
+        // Explosion particles
+        for (let p = 0; p < 6; p++) {
+          const pG = new THREE.SphereGeometry(0.03, 4, 3);
+          const pM = new THREE.MeshBasicMaterial({ color: en.children[0]?.material?.color || 0xffd080 });
+          const part = new THREE.Mesh(pG, pM);
+          part.position.copy(en.position);
+          part.userData = { v: new THREE.Vector3((Math.random()-0.5)*4, (Math.random()-.3)*4, (Math.random()-0.5)*4), life: 0 };
+          state.scene.add(part);
+          sh.bullets.push(part); // reuse array with life check
+        }
+        state.scene.remove(en);
+        sh.enemies.splice(i, 1);
+        sh.score++;
+        $('#hud-counter').textContent = sh.score;
+        toast('擊中！ 🎯 得分: ' + sh.score);
+        state.scene.remove(b);
+        return false;
+      }
+    }
+    // Particle movement
+    if (b.userData.v) {
+      b.position.addScaledVector(b.userData.v, dt);
+      b.userData.v.y -= 8 * dt;
+    }
+    return true;
+  });
+
+  // Enemy direction indicators on screen edges
+  // (handled by HUD — simplified to just show count)
+}
+
+function shooterFire() {
+  if (state.experience?.id === 'shooter') fireShooterBullet();
+}
+
+// --------- 6. Particles ---------
 function updateParticles(dt) {
   state.particles.emitters.forEach(em => {
     const ud = em.userData;
@@ -2632,6 +3030,32 @@ function updateParticles(dt) {
 
 // --------- 8. Virtual Pet ---------
 function placePet(pos) {
+  if (state.customModel) {
+    toast('正在放置模型...');
+    setTimeout(() => {
+      try {
+        const clone = state.customModel.clone(true);
+        clone.position.copy(pos);
+        clone.position.y += 0.05;
+        clone.scale.multiplyScalar(state.scale);
+        clone.traverse(c => {
+          if (c.isMesh) {
+            c.frustumCulled = false;
+            // Ensure material is cloned so light toggle works
+            if (c.material) c.material = c.material.clone();
+          }
+        });
+        clone.userData.wander = { target: pos.clone(), speed: 0.2 + Math.random() * 0.15, timer: 0, trickTimer: 0, trickPhase: 0 };
+        state.scene.add(clone);
+        state.pet.pets.push(clone);
+        updateCounter();
+      } catch(e) {
+        toast('模型放置失敗: ' + e.message);
+        console.error(e);
+      }
+    }, 0);
+    return;
+  }
   const group = new THREE.Group();
   const color = new THREE.Color(state.color);
 
@@ -2756,6 +3180,7 @@ function updateExperience(exp, dt, t) {
     case 'physics': updatePhysics(dt); break;
     case 'particles': updateParticles(dt); break;
     case 'pet': updatePets(dt, t); break;
+    case 'shooter': updateShooter(dt, t); break;
     case 'portal':
       // Portal world rendering is handled in renderLoop (pre-render to RT)
       // Just animate the portal ring glow
@@ -2778,7 +3203,35 @@ function updateExperience(exp, dt, t) {
   }
 }
 
-// --------- Grid Toggle ---------
+// --------- Light Toggle ---------
+function toggleLight() {
+  state.lightOn = !state.lightOn;
+  const btn = $('#ar-light-btn');
+  if (btn) btn.classList.toggle('active', !state.lightOn);
+  if (state.sceneLights) {
+    state.sceneLights.forEach(l => { l.visible = state.lightOn; });
+  }
+  // In flat/unlit mode, make all materials emissive
+  if (state.scene) {
+    state.scene.traverse(obj => {
+      if (obj.isMesh && obj.material && obj.userData.origEmissive === undefined) {
+        obj.userData.origEmissive = obj.material.emissive?.clone?.() || new THREE.Color(0);
+        obj.userData.origEmissiveIntensity = obj.material.emissiveIntensity ?? 1;
+      }
+      if (obj.isMesh && obj.material) {
+        if (!state.lightOn) {
+          if (obj.material.color) obj.material.emissive = obj.material.color.clone();
+          obj.material.emissiveIntensity = 1;
+        } else {
+          if (obj.userData.origEmissive) obj.material.emissive = obj.userData.origEmissive.clone();
+          obj.material.emissiveIntensity = obj.userData.origEmissiveIntensity ?? 0.1;
+        }
+        obj.material.needsUpdate = true;
+      }
+    });
+  }
+  toast(state.lightOn ? '場景燈光 開啟' : '場景燈光 關閉（純色模式）');
+}
 function toggleGrid() {
   state.gridEnabled = !state.gridEnabled;
   const btn = $('#ar-grid-toggle');
@@ -2836,12 +3289,16 @@ async function switchTo3DMode() {
   state.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 40);
   state.camera.position.set(0, 0.5, 0);
 
-  // OrbitControls for navigation
+  // OrbitControls for drag navigation (gyro overrides rotation when active)
   const controls = new OrbitControls(state.camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
+  controls.enableRotate = true;
   controls.target.set(0, 0, -1);
   state.controls = controls;
+
+  // Start gyroscope (pseudo-AR: phone rotation = camera rotation)
+  startGyroscope(state.camera);
 
   // Tap to add objects
   canvas.addEventListener('pointerup', (e) => {
@@ -2944,6 +3401,7 @@ $('#ar-back').addEventListener('click', e => { e.stopPropagation(); exitExperien
 $('#ar-grid-toggle').addEventListener('click', e => { e.stopPropagation(); toggleGrid(); });
 $('#ar-3d-mode').addEventListener('click', e => { e.stopPropagation(); switchTo3DMode(); });
 $('#ar-reset').addEventListener('click', e => { e.stopPropagation(); resetSpatialAnchor(); });
+$('#ar-light-btn').addEventListener('click', e => { e.stopPropagation(); toggleLight(); });
 
 // --------- Desktop Detection & QR Code ---------
 function isDesktopDevice() {
@@ -3007,9 +3465,22 @@ function showDesktopModal() {
 buildMenu();
 checkXRSupport();
 
+// Self-test: verify cards actually rendered (catches JS syntax errors silently killed by module scope)
+requestAnimationFrame(() => {
+  const cards = document.querySelectorAll('.card');
+  if (cards.length === 0) {
+    document.body.innerHTML = `
+      <div style="position:fixed;inset:0;background:#0a0a0b;display:flex;align-items:center;justify-content:center;padding:32px;font-family:monospace;color:#ff8c42;z-index:9999">
+        <div style="max-width:480px;border:1px solid #ff8c42;padding:32px;text-align:center">
+          <div style="font-size:24px;margin-bottom:16px">⚠ 載入失敗</div>
+          <div style="font-size:13px;color:#aaa;line-height:1.7">JavaScript 執行時發生錯誤導致頁面無法初始化。<br>請開啟開發者工具 (F12) → Console 查看錯誤訊息。</div>
+        </div>
+      </div>`;
+  }
+});
+
 // Show desktop modal if on a non-touch desktop
 if (isDesktopDevice()) {
-  // Small delay to let page render first
   setTimeout(showDesktopModal, 400);
 }
 
