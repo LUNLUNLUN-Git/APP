@@ -867,7 +867,7 @@
   * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
   input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
 
-  /* PC crosshair */
+  /* PC crosshair — only visible in shooter mode on desktop */
   #pc-crosshair {
     position: fixed;
     top: 50%; left: 50%;
@@ -880,17 +880,63 @@
   #pc-crosshair::before, #pc-crosshair::after {
     content: '';
     position: absolute;
-    background: rgba(255,140,66,0.85);
-    border-radius: 2px;
+    background: rgba(255,140,66,0.9);
+    border-radius: 1px;
   }
   #pc-crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
   #pc-crosshair::after  { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
-  #pc-crosshair .ch-dot { position: absolute; width: 4px; height: 4px; background: var(--amber); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%,-50%); }
 
-  /* Hide mobile-only AR overlay buttons on desktop */
+  /* Hide mobile-only buttons on desktop */
   @media (min-width: 1024px) {
     #ar-3d-mode, #ar-grid-toggle { display: none !important; }
   }
+  #power-bar-wrap {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom) + 110px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 180px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    pointer-events: none;
+  }
+  #power-bar-wrap.visible { display: flex; }
+  #power-bar-label { font-family: var(--mono); font-size: 10px; color: var(--amber); letter-spacing: 0.1em; }
+  #power-bar-track { width: 100%; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
+  #power-bar-fill  { height: 100%; width: 0%; background: var(--amber); border-radius: 3px; transition: background 0.1s; }
+
+  /* Sub toolbar (shape palette / model preview strip) */
+  .ar-sub-toolbar {
+    pointer-events: auto;
+    display: none;
+    gap: 8px;
+    align-items: center;
+    background: rgba(10,10,11,0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 6px 10px;
+    max-width: calc(100vw - 32px);
+    overflow-x: auto;
+  }
+  .ar-sub-toolbar.visible { display: flex; }
+
+  /* Model thumbnail */
+  .model-thumb { width: 44px; height: 44px; border: 1px solid var(--amber); border-radius: 2px; object-fit: cover; cursor: pointer; flex-shrink: 0; }
+
+  /* Toggle pair buttons */
+  .toggle-pair { display: flex; gap: 0; }
+  .toggle-pair .ar-tool { border: 1px solid var(--line-strong); border-radius: 0; }
+  .toggle-pair .ar-tool:first-child { border-radius: 2px 0 0 2px; }
+  .toggle-pair .ar-tool:last-child  { border-radius: 0 2px 2px 0; border-left: none; }
+  .toggle-pair .ar-tool.selected { background: var(--amber); color: #000; border-color: var(--amber); }
+
+  /* PC crosshair — only in shooter */
+  #pc-crosshair { display: none; }
+  .shooter-mode #pc-crosshair { display: block; }
 </style>
 </head>
 <body>
@@ -911,9 +957,9 @@
       </div>
     </div>
     <div class="hero">
-      <div class="hero-label">→ 七種沉浸式體驗</div>
+      <div class="hero-label" id="hero-label">→ 多種沉浸式體驗</div>
       <h1>空間<br><span class="accent">遊樂場</span></h1>
-      <p>基於 WebXR 的空間計算實驗室。在真實世界中繪畫、測量、放置物件、發射粒子的七種沉浸式體驗。</p>
+      <p>基於 WebXR 的空間計算實驗室。在真實世界中繪畫、測量、放置物件、發射粒子的多種沉浸式體驗。</p>
     </div>
   </header>
 
@@ -968,6 +1014,8 @@
       <div id="hud-info-main"><span class="counter" id="hud-counter">0</span> <span id="hud-counter-label">objects</span></div>
     </div>
   </div>
+  <!-- Center mode title -->
+  <div id="hud-mode-title" style="position:absolute;top:calc(env(safe-area-inset-top)+14px);left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(255,255,255,0.75);text-shadow:0 1px 4px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;"></div>
 
   <div class="ar-instruction" id="ar-instruction">
     <div class="ar-instruction-icon">
@@ -990,6 +1038,13 @@
       <input type="range" id="scale-slider" min="0.3" max="3" step="0.1" value="1">
       <span id="scale-value" style="font-family:var(--mono);font-size:10px;color:var(--amber);min-width:32px;text-align:right;">1.0x</span>
     </div>
+    <!-- Power bar (physics long-press) -->
+    <div id="power-bar-wrap">
+      <div id="power-bar-label">發射力道</div>
+      <div id="power-bar-track"><div id="power-bar-fill"></div></div>
+    </div>
+    <!-- Sub toolbar (shapes, model preview, color) -->
+    <div class="ar-sub-toolbar" id="ar-sub-toolbar"></div>
     <div class="ar-toolbar" id="ar-toolbar">
       <!-- Populated by JS per experience -->
     </div>
@@ -1093,7 +1148,7 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="40" r="20"/><circle cx="43" cy="35" r="2" fill="currentColor"/><circle cx="57" cy="35" r="2" fill="currentColor"/><path d="M45 45 Q50 50 55 45"/><path d="M35 55 L30 75 M65 55 L70 75"/></svg>`,
     instruction: '點擊地面召喚寵物<br>牠會自由移動',
     hudLabel: 'pets',
-    tools: ['color', 'upload', 'trick', 'clear', 'capture']
+    tools: ['pet-toggle', 'trick', 'clear', 'capture']
   },
   {
     id: 'draw', num: '03', title: 'AR 繪畫',
@@ -1101,7 +1156,7 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><path d="M15 70 Q30 30, 50 50 T85 40" stroke-linecap="round"/><circle cx="85" cy="40" r="3" fill="currentColor"/></svg>`,
     instruction: '按住螢幕移動手機在空中繪製<br>鬆開完成一筆',
     hudLabel: 'strokes',
-    tools: ['color', 'thickness', 'undo', 'clear', 'capture']
+    tools: ['color', 'thickness', 'undo', 'redo', 'clear', 'capture']
   },
   {
     id: 'portal', num: '04', title: '傳送門',
@@ -1109,7 +1164,7 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><ellipse cx="50" cy="50" rx="25" ry="35"/><ellipse cx="50" cy="50" rx="15" ry="25" opacity="0.5"/><path d="M50 15 L50 85" opacity="0.3"/></svg>`,
     instruction: '點擊平面生成傳送門<br>走近查看另一個世界',
     hudLabel: 'portals',
-    tools: ['scene', 'capture']
+    tools: ['scene', 'remove-portal', 'capture']
   },
   {
     id: 'physics', num: '05', title: '物理樂園',
@@ -1129,11 +1184,27 @@ const EXPERIENCES = [
   },
   {
     id: 'shooter', num: '08', title: '空間射擊',
-    desc: 'FPS · 陀螺儀空間射擊遊戲',
+    desc: 'FPS · 滑鼠視角射擊遊戲',
     icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="6" fill="none" stroke-width="2"/><line x1="50" y1="10" x2="50" y2="38" stroke-width="2"/><line x1="50" y1="62" x2="50" y2="90" stroke-width="2"/><line x1="10" y1="50" x2="38" y2="50" stroke-width="2"/><line x1="62" y1="50" x2="90" y2="50" stroke-width="2"/><circle cx="50" cy="20" r="4" fill="currentColor" opacity="0.7"/><circle cx="80" cy="30" r="5" fill="currentColor" opacity="0.6"/></svg>`,
     instruction: '轉動手機瞄準敵人<br>點擊畫面射擊',
     hudLabel: '擊殺',
     tools: ['capture']
+  },
+  {
+    id: 'graffiti', num: '09', title: 'AR 塗鴉',
+    desc: 'PAINT · 在現實空間噴漆',
+    icon: `<svg viewBox="0 0 100 100"><path d="M20 80 Q35 60 50 50 Q65 40 80 20" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="80" cy="20" r="6" fill="currentColor"/><path d="M30 70 Q20 75 15 85" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.5"/></svg>`,
+    instruction: '按住畫面在空間塗鴉<br>可切換顏色與筆刷大小',
+    hudLabel: 'strokes',
+    tools: ['color', 'brush', 'undo', 'redo', 'clear', 'capture']
+  },
+  {
+    id: 'blocks', num: '10', title: 'AR 積木',
+    desc: 'PHYSICS · 積木堆疊遊戲',
+    icon: `<svg viewBox="0 0 100 100"><rect x="15" y="60" width="25" height="25" rx="2"/><rect x="42" y="60" width="25" height="25" rx="2"/><rect x="27" y="33" width="25" height="25" rx="2"/><rect x="60" y="45" width="20" height="20" rx="2" opacity="0.5"/></svg>`,
+    instruction: '掃描地板後積木自動生成<br>點擊積木可抓取並堆疊',
+    hudLabel: 'blocks',
+    tools: ['clear', 'capture']
   },
   {
     id: 'particles', num: '07', title: '粒子噴泉',
@@ -1179,7 +1250,8 @@ const state = {
   pcReticlePos: null,
   sceneLights: [],
   lightOn: true,
-  uploadMode: 'shape',  // 'shape' | 'model'
+  uploadMode: 'shape',
+  currentShape: 'cube',
   // experience-specific
   drawing: { isDrawing: false, current: null, strokes: [], thickness: 0.008 },
   measure: { points: [], lines: [], liveLine: null, liveDot: null },
@@ -1215,25 +1287,36 @@ function getCameraPose() {
 // --------- Build experience cards ---------
 function buildMenu() {
   const grid = $('#experience-grid');
-  grid.innerHTML = EXPERIENCES.map(exp => `
-    <div class="card ${exp.featured ? 'featured' : ''}" data-id="${exp.id}">
+  const total = EXPERIENCES.length;
+
+  // Update hero label and count dynamically
+  const heroLabel = $('#hero-label');
+  if (heroLabel) heroLabel.textContent = `→ ${total} 種沉浸式體驗`;
+  const countEl = document.querySelector('.count');
+  if (countEl) countEl.textContent = `01 — ${String(total).padStart(2,'0')}`;
+
+  grid.innerHTML = EXPERIENCES.map((exp, idx) => {
+    // Renumber based on current position
+    const num = String(idx + 1).padStart(2, '0');
+    return `
+    <div class="card ${exp.featured ? 'featured' : 'square'}" data-id="${exp.id}" style="${!exp.featured ? 'aspect-ratio:1/1;' : ''}">
       ${exp.featured ? `
         <div class="card-inner">
           <div class="card-visual">${exp.icon}</div>
           <div class="card-body">
-            <div class="card-num">// ${exp.num} · 精選</div>
+            <div class="card-num">// ${num} · 精選</div>
             <div class="card-title" style="margin-top:6px;">${exp.title}</div>
             <div class="card-desc" style="margin-top:4px;">${exp.desc}</div>
           </div>
         </div>
       ` : `
-        <div class="card-num">// ${exp.num}</div>
+        <div class="card-num">// ${num}</div>
         <div class="card-visual">${exp.icon}</div>
         <div class="card-title">${exp.title}</div>
         <div class="card-desc">${exp.desc}</div>
       `}
     </div>
-  `).join('');
+  `}).join('');
 
   grid.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', () => {
@@ -1314,13 +1397,20 @@ async function checkXRSupport() {
 // --------- Launch an experience ---------
 async function launchExperience(exp) {
   state.experience = exp;
+  state.pcMode = false;
   resetExperienceState();
 
   $('#hud-exp-name').textContent = exp.title.toUpperCase();
   $('#hud-counter-label').textContent = exp.hudLabel;
   $('#hud-counter').textContent = '0';
   $('#instruction-text').innerHTML = exp.instruction;
+  // Center mode title
+  const titleEl = $('#hud-mode-title');
+  if (titleEl) titleEl.textContent = exp.title;
   $('#ar-overlay').classList.add('active');
+  $('#ar-sub-toolbar').innerHTML = '';
+  $('#ar-sub-toolbar').classList.remove('visible');
+  $('#pc-crosshair').style.display = 'none';
 
   buildToolbar(exp);
   showLoader('初始化場景');
@@ -1329,6 +1419,7 @@ async function launchExperience(exp) {
     if (state.xrSupported) {
       await initXR();
     } else {
+      state.pcMode = true;
       initFallback();
     }
     initExperience(exp);
@@ -1507,36 +1598,55 @@ function initFallback() {
   state.controls.dampingFactor = 0.1;
   state.controls.target.set(0, 0, -1);
 
+  state.pcMode = true;
+  state.pcKeys = state.pcKeys || {};
+
+  // WASD keyboard controls
+  if (!state._wasdBound) {
+    state._wasdBound = true;
+    window.addEventListener('keydown', e => { if(state.pcKeys) state.pcKeys[e.key.toLowerCase()] = true; });
+    window.addEventListener('keyup',   e => { if(state.pcKeys) state.pcKeys[e.key.toLowerCase()] = false; });
+  }
+
   tryDeviceOrientation();
 
-  // ---- Crosshair-based placement point ----
-  // In PC mode the reticle always sits at the world-space point under the crosshair.
-  // We raycast from screen center on every frame.
-  state.pcMode = true;
-  $('#ar-overlay').classList.add('pc-mode');
-  $('#pc-crosshair').style.display = 'block';
-  $('#ar-instruction').classList.add('hidden');    // no scanning instruction on PC
-
-  // Drag vs click detection: only fire select on clean click (no significant drag)
+  // Drag vs click detection
   let pointerDownX = 0, pointerDownY = 0, dragging = false;
   canvas.addEventListener('pointerdown', (e) => {
     pointerDownX = e.clientX; pointerDownY = e.clientY;
     dragging = false;
     if (e.target !== canvas) return;
-    onSelectStart();
+    // For physics, start hold timer on pointerdown (not selectStart which double-fires)
+    if (state.experience?.id === 'physics') {
+      startPhysicsHold();
+    } else {
+      onSelectStart();
+    }
+    if (state.experience?.id === 'shooter') canvas.requestPointerLock?.();
   });
   canvas.addEventListener('pointermove', (e) => {
     if (e.buttons > 0) {
       const dx = e.clientX - pointerDownX, dy = e.clientY - pointerDownY;
-      if (Math.sqrt(dx*dx + dy*dy) > 5) dragging = true;
+      if (Math.sqrt(dx*dx + dy*dy) > 8) dragging = true;
+    }
+    if (document.pointerLockElement === canvas && state.experience?.id === 'shooter') {
+      state.shooter.yaw   = (state.shooter.yaw   || 0) - e.movementX * 0.002;
+      state.shooter.pitch = Math.max(-1.2, Math.min(1.2, (state.shooter.pitch || 0) - e.movementY * 0.002));
     }
   });
   canvas.addEventListener('pointerup', (e) => {
-    onSelectEnd();
-    if (!dragging) onSelect();   // only place on clean click, not drag-release
+    if (state.experience?.id === 'physics') {
+      // Always fire on release regardless of drag — single ball guaranteed
+      releasePhysicsHold();
+    } else {
+      onSelectEnd();
+      if (!dragging) onSelect();
+    }
   });
 
-  $('#instruction-text').innerHTML = '3D 預覽模式<br>點擊放置，拖曳旋轉';
+  // Remove scan instruction entirely on PC
+  $('#ar-instruction').classList.add('hidden');
+  $('#instruction-text').innerHTML = '3D 模式 · WASD 移動 · 拖曳旋轉 · 點擊放置';
 
   state.renderer.setAnimationLoop(renderLoop);
 }
@@ -1665,13 +1775,52 @@ function renderLoop(timestamp, frame) {
   } else if (!frame) {
     // Fallback / PC mode
     $('#ar-coords').innerHTML = `PC 模式<br>FPS: ${state.fps}`;
-    if (state.controls) state.controls.update();
+    if (state.controls && state.experience?.id !== 'shooter') state.controls.update();
 
-    // Raycast from screen center to place reticle at world intersection
-    if (state.pcMode && state.reticle && state.camera) {
+    // Always show draw cursor at camera-forward in draw mode (PC)
+    if (state.experience?.id === 'draw' && state.drawCursor && state.camera) {
+      const { pos: cPos, quat: cQuat } = getCameraPose();
+      const fwd = new THREE.Vector3(0, 0, -0.3).applyQuaternion(cQuat);
+      state.drawCursor.position.copy(cPos.clone().add(fwd));
+      state.drawCursor.visible = true;
+      if (state.reticle) state.reticle.visible = false;
+    }
+
+    // WASD + QE keyboard movement (absolute screen directions)
+    if (state.pcKeys && state.camera && state.experience?.id !== 'shooter') {
+      const speed = 0.04;
+      // Get camera right vector (screen-left/right)
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+      const forward = new THREE.Vector3();
+      state.camera.getWorldDirection(forward);
+      right.crossVectors(forward, up).normalize();
+      // W/S: forward/back along camera look direction
+      if (state.pcKeys['w']) { state.camera.position.addScaledVector(forward, speed); if (state.controls) state.controls.target.addScaledVector(forward, speed); }
+      if (state.pcKeys['s']) { state.camera.position.addScaledVector(forward, -speed); if (state.controls) state.controls.target.addScaledVector(forward, -speed); }
+      // A/D: screen-space left/right (absolute horizontal strafe)
+      if (state.pcKeys['a']) { state.camera.position.addScaledVector(right, -speed); if (state.controls) state.controls.target.addScaledVector(right, -speed); }
+      if (state.pcKeys['d']) { state.camera.position.addScaledVector(right, speed);  if (state.controls) state.controls.target.addScaledVector(right, speed); }
+      // E up / Q down (absolute world-space vertical)
+      if (state.pcKeys['e']) { state.camera.position.y += speed; if (state.controls) state.controls.target.y += speed; }
+      if (state.pcKeys['q']) { state.camera.position.y -= speed; if (state.controls) state.controls.target.y -= speed; }
+    }
+
+    // Shooter mouse-look (PC pointer lock)
+    if (state.experience?.id === 'shooter' && state.shooter && state.camera) {
+      const yaw   = state.shooter.yaw   || 0;
+      const pitch = state.shooter.pitch || 0;
+      const qYaw   = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), yaw);
+      const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), pitch);
+      state.camera.quaternion.copy(qYaw).multiply(qPitch);
+      // Shooter always at fixed center
+      state.camera.position.set(0, 0, 0);
+    }
+
+    // Raycast from screen center to place reticle
+    if (state.pcMode && state.reticle && state.camera && state.experience?.id !== 'shooter') {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), state.camera);
-      // Intersect a large ground plane at y = -1
       const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1);
       const target = new THREE.Vector3();
       raycaster.ray.intersectPlane(plane, target);
@@ -1679,6 +1828,15 @@ function renderLoop(timestamp, frame) {
         state.reticle.position.copy(target);
         state.reticle.visible = true;
         state.pcReticlePos = target.clone();
+
+        // Update live measure rubber-band in PC mode
+        if (state.experience?.id === 'measure' && state.measure.liveLine && state.measure.points.length === 1) {
+          state.measure.liveLine.geometry.setPositions([
+            state.measure.points[0].x, state.measure.points[0].y, state.measure.points[0].z,
+            target.x, target.y, target.z
+          ]);
+          state.measure.liveLine.computeLineDistances();
+        }
       }
     }
   }
@@ -1739,24 +1897,35 @@ function onSelect() {
 }
 
 function onSelectStart() {
-  if (state.experience?.id === 'draw') {
-    startDrawStroke();
-  }
+  if (state.experience?.id === 'draw') startDrawStroke();
+  if (state.experience?.id === 'graffiti') startGraffitiStroke();
+  if (state.experience?.id === 'physics') startPhysicsHold();
 }
 
 function onSelectEnd() {
-  if (state.experience?.id === 'draw') {
-    endDrawStroke();
-  }
+  if (state.experience?.id === 'draw') endDrawStroke();
+  if (state.experience?.id === 'graffiti') endGraffitiStroke();
+  if (state.experience?.id === 'physics') releasePhysicsHold();
 }
 
 // --------- Exit experience ---------
 function exitExperience() {
-  // Guard against re-entry
   if (!state.experience && !state.renderer && !state.session) return;
 
+  // Clean up shooter artefacts
+  $('#shooter-intro')?.remove();
+  $('#shooter-indicators')?.remove();
+  $('#pc-crosshair').style.display = 'none';
+  document.removeEventListener('keydown', _shooterEscHandler);
+  document.exitPointerLock?.();
+
+  // Reset light state so each experience starts with lights on
+  state.lightOn = true;
+  if (state.sceneLights) state.sceneLights.forEach(l => { l.visible = true; });
+  $('#ar-light-btn')?.classList.remove('active');
+
   if (state.session && state.inSession) {
-    state.inSession = false; // prevent loop from onSessionEnd
+    state.inSession = false;
     state.session.end().catch(() => {});
   } else {
     cleanupAR();
@@ -1807,12 +1976,53 @@ function buildToolbar(exp) {
     btn.addEventListener('touchend',    () => setTimeout(() => { state.uiBlocked = false; }, 120));
 
     switch (tool) {
-      case 'shape':
-        btn.innerHTML = SHAPE_ICONS['cube'];
-        btn.title = '形狀';
-        btn.onclick = () => cycleShape(btn);
-        btn.dataset.shape = 'cube';
-        break;
+      case 'shape': {
+        // Shape/Model toggle pair
+        const pair = document.createElement('div');
+        pair.className = 'toggle-pair';
+        const shapeBtn = document.createElement('button');
+        shapeBtn.className = 'ar-tool selected';
+        shapeBtn.dataset.tool = 'shape';
+        shapeBtn.title = '形狀';
+        shapeBtn.innerHTML = SHAPE_ICONS['cube'];
+        const modelBtn = document.createElement('button');
+        modelBtn.className = 'ar-tool';
+        modelBtn.dataset.tool = 'upload';
+        modelBtn.title = '3D 模型';
+        modelBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+
+        const showShapeSub = () => {
+          shapeBtn.classList.add('selected');
+          modelBtn.classList.remove('selected');
+          state.uploadMode = 'shape';
+          state.customModel = null;
+          buildShapeSubToolbar();
+        };
+        const showModelSub = () => {
+          modelBtn.classList.add('selected');
+          shapeBtn.classList.remove('selected');
+          state.uploadMode = 'model';
+          // Hide shape/color sub-toolbar while in model mode
+          const sub = $('#ar-sub-toolbar');
+          if (sub) { sub.innerHTML = ''; sub.classList.remove('visible'); }
+          triggerModelUpload(exp.id);
+        };
+        shapeBtn.onclick = showShapeSub;
+        modelBtn.onclick = showModelSub;
+        [shapeBtn, modelBtn].forEach(b => {
+          b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+          b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        });
+        pair.appendChild(shapeBtn);
+        pair.appendChild(modelBtn);
+        tb.appendChild(pair);
+        // Show shape sub-toolbar by default
+        setTimeout(() => buildShapeSubToolbar(), 50);
+        return;
+      }
+      case 'upload': return; // handled by shape toggle pair above
       case 'color':
         btn.className += ' color-swatch active';
         btn.style.background = state.color;
@@ -1820,8 +2030,8 @@ function buildToolbar(exp) {
         btn.onclick = () => cycleColor(btn);
         break;
       case 'upload':
-        btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
-        btn.title = '載入 3D 模型 (.glb/.gltf)';
+        btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 01-9 9"/><path d="M3 12a9 9 0 019-9"/><polyline points="21 6 21 12 15 12"/><polyline points="3 18 3 12 9 12"/></svg>`;
+        btn.title = '載入 / 更換 3D 模型 (.glb/.gltf)';
         btn.onclick = () => triggerModelUpload(exp.id);
         break;
       case 'delete':
@@ -1833,8 +2043,17 @@ function buildToolbar(exp) {
         btn.onclick = captureScreenshot;
         break;
       case 'undo':
-        btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 7v6h6M3 13a9 9 0 109-9"/></svg>`;
-        btn.onclick = undoAction;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>`;
+        btn.title = '上一步';
+        btn.onclick = () => { undoAction(); updateRedoBtn(); };
+        break;
+      case 'redo':
+        btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>`;
+        btn.title = '下一步';
+        btn.id = 'redo-btn';
+        btn.style.opacity = '0.3';
+        btn.style.pointerEvents = 'none';
+        btn.onclick = redoAction;
         break;
       case 'clear':
         btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" stroke="none" fill="currentColor"/></svg>`;
@@ -1848,13 +2067,80 @@ function buildToolbar(exp) {
         btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/></svg>`;
         btn.onclick = () => cyclePreset(btn);
         break;
+      case 'remove-portal':
+        btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke-width="2.5" stroke-linecap="round"/></svg>`;
+        btn.title = '移除傳送門';
+        btn.onclick = () => {
+          state.objects.forEach(o => state.scene.remove(o));
+          state.objects = [];
+          state.portalWorldData = null;
+          updateCounter();
+          toast('傳送門已移除');
+        };
+        break;
       case 'scene':
         btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2zM3 15l4-4 4 4 4-4 6 6"/></svg>`;
         btn.onclick = () => cyclePortalScene(btn);
         break;
+      case 'brush':
+        btn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M3 12a9 9 0 0118 0"/></svg>`;
+        btn.title = '筆刷大小';
+        btn.onclick = () => {
+          const sizes = [0.01, 0.02, 0.04, 0.08];
+          const labels = ['XS','S','M','L'];
+          if (!btn.dataset.bi) btn.dataset.bi = '1';
+          btn.dataset.bi = ((+btn.dataset.bi + 1) % sizes.length).toString();
+          if (state.graffiti) state.graffiti.brushSize = sizes[+btn.dataset.bi];
+          toast('筆刷: ' + labels[+btn.dataset.bi]);
+        };
+        break;
+      case 'pet-toggle': {
+        const pair = document.createElement('div');
+        pair.className = 'toggle-pair';
+        const petBtn = document.createElement('button');
+        petBtn.className = 'ar-tool selected';
+        petBtn.title = '預設寵物';
+        petBtn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5"/><circle cx="9" cy="8" r="1.5" fill="currentColor"/><circle cx="15" cy="8" r="1.5" fill="currentColor"/><path d="M9 12 Q12 14 15 12" stroke-linecap="round"/><path d="M8 14 Q7 18 8 20M16 14 Q17 18 16 20"/></svg>`;
+        const modelBtn2 = document.createElement('button');
+        modelBtn2.className = 'ar-tool';
+        modelBtn2.title = '3D 模型';
+        modelBtn2.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+
+        const showPetSub = () => {
+          petBtn.classList.add('selected');
+          modelBtn2.classList.remove('selected');
+          state.customModel = null;
+          state.uploadMode = 'shape';
+          // Show color sub-toolbar for pet
+          const sub = $('#ar-sub-toolbar');
+          if (sub) { sub.innerHTML = ''; sub.classList.add('visible'); buildPetColorSub(sub); }
+        };
+        const showPetModelSub = () => {
+          modelBtn2.classList.add('selected');
+          petBtn.classList.remove('selected');
+          state.uploadMode = 'model';
+          $('#ar-sub-toolbar').innerHTML = '';
+          $('#ar-sub-toolbar').classList.remove('visible');
+          triggerModelUpload('pet');
+        };
+        petBtn.onclick = showPetSub;
+        modelBtn2.onclick = showPetModelSub;
+        [petBtn, modelBtn2].forEach(b => {
+          b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+          b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        });
+        pair.appendChild(petBtn);
+        pair.appendChild(modelBtn2);
+        tb.appendChild(pair);
+        setTimeout(() => showPetSub(), 50);
+        return;
+      }
       case 'shoot':
-        btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/><circle cx="12" cy="15" r="2" fill="currentColor"/></svg>`;
-        btn.onclick = shootBall;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>`;
+        btn.title = '切換球體大小 (S/M/L/XL)';
+        btn.onclick = () => cycleBallSize(btn);
         break;
       case 'trick':
         btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>`;
@@ -1919,7 +2205,118 @@ function cyclePortalScene(btn) {
   toast('場景: ' + state.portalSceneType.toUpperCase());
 }
 
-// --------- Scale Preview ---------
+// --------- Sub toolbar helpers ---------
+let _redoStack = [];
+
+function buildShapeSubToolbar() {
+  const sub = $('#ar-sub-toolbar');
+  if (!sub) return;
+  sub.innerHTML = '';
+  sub.classList.add('visible');
+
+  // Shape cycle buttons
+  SHAPES.forEach(shape => {
+    const b = document.createElement('button');
+    b.className = 'ar-tool';
+    b.style.border = state.currentShape === shape ? '1px solid var(--amber)' : '';
+    b.innerHTML = SHAPE_ICONS[shape];
+    b.title = shape;
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+    b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    b.onclick = () => {
+      state.currentShape = shape;
+      buildShapeSubToolbar(); // refresh to highlight
+      // Update main shape button icon
+      const shapeMainBtn = $('[data-tool="shape"]');
+      if (shapeMainBtn) shapeMainBtn.innerHTML = SHAPE_ICONS[shape];
+    };
+    sub.appendChild(b);
+  });
+
+  // Separator
+  const sep = document.createElement('div');
+  sep.style.cssText = 'width:1px;height:28px;background:var(--line-strong);flex-shrink:0;';
+  sub.appendChild(sep);
+
+  // Color swatches
+  COLORS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'ar-tool';
+    b.style.cssText = `background:${c};width:28px;height:28px;border-radius:50%;border:2px solid ${c === state.color ? 'white' : 'transparent'};flex-shrink:0;`;
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+    b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    b.onclick = () => {
+      state.color = c;
+      // Update main color swatch
+      const colorBtn = $('[data-tool="color"]');
+      if (colorBtn) colorBtn.style.background = c;
+      buildShapeSubToolbar();
+    };
+    sub.appendChild(b);
+  });
+}
+
+function showModelSubToolbar(modelName) {
+  const sub = $('#ar-sub-toolbar');
+  if (!sub) return;
+  sub.innerHTML = '';
+  sub.classList.add('visible');
+
+  const label = document.createElement('span');
+  label.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:0.1em;white-space:nowrap;';
+  label.textContent = '✓ ' + (modelName || '已載入模型');
+  sub.appendChild(label);
+
+  const reuploadBtn = document.createElement('button');
+  reuploadBtn.className = 'ar-tool';
+  reuploadBtn.title = '更換模型';
+  reuploadBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+  reuploadBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+  reuploadBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+  reuploadBtn.onclick = () => triggerModelUpload(state.experience?.id);
+  sub.appendChild(reuploadBtn);
+}
+
+function updateRedoBtn() {
+  const btn = $('#redo-btn');
+  if (!btn) return;
+  const hasRedo = _redoStack.length > 0;
+  btn.style.opacity = hasRedo ? '1' : '0.3';
+  btn.style.pointerEvents = hasRedo ? 'auto' : 'none';
+}
+
+function redoAction() {
+  if (!_redoStack.length) return;
+  const obj = _redoStack.pop();
+  if (state.experience?.id === 'draw') {
+    state.scene.add(obj);
+    state.drawing.strokes.push(obj);
+    updateCounter();
+  }
+  updateRedoBtn();
+}
+function buildPetColorSub(container) {
+  if (!container) return;
+  container.innerHTML = '';
+  container.classList.add('visible');
+  const label = document.createElement('span');
+  label.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--text-dim);letter-spacing:.1em;white-space:nowrap;padding-right:4px;';
+  label.textContent = '顏色:';
+  container.appendChild(label);
+  COLORS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'ar-tool';
+    b.style.cssText = `background:${c};width:28px;height:28px;border-radius:50%;border:2px solid ${c === state.color ? 'white' : 'transparent'};flex-shrink:0;`;
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+    b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    b.onclick = () => { state.color = c; buildPetColorSub(container); };
+    container.appendChild(b);
+  });
+}
+
 function makePreviewGeom(shape) {
   switch(shape) {
     case 'sphere':   return new THREE.SphereGeometry(0.08, 16, 12);
@@ -1933,25 +2330,28 @@ function makePreviewGeom(shape) {
 function updateScalePreview() {
   if (!state.scene || !state.reticle) return;
   removeScalePreview();
-  const shapeBtn = $('[data-tool="shape"]');
-  const shape = shapeBtn ? shapeBtn.dataset.shape : 'cube';
-  const geom = makePreviewGeom(shape);
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0x44ff88,
-    transparent: true,
-    opacity: 0.45,
-    depthWrite: false
-  });
-  const mesh = new THREE.Mesh(geom, mat);
+
+  let preview;
+  if (state.customModel && state.uploadMode === 'model') {
+    // Use custom model as preview
+    preview = state.customModel.clone(true);
+    preview.traverse(c => { if (c.isMesh) { c.frustumCulled = false; if (c.material) { c.material = c.material.clone(); c.material.transparent = true; c.material.opacity = 0.5; } } });
+  } else {
+    const shape = state.currentShape || 'cube';
+    const geom = makePreviewGeom(shape);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x44ff88, transparent: true, opacity: 0.45, depthWrite: false });
+    preview = new THREE.Mesh(geom, mat);
+  }
+
   // Position at current reticle
-  const m = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
-  const pos = new THREE.Vector3(); m.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
-  mesh.position.copy(pos);
-  mesh.position.y += 0.08;
-  mesh.scale.setScalar(state.scale);
-  mesh.userData.isPreview = true;
-  state.scene.add(mesh);
-  state.scalePreview = mesh;
+  const m = state.reticle.matrix ? new THREE.Matrix4().fromArray(state.reticle.matrix.elements) : null;
+  const pos = m ? new THREE.Vector3().setFromMatrixPosition(m) : (state.pcReticlePos?.clone() || new THREE.Vector3());
+  preview.position.copy(pos);
+  preview.position.y += 0.08;
+  preview.scale.setScalar(state.scale);
+  preview.userData.isPreview = true;
+  state.scene.add(preview);
+  state.scalePreview = preview;
 }
 
 function removeScalePreview() {
@@ -1973,18 +2373,29 @@ function triggerModelUpload(expId) {
   }
   _modelFileInput.onchange = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file) {
+      // User cancelled — revert to shape mode
+      state.uploadMode = 'shape';
+      state.customModel = null;
+      const shapeToggle = $('[data-tool="shape"]');
+      if (shapeToggle) { shapeToggle.classList.add('selected'); }
+      const modelToggle = $('[data-tool="upload"]');
+      if (modelToggle) modelToggle.classList.remove('selected');
+      buildShapeSubToolbar();
+      return;
+    }
     const url = URL.createObjectURL(file);
     const loader = new GLTFLoader();
     toast('載入模型中...');
     loader.load(url, (gltf) => {
       URL.revokeObjectURL(url);
-      // Normalize scale: fit model into 0.2m bounding box
       const box = new THREE.Box3().setFromObject(gltf.scene);
       const size = box.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
       if (maxDim > 0) gltf.scene.scale.setScalar(0.2 / maxDim);
       state.customModel = gltf.scene;
+      state.uploadMode = 'model';
+      showModelSubToolbar(file.name);
       toast('✓ 模型已載入，點擊放置');
       _modelFileInput.value = '';
     }, undefined, (err) => {
@@ -1997,12 +2408,26 @@ function triggerModelUpload(expId) {
 
 function placeCustomModel(pos, quat) {
   if (!state.customModel) return false;
+  // PC mode: use the center-screen raycasted position
+  const placePos = (state.pcMode && state.pcReticlePos) ? state.pcReticlePos.clone() : pos.clone();
   const clone = state.customModel.clone(true);
-  clone.position.copy(pos);
+  clone.position.copy(placePos);
   clone.position.y += 0.05;
   clone.quaternion.copy(quat);
-  clone.scale.multiplyScalar(state.scale);
-  clone.traverse(c => { if (c.isMesh) c.frustumCulled = false; });
+  clone.scale.setScalar(1).multiplyScalar(state.scale);
+  clone.traverse(c => {
+    if (c.isMesh) {
+      c.frustumCulled = false;
+      if (c.material) {
+        c.material = c.material.clone();
+        if (!state.lightOn && c.material.color) {
+          c.material.emissive = c.material.color.clone();
+          c.material.emissiveIntensity = 1.0;
+          c.material.needsUpdate = true;
+        }
+      }
+    }
+  });
   state.scene.add(clone);
   state.objects.push(clone);
   return true;
@@ -2050,13 +2475,19 @@ function undoAction() {
   if (state.experience.id === 'draw' && state.drawing.strokes.length > 0) {
     const stroke = state.drawing.strokes.pop();
     state.scene.remove(stroke);
+    _redoStack.push(stroke);
   } else if (state.experience.id === 'measure' && state.measure.lines.length > 0) {
     const line = state.measure.lines.pop();
     line.children.forEach(c => state.scene.remove(c));
     state.scene.remove(line);
     state.measure.points = [];
+  } else if (state.experience.id === 'graffiti' && state.graffiti?.strokes.length > 0) {
+    const stroke = state.graffiti.strokes.pop();
+    state.scene.remove(stroke);
+    _redoStack.push(stroke);
   }
   updateCounter();
+  updateRedoBtn();
 }
 
 function clearAll() {
@@ -2085,6 +2516,10 @@ function clearAll() {
   } else if (exp === 'pet') {
     state.pet.pets.forEach(p => state.scene.remove(p));
     state.pet.pets = [];
+  } else if (exp === 'graffiti') {
+    if (state.graffiti) { state.graffiti.strokes.forEach(s => state.scene.remove(s)); state.graffiti.strokes = []; }
+  } else if (exp === 'blocks') {
+    if (state.blocks) { state.blocks.pieces.forEach(b => state.scene.remove(b)); state.blocks = null; initBlocks(); }
   } else if (exp === 'shooter') {
     if (state.shooter) {
       state.shooter.enemies.forEach(e => state.scene.remove(e));
@@ -2094,6 +2529,12 @@ function clearAll() {
       state.shooter.score = 0;
       state.shooter.spawnTimer = 0;
       state.shooter.spawnInterval = 3.5;
+      // Clean up intro and indicators
+      $('#shooter-intro')?.remove();
+      $('#shooter-indicators')?.remove();
+      $('#pc-crosshair').style.display = 'none';
+      document.removeEventListener('keydown', _shooterEscHandler);
+      document.exitPointerLock?.();
     }
   }
   updateCounter();
@@ -2110,6 +2551,8 @@ function updateCounter() {
   else if (exp === 'particles') count = state.particles.emitters.length;
   else if (exp === 'pet') count = state.pet.pets.length;
   else if (exp === 'shooter') count = state.shooter?.score ?? 0;
+  else if (exp === 'graffiti') count = state.graffiti?.strokes?.length ?? 0;
+  else if (exp === 'blocks') count = state.blocks?.pieces?.length ?? 0;
   else if (exp === 'portal') count = state.objects.length;
   $('#hud-counter').textContent = count;
 }
@@ -2118,6 +2561,8 @@ function updateCounter() {
 function initExperience(exp) {
   if (exp.id === 'portal') initPortalSceneResources();
   if (exp.id === 'shooter') initShooter();
+  if (exp.id === 'graffiti') initGraffiti();
+  if (exp.id === 'blocks') initBlocks();
 }
 
 // --------- Selection handlers per experience ---------
@@ -2130,15 +2575,16 @@ function handleSelect(exp, pos, quat) {
     case 'particles': placeEmitter(pos); break;
     case 'pet': placePet(pos); break;
     case 'shooter': shooterFire(); break;
+    case 'graffiti': break; // handled by selectstart/end
+    case 'blocks': grabBlock(pos); break;
   }
 }
 
 // --------- 1. Object Placement ---------
 function placeObject(pos, quat) {
-  if (placeCustomModel(pos, quat)) return; // use uploaded model if available
+  if (placeCustomModel(pos, quat)) return;
 
-  const shapeBtn = $('[data-tool="shape"]');
-  const shape = shapeBtn ? shapeBtn.dataset.shape : 'cube';
+  const shape = state.currentShape || 'cube';
   let geom;
   switch (shape) {
     case 'sphere': geom = new THREE.SphereGeometry(0.08, 24, 16); break;
@@ -2152,21 +2598,20 @@ function placeObject(pos, quat) {
     color,
     metalness: 0.2,
     roughness: 0.4,
-    emissive: color,
-    emissiveIntensity: 0.1
+    emissive: color.clone(),
+    emissiveIntensity: state.lightOn ? 0.1 : 1.0
   });
   const mesh = new THREE.Mesh(geom, mat);
   mesh.position.copy(pos);
   mesh.position.y += 0.08;
   mesh.quaternion.copy(quat);
   mesh.scale.setScalar(state.scale);
-  mesh.userData.spawnTime = performance.now();
+  // No spawn animation — immediate placement
 
-  // Add subtle ring base
+  // Subtle ring base
   const ringG = new THREE.RingGeometry(0.09, 0.095, 32).rotateX(-Math.PI / 2);
   const ringM = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.6 });
   const ring = new THREE.Mesh(ringG, ringM);
-  ring.position.copy(pos);
   mesh.add(ring);
   ring.position.set(0, -0.08, 0);
 
@@ -2526,18 +2971,33 @@ function buildMatrixWorld(scene) {
 function updatePortalCamera() {
   if (!state.objects.length || !state.portalWorldData) return;
   const portal = state.objects[0];
-  const { pos: viewerPos } = getCameraPose();
+  const { pos: viewerPos, quat: viewerQuat } = getCameraPose();
   const cam = state.portalWorldData.cam;
 
-  // Parallax: camera shifts based on viewer position relative to portal
-  const relX = (viewerPos.x - portal.position.x) * 1.2;
-  const relY = (viewerPos.y - portal.position.y) * 1.2;
-  cam.position.set(relX, relY, 3.5);
-  cam.lookAt(relX * 0.3, relY * 0.3, 0);
+  // Vector from viewer to portal in world space
+  const toPortal = portal.position.clone().sub(viewerPos);
+  const dist = toPortal.length();
+
+  // Compute viewer position relative to portal face (local space)
+  const portalInvQuat = portal.quaternion.clone().invert();
+  const localViewer = viewerPos.clone().sub(portal.position).applyQuaternion(portalInvQuat);
+
+  // Parallax shift: the more to the side the viewer stands, the more the portal world shifts
+  // Divide by distance so close viewers see more parallax
+  const parallaxStrength = Math.min(1.5, 1 / Math.max(0.4, dist));
+  const shiftX = -localViewer.x * parallaxStrength;
+  const shiftY = -localViewer.y * parallaxStrength;
+
+  // Camera for the portal world: positioned with parallax offset, always looking toward portal center
+  cam.position.set(shiftX * 1.2, shiftY * 0.8 + 0.3, 3.5 - dist * 0.5);
+  cam.lookAt(shiftX * 0.3, shiftY * 0.3, 0);
+
+  // Match FOV to portal angular size for a more "real window" feel
+  const angularSize = Math.atan2(0.45, Math.max(0.3, dist)) * 2;
+  cam.fov = Math.min(90, Math.max(30, THREE.MathUtils.radToDeg(angularSize) * 2.5));
   cam.updateProjectionMatrix();
 
   // Check if user walked into portal
-  const dist = viewerPos.distanceTo(portal.position);
   if (dist < 0.42 && !state.inPortal) {
     state.inPortal = true;
     toast('✦ 你已進入傳送門！');
@@ -2654,40 +3114,48 @@ function handlePhysicsSelect(pos, quat) {
   shootBall();
 }
 
-function shootBall() {
-  // Auto-set floor from reticle if not yet set
-  if (!state.physics.floorSet && state.reticle?.visible) {
-    const reticleMat = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
-    const rPos = new THREE.Vector3().setFromMatrixPosition(reticleMat);
-    state.physics.floorY = rPos.y;
-    state.physics.floorSet = true;
-  }
+const BALL_SIZES = [0.03, 0.05, 0.09, 0.14];
+let _ballSizeIdx = 0;
+
+function cycleBallSize(btn) {
+  _ballSizeIdx = (_ballSizeIdx + 1) % BALL_SIZES.length;
+  const sz = BALL_SIZES[_ballSizeIdx];
+  const labels = ['S', 'M', 'L', 'XL'];
+  if (btn) btn.textContent = labels[_ballSizeIdx];
+  toast('球體大小: ' + labels[_ballSizeIdx]);
+}
+
+function shootBall(power) {
+  // Auto-set floor
   if (!state.physics.floorSet) {
-    state.physics.floorY = -0.5; // default floor
+    if (state.reticle?.visible) {
+      const reticleMat = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
+      const rPos = new THREE.Vector3().setFromMatrixPosition(reticleMat);
+      state.physics.floorY = rPos.y;
+    } else {
+      state.physics.floorY = -0.5;
+    }
     state.physics.floorSet = true;
   }
 
+  const forcePower = typeof power === 'number' ? power : 1;
+  const radius = BALL_SIZES[_ballSizeIdx];
   const { pos: camPos, quat: camQuat } = getCameraPose();
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
 
-  const ballGeom = new THREE.SphereGeometry(0.04, 16, 12);
+  const ballGeom = new THREE.SphereGeometry(radius, 16, 12);
   const color = new THREE.Color(state.color);
   const ballMat = new THREE.MeshStandardMaterial({
-    color,
-    metalness: 0.6,
-    roughness: 0.3,
-    emissive: color,
-    emissiveIntensity: 0.2
+    color, metalness: 0.6, roughness: 0.3, emissive: color, emissiveIntensity: 0.2
   });
   const ball = new THREE.Mesh(ballGeom, ballMat);
   ball.position.copy(camPos).add(forward.clone().multiplyScalar(0.3));
-
   ball.userData = {
-    velocity: forward.clone().multiplyScalar(2.5).add(new THREE.Vector3(0, 1, 0)),
-    radius: 0.04,
-    bounces: 0
+    velocity: forward.clone().multiplyScalar(2 + forcePower * 12).add(new THREE.Vector3(0, 0.5 + forcePower * 2, 0)),
+    radius,
+    bounces: 0,
+    resting: false
   };
-
   state.scene.add(ball);
   state.physics.balls.push(ball);
   updateCounter();
@@ -2775,6 +3243,9 @@ function placeEmitter(pos) {
     positions[i * 3 + 1] = 0;
     positions[i * 3 + 2] = 0;
     resetParticle(i, positions, velocities, lifetimes, sizes, preset);
+    // Stagger: spread particles across their full lifetime so fountain appears full immediately
+    const maxLife = preset === 'snow' ? 4 : (preset === 'smoke' ? 2.5 : (preset === 'fire' ? 1 : 2));
+    lifetimes[i] = Math.random() * maxLife;  // start at random point in cycle
   }
 
   const geom = new THREE.BufferGeometry();
@@ -2846,96 +3317,159 @@ function resetParticle(i, pos, vel, life, size, preset) {
 // --------- 8. Space Shooter ---------
 function initShooter() {
   state.shooter = {
-    score: 0,
-    enemies: [],
-    bullets: [],
-    spawnTimer: 0,
-    spawnInterval: 3.5,  // seconds between enemy spawns
-    maxEnemies: 2,
-    active: true
+    score: 0, enemies: [], bullets: [],
+    spawnTimer: 0, spawnInterval: 3.5, maxEnemies: 2, active: false,
+    yaw: 0, pitch: 0, started: false
   };
-  // Crosshair sphere (always at screen center, 2m ahead)
-  const chGeom = new THREE.RingGeometry(0.04, 0.048, 32);
-  const chMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, side: THREE.DoubleSide });
-  state.shooter.crosshair = new THREE.Mesh(chGeom, chMat);
-  state.shooter.crosshair.renderOrder = 999;
-  state.scene.add(state.shooter.crosshair);
+  // Hide reticle in shooter (crosshair replaces it)
+  if (state.reticle) state.reticle.visible = false;
 
-  // Request gyroscope for shooter
-  startGyroscope(state.camera);
-  toast('轉動手機瞄準，點擊射擊！');
+  if (state.pcMode) {
+    // Show click-to-start overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'shooter-intro';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);pointer-events:auto;';
+    overlay.innerHTML = `<div style="text-align:center;font-family:var(--mono);color:var(--text);border:1px solid var(--amber);padding:32px 48px;max-width:380px;">
+      <div style="font-size:11px;color:var(--amber);letter-spacing:.15em;margin-bottom:12px;">// 空間射擊</div>
+      <h2 style="font-size:20px;margin-bottom:16px;">準備好了嗎？</h2>
+      <p style="font-size:13px;color:var(--text-dim);line-height:1.7;margin-bottom:24px;">移動滑鼠控制視角<br>點擊發射子彈<br>按 ESC 結束遊戲</p>
+      <button id="shooter-start-btn" style="background:var(--amber);color:#000;border:none;padding:14px 32px;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.1em;cursor:pointer;">點擊開始</button>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    $('#shooter-start-btn').onclick = () => {
+      overlay.remove();
+      state.shooter.started = true;
+      state.shooter.active = true;
+      state.camera.position.set(0, 0, 0);
+      state.camera.quaternion.identity();
+      if (state.controls) state.controls.enabled = false;
+      $('#pc-crosshair').style.display = 'block';
+      state.canvas.requestPointerLock?.();
+      // ESC listener
+      document.addEventListener('keydown', _shooterEscHandler);
+    };
+
+    // Show enemy indicators container
+    let indContainer = $('#shooter-indicators');
+    if (!indContainer) {
+      indContainer = document.createElement('div');
+      indContainer.id = 'shooter-indicators';
+      indContainer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;';
+      document.body.appendChild(indContainer);
+    }
+    state.shooter.indContainer = indContainer;
+  } else {
+    // Mobile: start immediately with gyroscope
+    state.shooter.active = true;
+    state.shooter.started = true;
+    startGyroscope(state.camera);
+    $('#pc-crosshair').style.display = 'block';
+    toast('轉動手機瞄準，點擊射擊！');
+  }
+}
+
+function _shooterEscHandler(e) {
+  if (e.key === 'Escape' && state.experience?.id === 'shooter') {
+    document.exitPointerLock?.();
+    state.shooter.active = false;
+    document.removeEventListener('keydown', _shooterEscHandler);
+    toast('遊戲暫停 — 再次點擊繼續');
+    state.canvas?.addEventListener('pointerup', function resume() {
+      state.canvas.removeEventListener('pointerup', resume);
+      state.shooter.active = true;
+      state.canvas.requestPointerLock?.();
+    }, { once: true });
+  }
+}
+
+function _updateShooterIndicators() {
+  const cont = state.shooter?.indContainer;
+  if (!cont || !state.shooter?.enemies?.length) {
+    if (cont) cont.innerHTML = '';
+    return;
+  }
+  const w = window.innerWidth, h = window.innerHeight;
+  const cx = w / 2, cy = h / 2;
+  cont.innerHTML = '';
+
+  state.shooter.enemies.forEach(en => {
+    // Project enemy to screen
+    const screenPos = en.position.clone().project(state.camera);
+    // If on screen, no indicator needed
+    if (Math.abs(screenPos.x) < 0.85 && Math.abs(screenPos.y) < 0.85) return;
+
+    // Calculate edge position
+    const angle = Math.atan2(screenPos.y, screenPos.x);
+    const margin = 36;
+    const ex = cx + Math.cos(angle) * (cx - margin);
+    const ey = cy - Math.sin(angle) * (cy - margin);
+    // Clamp to edge
+    const clampX = Math.max(margin, Math.min(w - margin, ex));
+    const clampY = Math.max(margin, Math.min(h - margin, ey));
+
+    const arrowRot = (-angle * 180 / Math.PI) + 90;
+    const el = document.createElement('div');
+    el.style.cssText = `position:absolute;left:${clampX}px;top:${clampY}px;transform:translate(-50%,-50%) rotate(${arrowRot}deg);width:20px;height:20px;pointer-events:none;`;
+    el.innerHTML = `<svg viewBox="0 0 20 20" style="width:20px;height:20px;"><polygon points="10,2 18,18 10,14 2,18" fill="#f87171" opacity="0.9"/></svg>`;
+    cont.appendChild(el);
+  });
 }
 
 function spawnShooterEnemy() {
-  const { pos: camPos } = getCameraPose();
-  // Pick random direction from camera, 4-6m away
+  // Always spawn relative to world origin (player is at 0,0,0)
   const angle = Math.random() * Math.PI * 2;
-  const elevation = (Math.random() - 0.5) * 0.8; // -0.4 to +0.4 rad
-  const dist = 4 + Math.random() * 2;
+  const elevation = (Math.random() - 0.4) * 0.6;
+  const dist = 5 + Math.random() * 3;
   const dir = new THREE.Vector3(
     Math.cos(angle) * Math.cos(elevation),
     Math.sin(elevation),
     Math.sin(angle) * Math.cos(elevation)
   );
-  const spawnPos = camPos.clone().add(dir.clone().multiplyScalar(dist));
+  const spawnPos = dir.clone().multiplyScalar(dist);
 
   const group = new THREE.Group();
-  // Enemy body
-  const bodyGeom = new THREE.OctahedronGeometry(0.12, 0);
   const hue = Math.random();
   const enemyColor = new THREE.Color().setHSL(hue, 1, 0.5);
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: enemyColor, emissive: enemyColor, emissiveIntensity: 0.6,
-    metalness: 0.7, roughness: 0.2
-  });
-  const body = new THREE.Mesh(bodyGeom, bodyMat);
-  group.add(body);
-
-  // Glow ring
-  const ringGeom = new THREE.TorusGeometry(0.16, 0.012, 6, 24);
-  const ringMat = new THREE.MeshBasicMaterial({ color: enemyColor, transparent: true, opacity: 0.6 });
-  group.add(new THREE.Mesh(ringGeom, ringMat));
+  const bodyMat = new THREE.MeshStandardMaterial({ color: enemyColor, emissive: enemyColor, emissiveIntensity: 0.6, metalness: 0.7, roughness: 0.2 });
+  group.add(new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0), bodyMat));
+  group.add(new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.012, 6, 24), new THREE.MeshBasicMaterial({ color: enemyColor, transparent: true, opacity: 0.5 })));
 
   group.position.copy(spawnPos);
   group.userData = {
-    hp: 1,
-    dir: dir.clone().negate(), // fly toward player
-    speed: 0.6 + Math.random() * 0.5,
-    rotSpeed: (Math.random() - 0.5) * 3,
-    spawnTime: performance.now()
+    dir: dir.clone().negate().normalize(),
+    speed: 0.5 + Math.random() * 0.4,
+    rotSpeed: (Math.random() - 0.5) * 4,
+    color: enemyColor
   };
   state.scene.add(group);
   state.shooter.enemies.push(group);
 }
 
 function fireShooterBullet() {
-  const { pos: camPos, quat: camQuat } = getCameraPose();
+  const { quat: camQuat } = getCameraPose();
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
-
-  const bulletGeom = new THREE.SphereGeometry(0.025, 8, 6);
-  const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffd080 });
-  const bullet = new THREE.Mesh(bulletGeom, bulletMat);
-  bullet.position.copy(camPos).addScaledVector(forward, 0.3);
-  bullet.userData = { velocity: forward.clone().multiplyScalar(12), life: 0, maxLife: 1.5 };
+  const bullet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.04, 6, 4),
+    new THREE.MeshBasicMaterial({ color: 0xffd080 })
+  );
+  bullet.position.set(0, 0, 0).addScaledVector(forward, 0.5);
+  bullet.userData = { velocity: forward.clone().multiplyScalar(15), life: 0, maxLife: 2 };
   state.scene.add(bullet);
   state.shooter.bullets.push(bullet);
 }
 
 function updateShooter(dt, t) {
-  if (!state.shooter?.active) return;
+  if (!state.shooter?.active || !state.shooter?.started) return;
+  _updateShooterIndicators();
   const sh = state.shooter;
-  const { pos: camPos, quat: camQuat } = getCameraPose();
-
-  // Update crosshair position (2m ahead of camera)
-  const ahead = new THREE.Vector3(0, 0, -2).applyQuaternion(camQuat);
-  sh.crosshair.position.copy(camPos).add(ahead);
-  sh.crosshair.quaternion.copy(camQuat);
+  const playerPos = new THREE.Vector3(0, 0, 0);
 
   // Spawn enemies
   sh.spawnTimer += dt;
   if (sh.spawnTimer >= sh.spawnInterval && sh.enemies.length < sh.maxEnemies) {
     sh.spawnTimer = 0;
-    sh.spawnInterval = Math.max(1.5, sh.spawnInterval - 0.05); // gets faster
+    sh.spawnInterval = Math.max(1.2, sh.spawnInterval - 0.04);
     spawnShooterEnemy();
   }
 
@@ -2943,63 +3477,236 @@ function updateShooter(dt, t) {
   sh.enemies = sh.enemies.filter(en => {
     en.position.addScaledVector(en.userData.dir, en.userData.speed * dt);
     en.rotation.y += en.userData.rotSpeed * dt;
-
-    // Reached player?
-    if (en.position.distanceTo(camPos) < 0.3) {
+    if (en.position.distanceTo(playerPos) < 0.35) {
       state.scene.remove(en);
-      toast('被擊中！', true);
+      toast('💥 被擊中！');
       return false;
     }
     return true;
   });
 
-  // Move bullets + hit detection
+  // Move bullets + collision
   sh.bullets = sh.bullets.filter(b => {
     b.userData.life += dt;
     b.position.addScaledVector(b.userData.velocity, dt);
-    if (b.userData.life > b.userData.maxLife) {
-      state.scene.remove(b); return false;
+    if (b.userData.life > b.userData.maxLife) { state.scene.remove(b); return false; }
+
+    if (b.userData.v) {  // explosion debris
+      b.position.addScaledVector(b.userData.v, dt);
+      b.userData.v.y -= 6 * dt;
+      return true;
     }
-    // Check hit with each enemy
+
     for (let i = sh.enemies.length - 1; i >= 0; i--) {
-      const en = sh.enemies[i];
-      if (b.position.distanceTo(en.position) < 0.18) {
-        // Explosion particles
-        for (let p = 0; p < 6; p++) {
-          const pG = new THREE.SphereGeometry(0.03, 4, 3);
-          const pM = new THREE.MeshBasicMaterial({ color: en.children[0]?.material?.color || 0xffd080 });
-          const part = new THREE.Mesh(pG, pM);
-          part.position.copy(en.position);
-          part.userData = { v: new THREE.Vector3((Math.random()-0.5)*4, (Math.random()-.3)*4, (Math.random()-0.5)*4), life: 0 };
-          state.scene.add(part);
-          sh.bullets.push(part); // reuse array with life check
+      if (b.position.distanceTo(sh.enemies[i].position) < 0.22) {
+        const en = sh.enemies[i];
+        // Debris
+        for (let p = 0; p < 5; p++) {
+          const d = new THREE.Mesh(new THREE.SphereGeometry(0.025, 4, 3), new THREE.MeshBasicMaterial({ color: en.userData.color }));
+          d.position.copy(en.position);
+          d.userData = { v: new THREE.Vector3((Math.random()-.5)*5, Math.random()*3, (Math.random()-.5)*5), life: 0, maxLife: 0.8 };
+          state.scene.add(d);
+          sh.bullets.push(d);
         }
         state.scene.remove(en);
         sh.enemies.splice(i, 1);
         sh.score++;
         $('#hud-counter').textContent = sh.score;
-        toast('擊中！ 🎯 得分: ' + sh.score);
+        toast('🎯 擊中！ ' + sh.score);
         state.scene.remove(b);
         return false;
       }
     }
-    // Particle movement
-    if (b.userData.v) {
-      b.position.addScaledVector(b.userData.v, dt);
-      b.userData.v.y -= 8 * dt;
-    }
     return true;
   });
-
-  // Enemy direction indicators on screen edges
-  // (handled by HUD — simplified to just show count)
 }
 
 function shooterFire() {
   if (state.experience?.id === 'shooter') fireShooterBullet();
 }
 
-// --------- 6. Particles ---------
+// --------- 9. Graffiti ---------
+function initGraffiti() {
+  state.graffiti = { strokes: [], brushSize: 0.02, isDrawing: false, currentPoints: [], currentLine: null };
+}
+
+function updateGraffiti() {
+  if (!state.graffiti?.isDrawing) return;
+
+  let drawPos;
+  if (state.reticle?.visible) {
+    // AR mode: use hit-test reticle position (on the actual AR plane)
+    const m = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
+    drawPos = new THREE.Vector3().setFromMatrixPosition(m);
+  } else {
+    // PC/fallback: use screen-center raycast to ground plane
+    const { pos: camPos, quat: camQuat } = getCameraPose();
+    const fwd = new THREE.Vector3(0, 0, -0.4).applyQuaternion(camQuat);
+    drawPos = camPos.clone().add(fwd);
+  }
+
+  const pts = state.graffiti.currentPoints;
+  if (!pts.length || pts[pts.length-1].distanceTo(drawPos) > 0.005) {
+    pts.push(drawPos.clone());
+    if (pts.length >= 2 && state.graffiti.currentLine) {
+      const coords = []; pts.forEach(p => coords.push(p.x,p.y,p.z));
+      state.graffiti.currentLine.geometry.setPositions(coords);
+      state.graffiti.currentLine.computeLineDistances();
+    }
+  }
+}
+
+function startGraffitiStroke() {
+  if (!state.graffiti) return;
+  state.graffiti.isDrawing = true;
+  state.graffiti.currentPoints = [];
+  const geom = new LineGeometry();
+  geom.setPositions([0,0,0,0.001,0,0]);
+  const mat = new LineMaterial({ color: new THREE.Color(state.color).getHex(), linewidth: Math.max(2, state.graffiti.brushSize * 200), resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+  const line = new Line2(geom, mat);
+  line.frustumCulled = false;
+  state.graffiti.currentLine = line;
+  state.scene.add(line);
+}
+
+function endGraffitiStroke() {
+  if (!state.graffiti?.isDrawing) return;
+  state.graffiti.isDrawing = false;
+  if (state.graffiti.currentPoints.length > 1) {
+    state.graffiti.strokes.push(state.graffiti.currentLine);
+    updateCounter();
+  } else if (state.graffiti.currentLine) {
+    state.scene.remove(state.graffiti.currentLine);
+  }
+  state.graffiti.currentLine = null;
+  state.graffiti.currentPoints = [];
+}
+
+// --------- 10. Blocks ---------
+function initBlocks() {
+  state.blocks = { pieces: [], grabbed: null, grabOffset: new THREE.Vector3(), placed: 0 };
+  // Spawn 10 blocks on detected plane
+  const floor = state.physics.floorY ?? -0.5;
+  for (let i = 0; i < 10; i++) {
+    const colors = [0xff8c42, 0x5eead4, 0xf87171, 0xfbbf24, 0xa78bfa, 0x60a5fa];
+    const color = new THREE.Color(colors[i % colors.length]);
+    const sz = 0.06 + Math.random() * 0.06;
+    const geom = new THREE.BoxGeometry(sz, sz, sz);
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1 });
+    const block = new THREE.Mesh(geom, mat);
+    block.position.set((Math.random()-0.5)*0.8, floor + sz/2 + 0.01, -0.5 - Math.random()*0.8);
+    block.userData = { velocity: new THREE.Vector3(), onFloor: false, sz };
+    state.scene.add(block);
+    state.blocks.pieces.push(block);
+  }
+  toast('點擊積木抓取，再點放置');
+}
+
+function updateBlocks(dt) {
+  if (!state.blocks) return;
+  const floor = state.physics.floorY ?? -0.5;
+  const g = 9.8;
+  state.blocks.pieces.forEach(b => {
+    if (state.blocks.grabbed === b) {
+      // Follow camera center
+      const { pos: camPos, quat: camQuat } = getCameraPose();
+      const fwd = new THREE.Vector3(0, 0, -0.5).applyQuaternion(camQuat);
+      b.position.lerp(camPos.clone().add(fwd), 0.2);
+      b.rotation.y += dt * 1.5;
+      b.userData.velocity.set(0,0,0);
+      return;
+    }
+    if (!b.userData.onFloor) {
+      b.userData.velocity.y -= g * dt;
+      b.position.addScaledVector(b.userData.velocity, dt);
+      const bottom = floor + b.userData.sz / 2;
+      // Floor
+      if (b.position.y < bottom) {
+        b.position.y = bottom;
+        b.userData.velocity.y *= -0.4;
+        b.userData.velocity.x *= 0.7;
+        b.userData.velocity.z *= 0.7;
+        if (Math.abs(b.userData.velocity.y) < 0.05) { b.userData.velocity.set(0,0,0); b.userData.onFloor = true; }
+      }
+      // Block-on-block stacking
+      state.blocks.pieces.forEach(b2 => {
+        if (b2 === b) return;
+        const d = b.position.distanceTo(b2.position);
+        const minD = (b.userData.sz + b2.userData.sz) * 0.5;
+        if (d < minD && d > 0.001) {
+          const n = b.position.clone().sub(b2.position).normalize();
+          b.position.addScaledVector(n, (minD - d) * 0.5);
+          const vRel = b.userData.velocity.dot(n);
+          if (vRel < 0) b.userData.velocity.addScaledVector(n, -vRel * 1.4);
+        }
+      });
+    }
+  });
+}
+
+function grabBlock(pos) {
+  if (!state.blocks) return;
+  if (state.blocks.grabbed) {
+    // Release
+    state.blocks.grabbed.userData.onFloor = false;
+    state.blocks.grabbed.userData.velocity.set((Math.random()-.5)*0.5, 0.3, (Math.random()-.5)*0.5);
+    state.blocks.grabbed = null;
+    toast('積木已放置');
+    return;
+  }
+  // Find closest block
+  let closest = null, minDist = 0.5;
+  state.blocks.pieces.forEach(b => {
+    const d = b.position.distanceTo(pos);
+    if (d < minDist) { minDist = d; closest = b; }
+  });
+  if (closest) { state.blocks.grabbed = closest; closest.userData.onFloor = false; toast('抓住積木！再點擊放置'); }
+}
+
+let _lastPhysicsFire = 0;
+let _physicsHoldTimer = 0;
+let _physicsHolding = false;
+let _physicsHoldInterval = null;
+
+function startPhysicsHold() {
+  if (state.experience?.id !== 'physics') return;
+  if (state.uiBlocked) return;
+  _physicsHolding = true;
+  _physicsHoldTimer = 0;
+  const wrap = $('#power-bar-wrap');
+  const fill = $('#power-bar-fill');
+  if (wrap) wrap.classList.add('visible');
+  _physicsHoldInterval = setInterval(() => {
+    _physicsHoldTimer = Math.min(1, _physicsHoldTimer + 0.03);
+    if (fill) {
+      fill.style.width = (_physicsHoldTimer * 100) + '%';
+      fill.style.background = _physicsHoldTimer > 0.8 ? '#f87171' : 'var(--amber)';
+    }
+    if (_physicsHoldTimer >= 1) clearInterval(_physicsHoldInterval);
+  }, 30);
+}
+
+function releasePhysicsHold() {
+  if (!_physicsHolding) return;
+  _physicsHolding = false;
+  clearInterval(_physicsHoldInterval);
+  const wrap = $('#power-bar-wrap');
+  const fill = $('#power-bar-fill');
+  if (wrap) wrap.classList.remove('visible');
+  const power = _physicsHoldTimer;
+  _physicsHoldTimer = 0;
+  if (fill) fill.style.width = '0%';
+
+  // Cooldown to prevent double-fire
+  const now = performance.now();
+  if (now - _lastPhysicsFire < 180) return;
+  _lastPhysicsFire = now;
+
+  // Power: 0=slow lob, 1=3x speed boost
+  shootBall(power);
+}
+
+// --------- Particles update ---------
 function updateParticles(dt) {
   state.particles.emitters.forEach(em => {
     const ud = em.userData;
@@ -3032,23 +3739,27 @@ function updateParticles(dt) {
 function placePet(pos) {
   if (state.customModel) {
     toast('正在放置模型...');
+    const placePos = (state.pcMode && state.pcReticlePos) ? state.pcReticlePos.clone() : pos.clone();
     setTimeout(() => {
       try {
         const clone = state.customModel.clone(true);
-        clone.position.copy(pos);
+        clone.position.copy(placePos);
         clone.position.y += 0.05;
         clone.scale.multiplyScalar(state.scale);
         clone.traverse(c => {
           if (c.isMesh) {
             c.frustumCulled = false;
-            // Ensure material is cloned so light toggle works
             if (c.material) c.material = c.material.clone();
           }
         });
-        clone.userData.wander = { target: pos.clone(), speed: 0.2 + Math.random() * 0.15, timer: 0, trickTimer: 0, trickPhase: 0 };
+        clone.userData.wander = { target: placePos.clone(), speed: 0.2 + Math.random() * 0.15, timer: 0, trickTimer: 0, trickPhase: 0 };
         state.scene.add(clone);
         state.pet.pets.push(clone);
         updateCounter();
+        // Ensure controls re-enabled after async clone
+        if (state.controls && state.experience?.id !== 'shooter') {
+          state.controls.enabled = true;
+        }
       } catch(e) {
         toast('模型放置失敗: ' + e.message);
         console.error(e);
@@ -3181,6 +3892,8 @@ function updateExperience(exp, dt, t) {
     case 'particles': updateParticles(dt); break;
     case 'pet': updatePets(dt, t); break;
     case 'shooter': updateShooter(dt, t); break;
+    case 'graffiti': updateGraffiti(); break;
+    case 'blocks': updateBlocks(dt); break;
     case 'portal':
       // Portal world rendering is handled in renderLoop (pre-render to RT)
       // Just animate the portal ring glow
@@ -3211,26 +3924,30 @@ function toggleLight() {
   if (state.sceneLights) {
     state.sceneLights.forEach(l => { l.visible = state.lightOn; });
   }
-  // In flat/unlit mode, make all materials emissive
+  // Make all placed objects emissive in dark mode
   if (state.scene) {
     state.scene.traverse(obj => {
-      if (obj.isMesh && obj.material && obj.userData.origEmissive === undefined) {
-        obj.userData.origEmissive = obj.material.emissive?.clone?.() || new THREE.Color(0);
-        obj.userData.origEmissiveIntensity = obj.material.emissiveIntensity ?? 1;
-      }
-      if (obj.isMesh && obj.material) {
-        if (!state.lightOn) {
-          if (obj.material.color) obj.material.emissive = obj.material.color.clone();
-          obj.material.emissiveIntensity = 1;
-        } else {
-          if (obj.userData.origEmissive) obj.material.emissive = obj.userData.origEmissive.clone();
-          obj.material.emissiveIntensity = obj.userData.origEmissiveIntensity ?? 0.1;
+      if (!obj.isMesh || !obj.material || obj.userData.isReticle || obj.userData.isGrid) return;
+      const mat = obj.material;
+      if (!mat.color) return;
+      if (!state.lightOn) {
+        // Self-emissive: emissive = own color, intensity 1
+        if (mat.emissive !== undefined) {
+          mat.emissive.copy(mat.color);
+          mat.emissiveIntensity = 1.0;
+          mat.needsUpdate = true;
         }
-        obj.material.needsUpdate = true;
+      } else {
+        // Restore to subtle emissive
+        if (mat.emissive !== undefined) {
+          mat.emissive.copy(mat.color).multiplyScalar(0.3);
+          mat.emissiveIntensity = 0.1;
+          mat.needsUpdate = true;
+        }
       }
     });
   }
-  toast(state.lightOn ? '場景燈光 開啟' : '場景燈光 關閉（純色模式）');
+  toast(state.lightOn ? '場景燈光 開啟' : '純色自發光模式');
 }
 function toggleGrid() {
   state.gridEnabled = !state.gridEnabled;
