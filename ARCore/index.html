@@ -859,6 +859,15 @@
     .card.featured { grid-column: span 4; aspect-ratio: 5 / 1; }
     .card { aspect-ratio: 3 / 3.5; }
   }
+
+  /* Prevent text selection everywhere */
+  * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
+
+  /* Hide mobile-only AR overlay buttons on desktop */
+  @media (min-width: 1024px) {
+    #ar-3d-mode, #ar-grid-toggle { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -880,7 +889,7 @@
     </div>
     <div class="hero">
       <div class="hero-label">→ 七種沉浸式體驗</div>
-      <h1>空間<span class="slash">／</span><span class="accent">遊樂場</span></h1>
+      <h1>空間<br><span class="accent">遊樂場</span></h1>
       <p>基於 WebXR 的空間計算實驗室。在真實世界中繪畫、測量、放置物件、發射粒子的七種沉浸式體驗。</p>
     </div>
   </header>
@@ -899,7 +908,7 @@
       <h3>// 使用說明</h3>
       <ul>
         <li>Android Chrome / Edge 原生支援 WebXR AR</li>
-        <li>iOS Safari 使用陀螺儀降級模式預覽</li>
+        <li>iOS Safari 使用陀螺儀模式預覽</li>
         <li>首次使用需允許相機與感測器權限</li>
         <li>光線充足、紋理豐富的平面辨識最佳</li>
         <li>點擊體驗卡片可查看詳細操作說明</li>
@@ -1003,7 +1012,7 @@
       <div style="flex:1;">
         <div style="font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:0.1em;margin-bottom:6px;">當前網址</div>
         <div id="current-url" style="font-family:var(--mono);font-size:10px;color:var(--mint);word-break:break-all;line-height:1.5;"></div>
-        <button onclick="navigator.clipboard?.writeText(location.href).then(()=>this.textContent='已複製！');setTimeout(()=>this.textContent='複製網址',1500)" style="margin-top:8px;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;background:transparent;border:1px solid var(--line-strong);color:var(--text-dim);padding:5px 10px;cursor:pointer;border-radius:2px;">複製網址</button>
+        <button onclick="const u='https://lunlunlun-git.github.io/APP/ARCore/';navigator.clipboard?.writeText(u).then(()=>this.textContent='已複製！');setTimeout(()=>this.textContent='複製網址',1500)" style="margin-top:8px;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;background:transparent;border:1px solid var(--line-strong);color:var(--text-dim);padding:5px 10px;cursor:pointer;border-radius:2px;">複製網址</button>
       </div>
     </div>
     <div style="border-top:1px dashed var(--line);padding-top:14px;margin-top:4px;">
@@ -1051,7 +1060,7 @@ const EXPERIENCES = [
   {
     id: 'measure', num: '02', title: 'AR 測量',
     desc: 'DISTANCE · 空間長度量測',
-    icon: `<svg viewBox="0 0 100 100"><path d="M20 80 L80 20"/><circle cx="20" cy="80" r="4"/><circle cx="80" cy="20" r="4"/><path d="M45 35 L65 45 M60 30 L70 50"/></svg>`,
+    icon: `<svg viewBox="0 0 100 100"><line x1="15" y1="82" x2="85" y2="82" stroke-width="2.5" stroke-linecap="round"/><line x1="15" y1="82" x2="15" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="85" y1="82" x2="85" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="35" y1="82" x2="35" y2="72" stroke-width="1.5" stroke-linecap="round"/><line x1="50" y1="82" x2="50" y2="69" stroke-width="1.5" stroke-linecap="round"/><line x1="65" y1="82" x2="65" y2="72" stroke-width="1.5" stroke-linecap="round"/><circle cx="15" cy="62" r="4"/><circle cx="85" cy="62" r="4"/></svg>`,
     instruction: '點擊第一點<br>移動後再點擊第二點',
     hudLabel: 'points',
     tools: ['undo', 'clear', 'capture']
@@ -1083,7 +1092,7 @@ const EXPERIENCES = [
   {
     id: 'particles', num: '06', title: '粒子噴泉',
     desc: 'EMIT · 粒子系統生成',
-    icon: `<svg viewBox="0 0 100 100"><circle cx="30" cy="25" r="2"/><circle cx="70" cy="35" r="2"/><circle cx="40" cy="55" r="2"/><circle cx="65" cy="60" r="2"/><circle cx="25" cy="75" r="2"/><circle cx="80" cy="80" r="2"/><path d="M50 90 L50 50" stroke-dasharray="2"/></svg>`,
+    icon: `<svg viewBox="0 0 100 100"><line x1="50" y1="80" x2="50" y2="80" stroke-linecap="round"/><path d="M50 78 L50 55" stroke-width="2.5" stroke-linecap="round"/><path d="M50 55 Q50 30 35 18" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q50 28 50 15" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q50 30 65 18" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M50 55 Q48 35 28 28" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.6"/><path d="M50 55 Q52 35 72 28" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.6"/><circle cx="35" cy="18" r="2.5" fill="currentColor"/><circle cx="50" cy="15" r="2.5" fill="currentColor"/><circle cx="65" cy="18" r="2.5" fill="currentColor"/><circle cx="28" cy="28" r="2" fill="currentColor" opacity="0.7"/><circle cx="72" cy="28" r="2" fill="currentColor" opacity="0.7"/><line x1="30" y1="82" x2="70" y2="82" stroke-width="2" stroke-linecap="round" opacity="0.4"/></svg>`,
     instruction: '點擊平面放置噴泉<br>可放置多個',
     hudLabel: 'emitters',
     tools: ['color', 'preset', 'clear', 'capture']
@@ -1244,13 +1253,13 @@ async function checkXRSupport() {
     } else {
       statusText.textContent = 'AR 不支援';
       statusDot.classList.add('warn');
-      statusDetail.textContent = '降級 3D 模式';
+      statusDetail.textContent = '3D 模式';
       state.xrSupported = false;
     }
   } catch (e) {
     statusText.textContent = '偵測失敗';
     statusDot.classList.add('warn');
-    statusDetail.textContent = '降級 3D 模式';
+    statusDetail.textContent = '3D 模式';
     state.xrSupported = false;
   }
 }
@@ -1288,7 +1297,7 @@ async function launchExperience(exp) {
 function resetExperienceState() {
   state.objects = [];
   state.drawing = { isDrawing: false, current: null, strokes: [], thickness: 0.008 };
-  state.measure = { points: [], lines: [] };
+  state.measure = { points: [], lines: [], liveLine: null, liveDot: null };
   state.physics = { balls: [], floorY: null, floorSet: false };
   state.laser = { shots: [], mode: 'single', holding: false };
   state.particles = { emitters: [], preset: 'fountain' };
@@ -1308,9 +1317,9 @@ async function initXR() {
   document.body.appendChild(canvas);
   state.canvas = canvas;
 
-  const context = canvas.getContext('webgl2', { xrCompatible: true, antialias: false, stencil: true, powerPreference: 'high-performance' });
-  state.renderer = new THREE.WebGLRenderer({ canvas, context, antialias: false, alpha: true });
-  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const context = canvas.getContext('webgl2', { xrCompatible: true, antialias: false, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+  state.renderer = new THREE.WebGLRenderer({ canvas, context, antialias: false, alpha: true, preserveDrawingBuffer: true });
+  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.xr.enabled = true;
   state.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1341,16 +1350,11 @@ async function initXR() {
   state.reticle.add(dot);
   state.scene.add(state.reticle);
 
-  // Draw cursor (sphere for draw mode indicator)
-  const cursorGeom = new THREE.SphereGeometry(0.018, 10, 8);
-  const cursorMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.9 });
+  // Draw cursor: tiny dot only (1/4 of original 0.018 = ~0.005 radius)
+  const cursorGeom = new THREE.SphereGeometry(0.005, 8, 6);
+  const cursorMat = new THREE.MeshBasicMaterial({ color: 0xff8c42 });
   state.drawCursor = new THREE.Mesh(cursorGeom, cursorMat);
   state.drawCursor.visible = false;
-  // Glow ring around draw cursor
-  const glowGeom = new THREE.RingGeometry(0.025, 0.03, 16).rotateX(-Math.PI / 2);
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.4 });
-  const glow = new THREE.Mesh(glowGeom, glowMat);
-  state.drawCursor.add(glow);
   state.scene.add(state.drawCursor);
 
   // AR Grid (for grid toggle, hidden by default)
@@ -1406,7 +1410,7 @@ function initFallback() {
   document.body.appendChild(canvas);
   state.canvas = canvas;
 
-  state.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
+  state.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
   state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1436,9 +1440,9 @@ function initFallback() {
   state.reticle.visible = true;
   state.scene.add(state.reticle);
 
-  // Draw cursor
-  const cursorGeom = new THREE.SphereGeometry(0.018, 10, 8);
-  const cursorMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.9 });
+  // Draw cursor - tiny dot
+  const cursorGeom = new THREE.SphereGeometry(0.005, 8, 6);
+  const cursorMat = new THREE.MeshBasicMaterial({ color: 0xff8c42 });
   state.drawCursor = new THREE.Mesh(cursorGeom, cursorMat);
   state.drawCursor.visible = false;
   state.scene.add(state.drawCursor);
@@ -1499,9 +1503,11 @@ function onSessionEnd() {
   $('#ar-overlay').classList.remove('active');
   $('#ar-instruction').classList.remove('hidden');
   $('#scale-row').style.display = 'none';
-  // Reset 3D mode button
-  const btn = $('#ar-3d-mode');
-  if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
+  // Restore mobile-only buttons
+  const gridBtn = $('#ar-grid-toggle');
+  if (gridBtn) gridBtn.style.display = '';
+  const modeBtn = $('#ar-3d-mode');
+  if (modeBtn) { modeBtn.style.opacity = ''; modeBtn.style.pointerEvents = ''; modeBtn.style.display = ''; }
 }
 
 // --------- Cleanup ---------
@@ -1562,7 +1568,18 @@ function renderLoop(timestamp, frame) {
         state.arGrid.visible = true;
       }
 
-      // In draw mode: always show dot cursor at brush tip position
+      // Update live measure preview line (first point placed, awaiting second)
+      if (state.experience?.id === 'measure' && state.measure.liveLine && state.measure.points.length === 1) {
+        const reticlePos = new THREE.Vector3();
+        const reticleMat = new THREE.Matrix4().fromArray(pose.transform.matrix);
+        reticlePos.setFromMatrixPosition(reticleMat);
+        const posArr = new Float32Array([
+          state.measure.points[0].x, state.measure.points[0].y, state.measure.points[0].z,
+          reticlePos.x, reticlePos.y, reticlePos.z
+        ]);
+        state.measure.liveLine.geometry.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+        state.measure.liveLine.geometry.attributes.position.needsUpdate = true;
+      }
       if (state.experience?.id === 'draw' && state.drawCursor && !state.drawing.isDrawing) {
         const { pos: camPos, quat: camQuat } = getCameraPose();
         const fwd = new THREE.Vector3(0, 0, -0.25).applyQuaternion(camQuat);
@@ -1658,8 +1675,10 @@ function exitExperience() {
   $('#ar-overlay').classList.remove('active');
   $('#ar-instruction').classList.remove('hidden');
   $('#scale-row').style.display = 'none';
-  const btn = $('#ar-3d-mode');
-  if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
+  const gridBtn = $('#ar-grid-toggle');
+  if (gridBtn) gridBtn.style.display = '';
+  const modeBtn = $('#ar-3d-mode');
+  if (modeBtn) { modeBtn.style.opacity = ''; modeBtn.style.pointerEvents = ''; modeBtn.style.display = ''; }
 }
 
 // --------- Toolbar construction ---------
@@ -1690,11 +1709,13 @@ function buildToolbar(exp) {
     const btn = document.createElement('button');
     btn.className = 'ar-tool';
     btn.dataset.tool = tool;
+    btn.addEventListener('pointerdown', e => e.stopPropagation());
+    btn.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 
     switch (tool) {
       case 'shape':
-        btn.innerHTML = `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
-        btn.title = 'Shape';
+        btn.innerHTML = SHAPE_ICONS['cube'];
+        btn.title = '形狀';
         btn.onclick = () => cycleShape(btn);
         btn.dataset.shape = 'cube';
         break;
@@ -1748,10 +1769,18 @@ function buildToolbar(exp) {
 }
 
 // --------- Toolbar actions ---------
+  cube:     `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`,
+  sphere:   `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>`,
+  cylinder: `<svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><ellipse cx="12" cy="18" rx="8" ry="3"/><line x1="4" y1="6" x2="4" y2="18"/><line x1="20" y1="6" x2="20" y2="18"/></svg>`,
+  cone:     `<svg viewBox="0 0 24 24"><path d="M12 3 L21 21 H3 Z"/></svg>`,
+  torus:    `<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="5"/><ellipse cx="12" cy="12" rx="4" ry="2"/></svg>`
+};
+
 const SHAPES = ['cube', 'sphere', 'cylinder', 'cone', 'torus'];
 function cycleShape(btn) {
   const i = SHAPES.indexOf(btn.dataset.shape);
   btn.dataset.shape = SHAPES[(i + 1) % SHAPES.length];
+  btn.innerHTML = SHAPE_ICONS[btn.dataset.shape];
   toast('形狀: ' + btn.dataset.shape.toUpperCase());
 }
 
@@ -1819,6 +1848,9 @@ function clearAll() {
     state.drawing.strokes.forEach(s => state.scene.remove(s));
     state.drawing.strokes = [];
   } else if (exp === 'measure') {
+    // Remove live preview line if active
+    if (state.measure.liveLine) { state.scene.remove(state.measure.liveLine); state.measure.liveLine = null; }
+    if (state.measure.liveDot) { state.scene.remove(state.measure.liveDot); state.measure.liveDot = null; }
     state.measure.lines.forEach(l => {
       l.children.slice().forEach(c => state.scene.remove(c));
       state.scene.remove(l);
@@ -1914,26 +1946,43 @@ function placeObject(pos, quat) {
 function addMeasurePoint(pos) {
   state.measure.points.push(pos.clone());
 
-  // Add dot
+  // Dot marker
   const dotG = new THREE.SphereGeometry(0.015, 12, 8);
   const dotM = new THREE.MeshBasicMaterial({ color: 0xff8c42 });
   const dot = new THREE.Mesh(dotG, dotM);
   dot.position.copy(pos);
   state.scene.add(dot);
 
-  if (state.measure.points.length === 2) {
+  if (state.measure.points.length === 1) {
+    // Create a live "rubber-band" line that tracks to the reticle
+    const liveGeom = new THREE.BufferGeometry().setFromPoints([pos, pos.clone()]);
+    const liveMat = new THREE.LineBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.55 });
+    const liveLine = new THREE.Line(liveGeom, liveMat);
+    state.measure.livePoint = pos.clone();
+    state.measure.liveLine = liveLine;
+    state.measure.liveDot = dot;
+    state.scene.add(liveLine);
+    toast('第一點已標記，瞄準後點擊第二點');
+  } else if (state.measure.points.length === 2) {
+    // Remove live line
+    if (state.measure.liveLine) {
+      state.scene.remove(state.measure.liveLine);
+      state.measure.liveLine = null;
+    }
+
     const [a, b] = state.measure.points;
     const dist = a.distanceTo(b);
 
-    // Line
+    // Final line
     const lineGeom = new THREE.BufferGeometry().setFromPoints([a, b]);
     const lineMat = new THREE.LineBasicMaterial({ color: 0xff8c42 });
     const line = new THREE.Line(lineGeom, lineMat);
+    state.scene.add(line);
 
-    // Label (using sprite with canvas texture)
-    const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 64;
-    const ctx = canvas.getContext('2d');
+    // Label sprite
+    const lCanvas = document.createElement('canvas');
+    lCanvas.width = 256; lCanvas.height = 64;
+    const ctx = lCanvas.getContext('2d');
     ctx.fillStyle = 'rgba(10,10,11,0.9)';
     ctx.fillRect(0, 0, 256, 64);
     ctx.strokeStyle = '#ff8c42';
@@ -1943,41 +1992,42 @@ function addMeasurePoint(pos) {
     ctx.font = 'bold 28px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(`${(dist * 100).toFixed(1)} cm`, 128, 40);
-    const tex = new THREE.CanvasTexture(canvas);
+    const tex = new THREE.CanvasTexture(lCanvas);
     const sprMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
     const sprite = new THREE.Sprite(sprMat);
     sprite.position.copy(a).lerp(b, 0.5);
     sprite.position.y += 0.04;
     sprite.scale.set(0.15, 0.04, 1);
+    state.scene.add(sprite);
 
     const group = new THREE.Group();
-    group.add(line);
-    state.scene.add(line);
-    state.scene.add(sprite);
-    group.children.push(sprite, dot); // track for cleanup
-
+    group.children.push(line, sprite, dot, state.measure.liveDot);
     state.measure.lines.push(group);
     state.measure.points = [];
+    state.measure.liveDot = null;
 
     toast(`距離: ${(dist * 100).toFixed(1)} cm`);
+    updateCounter();
   }
 }
 
-// --------- 3. Draw ---------
 function startDrawStroke() {
   state.drawing.isDrawing = true;
   state.drawing.currentPoints = [];
 
-  // Use Line2 for thick, screen-space linewidth preview (linewidth in WebGL 1.x is always 1px)
   const lineGeom = new LineGeometry();
+  // seed with 2 identical points so geometry is valid immediately
+  lineGeom.setPositions([0,0,0, 0,0,0]);
   const lineMat = new LineMaterial({
     color: new THREE.Color(state.color).getHex(),
-    linewidth: 6, // screen pixels
+    linewidth: 5,
     resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
     transparent: true,
-    opacity: 0.85
+    opacity: 0.9,
+    depthTest: true
   });
   const line = new Line2(lineGeom, lineMat);
+  line.frustumCulled = false;  // prevent disappearing when near edge of frustum
   state.drawing.currentLine = line;
   state.scene.add(line);
   if (state.reticle) state.reticle.visible = false;
@@ -1991,27 +2041,21 @@ function updateDrawStroke() {
   const forward = new THREE.Vector3(0, 0, -0.25).applyQuaternion(camQuat);
   const drawPos = camPos.clone().add(forward);
 
-  // Move draw cursor to current brush tip position
   if (state.drawCursor) {
     state.drawCursor.position.copy(drawPos);
     state.drawCursor.visible = true;
   }
 
   const pts = state.drawing.currentPoints;
-  if (pts.length === 0 || pts[pts.length - 1].distanceTo(drawPos) > 0.008) {
+  const lastPt = pts[pts.length - 1];
+  if (!lastPt || lastPt.distanceTo(drawPos) > 0.007) {
     pts.push(drawPos.clone());
 
-    // Update Line2 geometry (needs flat float array)
     if (pts.length >= 2 && state.drawing.currentLine) {
       const coords = [];
       pts.forEach(p => coords.push(p.x, p.y, p.z));
       state.drawing.currentLine.geometry.setPositions(coords);
-      state.drawing.currentLine.geometry.setColors(
-        Array.from({ length: pts.length }, () => [1, 1, 1]).flat()
-      );
-      if (state.drawing.currentLine.computeLineDistances) {
-        state.drawing.currentLine.computeLineDistances();
-      }
+      state.drawing.currentLine.computeLineDistances();
     }
   }
 }
@@ -2023,17 +2067,20 @@ function endDrawStroke() {
   if (state.drawCursor) state.drawCursor.visible = false;
 
   const pts = state.drawing.currentPoints;
-  if (pts.length < 2) {
-    if (state.drawing.currentLine) state.scene.remove(state.drawing.currentLine);
-    return;
+  // Remove the Line2 preview
+  if (state.drawing.currentLine) {
+    state.scene.remove(state.drawing.currentLine);
+    state.drawing.currentLine.geometry.dispose();
+    state.drawing.currentLine.material.dispose();
+    state.drawing.currentLine = null;
   }
 
-  // Remove the Line2 preview
-  if (state.drawing.currentLine) state.scene.remove(state.drawing.currentLine);
+  if (pts.length < 2) return;
 
-  // Build smooth final tube (same thickness as configured)
+  // Build smooth final tube
   const curve = new THREE.CatmullRomCurve3(pts);
-  const tubeGeom = new THREE.TubeGeometry(curve, Math.max(pts.length * 2, 16), state.drawing.thickness, 8, false);
+  const segments = Math.max(pts.length * 3, 24);
+  const tubeGeom = new THREE.TubeGeometry(curve, segments, state.drawing.thickness, 8, false);
   const tubeMat = new THREE.MeshStandardMaterial({
     color: state.color,
     emissive: new THREE.Color(state.color).multiplyScalar(0.3),
@@ -2042,10 +2089,10 @@ function endDrawStroke() {
     metalness: 0.4
   });
   const tube = new THREE.Mesh(tubeGeom, tubeMat);
+  tube.frustumCulled = false;
   state.scene.add(tube);
   state.drawing.strokes.push(tube);
   state.drawing.currentPoints = [];
-  state.drawing.currentLine = null;
   updateCounter();
 }
 
@@ -2300,12 +2347,22 @@ function placePortal(pos, quat) {
   state.objects.forEach(o => state.scene.remove(o));
   state.objects = [];
 
+  // Rebuild portal world now so RT is populated on next frame
+  state.portalWorldData = buildPortalWorldScene(state.portalSceneType || 'nebula');
+
   const group = new THREE.Group();
   group.position.copy(pos);
-  group.position.y += 0.5;
-  group.quaternion.copy(quat);
+  group.position.y += 0.55; // raise up from floor
 
-  // Outer ring glow
+  // Face the camera (ignore floor normal — always stand upright)
+  const { pos: camPos } = getCameraPose();
+  const lookDir = new THREE.Vector3().subVectors(camPos, group.position);
+  lookDir.y = 0; // keep upright
+  if (lookDir.length() > 0.001) {
+    group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), lookDir.normalize());
+  }
+
+  // Outer glow ring
   const ringGeom = new THREE.TorusGeometry(0.45, 0.035, 16, 64);
   const ringMat = new THREE.MeshStandardMaterial({
     color: 0xff8c42, emissive: 0xff8c42, emissiveIntensity: 1.5,
@@ -2318,28 +2375,25 @@ function placePortal(pos, quat) {
   const ring2Mat = new THREE.MeshBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0.7 });
   group.add(new THREE.Mesh(ring2Geom, ring2Mat));
 
-  // Portal disc - shows 3D portal world via RenderTarget texture
+  // Portal disc — shows RenderTarget texture of the 3D world
   const portalGeom = new THREE.CircleGeometry(0.43, 48);
   const portalMat = new THREE.MeshBasicMaterial({
     map: state.portalRT ? state.portalRT.texture : null,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+    depthWrite: false
   });
   const portalDisc = new THREE.Mesh(portalGeom, portalMat);
   portalDisc.userData.isPortalDisc = true;
   group.add(portalDisc);
 
   group.userData.portalMat = portalMat;
-  group.userData.portalType = state.portalSceneType;
+
+  // Glow light
+  const light = new THREE.PointLight(0xff8c42, 2, 2.5);
+  group.add(light);
 
   state.scene.add(group);
   state.objects.push(group);
-
-  // Rebuild portal world for current scene type
-  state.portalWorldData = buildPortalWorldScene(state.portalSceneType || 'nebula');
-
-  // Ambient glow light at portal
-  const light = new THREE.PointLight(0xff8c42, 2, 2.5);
-  group.add(light);
 
   toast('傳送門已開啟，靠近探索另一個世界');
 }
@@ -2400,41 +2454,66 @@ function shootBall() {
 function updatePhysics(dt) {
   if (!state.physics.floorSet) return;
   const g = 9.8;
+  const restitution = 0.68;   // bounciness
+  const friction    = 0.92;   // horizontal damping on bounce
+  const airDrag     = 0.998;  // per-frame velocity multiplier in air
 
   state.physics.balls.forEach(b => {
+    // Gravity
     b.userData.velocity.y -= g * dt;
+
+    // Air drag
+    b.userData.velocity.multiplyScalar(airDrag);
+
+    // Integrate position
     b.position.addScaledVector(b.userData.velocity, dt);
 
+    // Spin for visual interest
+    if (!b.userData.resting) {
+      b.rotation.x += b.userData.velocity.z * dt * 3;
+      b.rotation.z -= b.userData.velocity.x * dt * 3;
+    }
+
     // Floor bounce
-    if (b.position.y < state.physics.floorY + b.userData.radius) {
-      b.position.y = state.physics.floorY + b.userData.radius;
-      b.userData.velocity.y *= -0.55;
-      b.userData.velocity.x *= 0.85;
-      b.userData.velocity.z *= 0.85;
+    const floorContact = state.physics.floorY + b.userData.radius;
+    if (b.position.y < floorContact) {
+      b.position.y = floorContact;
+      const vy = Math.abs(b.userData.velocity.y);
+      b.userData.velocity.y = vy * restitution;
+      b.userData.velocity.x *= friction;
+      b.userData.velocity.z *= friction;
       b.userData.bounces++;
 
-      // Stop if low energy
-      if (Math.abs(b.userData.velocity.y) < 0.2 && b.userData.bounces > 3) {
+      // Settle threshold
+      if (vy < 0.06 && b.userData.bounces > 2) {
         b.userData.velocity.set(0, 0, 0);
+        b.userData.resting = true;
+      } else {
+        b.userData.resting = false;
       }
     }
 
-    // Ball-ball collision (simple)
-    for (let j = 0; j < state.physics.balls.length; j++) {
-      const b2 = state.physics.balls[j];
+    // Ball-ball collision (impulse-based)
+    for (const b2 of state.physics.balls) {
       if (b2 === b) continue;
-      const d = b.position.distanceTo(b2.position);
-      const minD = b.userData.radius + b2.userData.radius;
-      if (d < minD && d > 0) {
-        const normal = b.position.clone().sub(b2.position).normalize();
-        const overlap = minD - d;
-        b.position.addScaledVector(normal, overlap / 2);
-        b2.position.addScaledVector(normal, -overlap / 2);
-        // Exchange velocities along normal
-        const v1n = b.userData.velocity.dot(normal);
-        const v2n = b2.userData.velocity.dot(normal);
-        b.userData.velocity.addScaledVector(normal, (v2n - v1n) * 0.8);
-        b2.userData.velocity.addScaledVector(normal, (v1n - v2n) * 0.8);
+      const delta = b.position.clone().sub(b2.position);
+      const dist  = delta.length();
+      const minD  = b.userData.radius + b2.userData.radius;
+      if (dist < minD && dist > 0.0001) {
+        const normal  = delta.divideScalar(dist);
+        // Separate
+        const overlap = (minD - dist) * 0.5;
+        b.position.addScaledVector(normal, overlap);
+        b2.position.addScaledVector(normal, -overlap);
+        // Relative velocity along normal
+        const relVel = b.userData.velocity.clone().sub(b2.userData.velocity).dot(normal);
+        if (relVel < 0) {
+          const impulse = relVel * (1 + restitution) * 0.5;
+          b.userData.velocity.addScaledVector(normal, -impulse);
+          b2.userData.velocity.addScaledVector(normal, impulse);
+          b.userData.resting = false;
+          b2.userData.resting = false;
+        }
       }
     }
   });
@@ -2709,44 +2788,82 @@ function toggleGrid() {
   toast(state.gridEnabled ? '平面網格 ON' : '平面網格 OFF');
 }
 
-// --------- Camera Mode Toggle (AR → 3D) ---------
+// --------- Camera Mode Toggle (AR → 3D black background) ---------
 async function switchTo3DMode() {
-  if (!state.experience) return;
-  const savedExp = state.experience;
+  if (!state.experience || !state.inSession) return;
 
-  // Collect all current scene objects to carry over
-  const toSave = [];
-  toSave.push(...state.objects);
-  toSave.push(...(state.drawing?.strokes || []));
-  toSave.push(...(state.physics?.balls || []));
-  toSave.push(...(state.particles?.emitters || []));
-  toSave.push(...(state.pet?.pets || []));
+  const savedExp   = state.experience;
+  const savedScene = state.scene;       // keep existing 3D scene
+  const savedObjs  = {
+    objects:  [...state.objects],
+    strokes:  [...(state.drawing?.strokes || [])],
+    balls:    [...(state.physics?.balls   || [])],
+    emitters: [...(state.particles?.emitters || [])],
+    pets:     [...(state.pet?.pets || [])]
+  };
 
-  if (state.inSession && state.session) {
-    state.inSession = false;
-    try { await state.session.end(); } catch(e) {}
-    await new Promise(r => setTimeout(r, 150));
-  } else {
-    cleanupAR(true);
-  }
+  // End XR session (this removes the camera feed)
+  state.inSession = false;
+  try { await state.session.end(); } catch(e) {}
+  await new Promise(r => setTimeout(r, 200));
 
-  // Re-set experience and re-init as fallback
-  state.experience = savedExp;
-  $('#hud-exp-name').textContent = savedExp.title.toUpperCase();
-  $('#ar-overlay').classList.add('active');
+  // Build a fresh renderer with black background, reuse the same scene
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:50;background:#000;';
+  document.body.appendChild(canvas);
+  state.canvas = canvas;
 
-  initFallback();
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.autoClear = true;
+  state.renderer = renderer;
 
-  // Re-add preserved objects to the new scene
-  toSave.forEach(o => {
-    try { if (o && state.scene) state.scene.add(o); } catch(e) {}
+  // Re-use the saved scene; just set a black background
+  state.scene = savedScene;
+  state.scene.background = new THREE.Color(0x000000);
+
+  // Re-add all objects to the scene in case they were detached
+  [...savedObjs.objects, ...savedObjs.strokes, ...savedObjs.balls, ...savedObjs.emitters, ...savedObjs.pets]
+    .forEach(o => { try { if (o) savedScene.add(o); } catch(e) {} });
+
+  // Show the arGrid since we're now in "pure 3D" mode
+  if (state.arGrid) { state.arGrid.visible = true; }
+
+  // New camera
+  state.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 40);
+  state.camera.position.set(0, 0.5, 0);
+
+  // OrbitControls for navigation
+  const controls = new OrbitControls(state.camera, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.12;
+  controls.target.set(0, 0, -1);
+  state.controls = controls;
+
+  // Tap to add objects
+  canvas.addEventListener('pointerup', (e) => {
+    onSelect();
   });
 
-  // Hide 3D mode button (already in 3D mode)
-  const btn = $('#ar-3d-mode');
-  if (btn) { btn.style.opacity = '0.3'; btn.style.pointerEvents = 'none'; }
+  state.experience = savedExp;
+  state.inSession = false;
 
-  toast('已切換 3D 場景模式（相機已關閉）');
+  // Hide grid toggle (meaningless in 3D mode), hide 3D mode button
+  $('#ar-grid-toggle').style.display = 'none';
+  const modeBtn = $('#ar-3d-mode');
+  if (modeBtn) { modeBtn.style.opacity = '0.3'; modeBtn.style.pointerEvents = 'none'; }
+
+  renderer.setAnimationLoop((ts, frame) => {
+    controls.update();
+    if (state.experience) updateExperience(state.experience, Math.min(0.1,(ts - (state.lastFrame||ts))/1000), ts);
+    state.lastFrame = ts;
+    renderer.clear();
+    renderer.render(state.scene, state.camera);
+  });
+
+  toast('已切換 3D 模式（相機已關閉）');
 }
 
 // --------- Reset Spatial Anchor ---------
@@ -2822,10 +2939,10 @@ window.addEventListener('resize', () => {
 });
 
 // --------- Event wiring ---------
-$('#ar-back').addEventListener('click', exitExperience);
-$('#ar-grid-toggle').addEventListener('click', toggleGrid);
-$('#ar-3d-mode').addEventListener('click', switchTo3DMode);
-$('#ar-reset').addEventListener('click', resetSpatialAnchor);
+$('#ar-back').addEventListener('click', e => { e.stopPropagation(); exitExperience(); });
+$('#ar-grid-toggle').addEventListener('click', e => { e.stopPropagation(); toggleGrid(); });
+$('#ar-3d-mode').addEventListener('click', e => { e.stopPropagation(); switchTo3DMode(); });
+$('#ar-reset').addEventListener('click', e => { e.stopPropagation(); resetSpatialAnchor(); });
 
 // --------- Desktop Detection & QR Code ---------
 function isDesktopDevice() {
@@ -2868,14 +2985,15 @@ function renderQRCode(canvas, url) {
   img.src = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&bgcolor=0a0a0b&color=ff8c42&data=${encodedUrl}`;
 }
 
+const PRODUCTION_URL = 'https://lunlunlun-git.github.io/APP/ARCore/';
+
 function showDesktopModal() {
   const modal = $('#desktop-modal');
   const urlEl = $('#current-url');
   const qrCanvas = $('#qr-canvas');
 
-  const url = location.href;
-  urlEl.textContent = url;
-  renderQRCode(qrCanvas, url);
+  urlEl.textContent = PRODUCTION_URL;
+  renderQRCode(qrCanvas, PRODUCTION_URL);
 
   modal.classList.add('active');
 
