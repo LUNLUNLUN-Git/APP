@@ -511,13 +511,19 @@
 
   .ar-coords {
     position: absolute;
-    bottom: calc(env(safe-area-inset-bottom) + 130px);
-    left: 12px;
+    bottom: calc(env(safe-area-inset-bottom) + 175px);
+    left: 14px;
     font-size: 9px;
-    color: var(--text-faint);
+    color: rgba(255,255,255,0.45);
     line-height: 1.6;
     letter-spacing: 0.05em;
     pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+
+  /* Hide PC hint on mobile / touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    #pc-controls-hint { display: none !important; }
   }
 
   /* Screenshot flash */
@@ -1463,6 +1469,13 @@ function resetExperienceState() {
   state.pet = { pets: [] };
   state.color = '#ff8c42';
   state.scale = 1;
+  // Reset 3D model upload state — always start fresh from shape mode
+  state.customModel = null;
+  state.uploadMode = 'shape';
+  state.currentShape = 'cube';
+  // Clear sub-toolbar
+  const sub = $('#ar-sub-toolbar');
+  if (sub) { sub.innerHTML = ''; sub.classList.remove('visible'); }
 }
 
 // --------- Initialize WebXR AR ---------
@@ -1787,9 +1800,8 @@ function renderLoop(timestamp, frame) {
         state.drawCursor.visible = true;
       }
 
-      // Update coords display
-      const m = pose.transform.position;
-      $('#ar-coords').innerHTML = `X: ${m.x.toFixed(2)}<br>Y: ${m.y.toFixed(2)}<br>Z: ${m.z.toFixed(2)}<br>FPS: ${state.fps}`;
+      // Update coords display (just FPS for mobile, less clutter)
+      $('#ar-coords').innerHTML = `FPS: ${state.fps}`;
 
       // Hide instruction on first hit
       if (!state.hadFirstHit) {
@@ -1801,7 +1813,7 @@ function renderLoop(timestamp, frame) {
     }
   } else if (!frame) {
     // Fallback / PC mode
-    $('#ar-coords').innerHTML = `PC 模式<br>FPS: ${state.fps}`;
+    $('#ar-coords').innerHTML = `FPS: ${state.fps}`;
     if (state.controls && state.experience?.id !== 'shooter') state.controls.update();
 
     // Always show draw cursor at camera-forward in draw mode (PC)
@@ -2802,12 +2814,19 @@ function updateDrawStroke() {
     pts.push(drawPos.clone());
   }
 
-  // Always update Line2 with all accumulated points — this IS the live preview
+  // Always rebuild Line2 with current points — force buffer update
   if (state.drawing.currentLine && pts.length >= 2) {
     const coords = [];
     pts.forEach(p => coords.push(p.x, p.y, p.z));
-    state.drawing.currentLine.geometry.setPositions(coords);
+    const geom = state.drawing.currentLine.geometry;
+    geom.setPositions(coords);
+    // Force GPU buffer update on instanced attributes
+    if (geom.attributes.instanceStart) geom.attributes.instanceStart.needsUpdate = true;
+    if (geom.attributes.instanceEnd) geom.attributes.instanceEnd.needsUpdate = true;
+    geom.instanceCount = Math.max(0, pts.length - 1);
     state.drawing.currentLine.computeLineDistances();
+    // Update resolution in case window resized
+    state.drawing.currentLine.material.resolution.set(window.innerWidth, window.innerHeight);
   }
 }
 
@@ -3129,15 +3148,38 @@ function placePortal(pos, quat) {
   state.portalWorldData = buildPortalWorldScene(state.portalSceneType || 'nebula');
 
   const group = new THREE.Group();
-  group.position.copy(pos);
-  group.position.y += 0.55; // raise up from floor
+  const { pos: camPos, quat: camQuat } = getCameraPose();
 
-  // Face the camera (ignore floor normal — always stand upright)
-  const { pos: camPos } = getCameraPose();
+  // Determine portal placement position
+  // If user tapped a valid AR plane, use that position, but ensure it's in front of camera
+  // and at sensible height (don't put it on the floor — raise to standing eye level)
+  const camForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+
+  // Use the tap position as base, but enforce minimum 1m distance from camera
+  const distFromCam = pos.distanceTo(camPos);
+  if (distFromCam < 0.6 || distFromCam > 4) {
+    // Too close or too far — use camera-forward 1.5m as fallback
+    const fallback = camPos.clone().addScaledVector(camForward, 1.5);
+    group.position.set(fallback.x, camPos.y - 0.1, fallback.z); // slightly below eye level
+  } else {
+    // Use the hit position but adjust height so it's standing upright at viewable level
+    group.position.copy(pos);
+    // If hit point is on floor (low), raise to eye-ish level
+    if (pos.y < camPos.y - 0.5) {
+      group.position.y = camPos.y - 0.2;
+    } else {
+      group.position.y += 0.1; // slight lift if on wall/table
+    }
+  }
+
+  // Always face the camera (upright)
   const lookDir = new THREE.Vector3().subVectors(camPos, group.position);
-  lookDir.y = 0; // keep upright
+  lookDir.y = 0;
   if (lookDir.length() > 0.001) {
-    group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), lookDir.normalize());
+    lookDir.normalize();
+    // Use lookAt-style quaternion
+    const m = new THREE.Matrix4().lookAt(group.position, group.position.clone().sub(lookDir), new THREE.Vector3(0, 1, 0));
+    group.quaternion.setFromRotationMatrix(m);
   }
 
   // Outer glow ring
@@ -3642,11 +3684,17 @@ function updateGraffiti() {
     pts.push(drawPos.clone());
   }
 
-  // Always update Line2 — this IS the live preview
+  // Force Line2 buffer update for real-time visibility
   if (state.graffiti.currentLine && pts.length >= 2) {
-    const coords = []; pts.forEach(p => coords.push(p.x,p.y,p.z));
-    state.graffiti.currentLine.geometry.setPositions(coords);
+    const coords = [];
+    pts.forEach(p => coords.push(p.x, p.y, p.z));
+    const geom = state.graffiti.currentLine.geometry;
+    geom.setPositions(coords);
+    if (geom.attributes.instanceStart) geom.attributes.instanceStart.needsUpdate = true;
+    if (geom.attributes.instanceEnd) geom.attributes.instanceEnd.needsUpdate = true;
+    geom.instanceCount = Math.max(0, pts.length - 1);
     state.graffiti.currentLine.computeLineDistances();
+    state.graffiti.currentLine.material.resolution.set(window.innerWidth, window.innerHeight);
   }
 }
 
@@ -4026,42 +4074,70 @@ function placePet(pos) {
 
     toast('正在放置模型...');
     const placePos = (state.pcMode && state.pcReticlePos) ? state.pcReticlePos.clone() : pos.clone();
-    setTimeout(() => {
+
+    // Use requestAnimationFrame instead of setTimeout — gives browser a chance to render frame first
+    requestAnimationFrame(() => {
       try {
+        // Clone using SkeletonUtils-style shallow approach to avoid blocking
         const clone = state.customModel.clone(true);
         clone.position.copy(placePos);
         clone.position.y += 0.05;
         clone.scale.multiplyScalar(state.scale);
-        clone.traverse(c => {
-          if (c.isMesh) {
-            c.frustumCulled = false;
-            if (c.material) c.material = c.material.clone();
+
+        // Defer material cloning to a second rAF if model is large
+        let meshCount = 0;
+        clone.traverse(c => { if (c.isMesh) meshCount++; });
+
+        const finishClone = () => {
+          clone.traverse(c => {
+            if (c.isMesh) {
+              c.frustumCulled = false;
+              // Only clone material if absolutely necessary (light toggle compatibility)
+              if (c.material && state.lightOn === false) {
+                // Material already converted by toggleLight pass — skip
+              }
+            }
+          });
+          clone.userData.wander = {
+            target: placePos.clone(),
+            speed: 0.2 + Math.random() * 0.15,
+            timer: 0,
+            trickTimer: 0,
+            trickPhase: 0
+          };
+          state.scene.add(clone);
+          state.pet.pets.push(clone);
+          updateCounter();
+
+          // Re-enable controls after async work
+          if (state.controls && state.experience?.id !== 'shooter') {
+            state.controls.enabled = true;
           }
-        });
-        clone.userData.wander = { target: placePos.clone(), speed: 0.2 + Math.random() * 0.15, timer: 0, trickTimer: 0, trickPhase: 0 };
-        state.scene.add(clone);
-        state.pet.pets.push(clone);
-        updateCounter();
-        if (state.controls && state.experience?.id !== 'shooter') {
-          state.controls.enabled = true;
+          toast('✓ 模型已放置');
+        };
+
+        if (meshCount > 30) {
+          // Heavy model — split traverse into next frame
+          requestAnimationFrame(finishClone);
+        } else {
+          finishClone();
         }
       } catch(e) {
         toast('模型放置失敗: ' + e.message);
-        console.error(e);
+        console.error('placePet error:', e);
+        if (state.controls) state.controls.enabled = true;
       }
-    }, 0);
+    });
     return;
   }
   const group = new THREE.Group();
   const color = new THREE.Color(state.color);
 
-  // Body
+  // Body — use Basic material when lights are off so color shows in unlit mode
   const bodyGeom = new THREE.SphereGeometry(0.08, 20, 16);
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color,
-    roughness: 0.4,
-    metalness: 0.1
-  });
+  const bodyMat = state.lightOn
+    ? new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 })
+    : new THREE.MeshBasicMaterial({ color, toneMapped: false });
   const body = new THREE.Mesh(bodyGeom, bodyMat);
   group.add(body);
 
@@ -4114,8 +4190,38 @@ function placePet(pos) {
 function updatePets(dt, t) {
   state.pet.pets.forEach(pet => {
     const ud = pet.userData;
+    const isCustom = !!ud.wander;  // custom GLTF models have wander, default pets have full structure
 
-    // Wander
+    if (isCustom) {
+      // Simpler wander for custom models
+      ud.wander.timer -= dt;
+      if (ud.wander.timer <= 0) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 0.3 + Math.random() * 0.5;
+        ud.wander.target = ud.wander.target.clone();
+        ud.wander.target.x = pet.position.x + Math.cos(angle) * dist;
+        ud.wander.target.z = pet.position.z + Math.sin(angle) * dist;
+        ud.wander.timer = 2 + Math.random() * 3;
+      }
+      const diff = ud.wander.target.clone().sub(pet.position);
+      diff.y = 0;
+      const d = diff.length();
+      if (d > 0.05) {
+        diff.normalize();
+        pet.position.x += diff.x * ud.wander.speed * dt;
+        pet.position.z += diff.z * ud.wander.speed * dt;
+        pet.rotation.y = Math.atan2(diff.x, diff.z);
+      }
+      // Trick (rotate)
+      if (ud.wander.trickTimer > 0) {
+        ud.wander.trickTimer -= dt;
+        pet.rotation.y += dt * 8;
+      }
+      return;
+    }
+
+    // Default pet logic
+    if (!ud.homePos) return;
     ud.wanderTimer -= dt;
     if (ud.wanderTimer <= 0) {
       const angle = Math.random() * Math.PI * 2;
@@ -4126,7 +4232,6 @@ function updatePets(dt, t) {
       ud.wanderTimer = 2 + Math.random() * 3;
     }
 
-    // Move towards target
     const diff = ud.targetPos.clone().sub(pet.position);
     diff.y = 0;
     const dist = diff.length();
@@ -4134,25 +4239,23 @@ function updatePets(dt, t) {
       diff.normalize();
       pet.position.x += diff.x * ud.speed * dt;
       pet.position.z += diff.z * ud.speed * dt;
-      // Face direction
       pet.rotation.y = Math.atan2(diff.x, diff.z);
     }
 
-    // Bounce
-    const bounce = Math.abs(Math.sin(t * 0.005 + ud.bounceOffset)) * 0.015;
-    pet.position.y = ud.homePos.y + 0.08 + bounce;
-    ud.body.rotation.z = Math.sin(t * 0.005 + ud.bounceOffset) * 0.1;
+    if (ud.body) {
+      const bounce = Math.abs(Math.sin(t * 0.005 + ud.bounceOffset)) * 0.015;
+      pet.position.y = ud.homePos.y + 0.08 + bounce;
+      ud.body.rotation.z = Math.sin(t * 0.005 + ud.bounceOffset) * 0.1;
+    }
 
-    // Trick
     if (ud.trickTimer > 0) {
       ud.trickTimer -= dt;
       const trickT = 1 - ud.trickTimer / 1.5;
       pet.rotation.y += dt * 8;
-      pet.position.y = ud.homePos.y + 0.08 + Math.sin(trickT * Math.PI) * 0.2;
+      if (ud.homePos) pet.position.y = ud.homePos.y + 0.08 + Math.sin(trickT * Math.PI) * 0.2;
     }
 
-    // Look at camera
-    if (Math.random() < 0.01) {
+    if (ud.eyeL && ud.eyeR && Math.random() < 0.01) {
       const { pos: camPos } = getCameraPose();
       const localCam = pet.worldToLocal(camPos.clone());
       const dir = localCam.clone().normalize();
@@ -4164,7 +4267,8 @@ function updatePets(dt, t) {
 
 function petTrick() {
   state.pet.pets.forEach(p => {
-    p.userData.trickTimer = 1.5;
+    if (p.userData.wander) p.userData.wander.trickTimer = 1.5;
+    else p.userData.trickTimer = 1.5;
   });
   toast('寵物正在表演!');
 }
