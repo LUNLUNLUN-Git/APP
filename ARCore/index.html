@@ -886,6 +886,21 @@
   #pc-crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
   #pc-crosshair::after  { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
 
+  /* ── Full AR overlay touch isolation ─────────────────── */
+  /* Buttons / sliders / toolbar must NOT let touches fall through to WebXR canvas */
+  .ar-hud-top button,
+  .ar-hud-bottom button,
+  .ar-hud-bottom input,
+  .ar-sub-toolbar,
+  .ar-sub-toolbar *,
+  .ar-toolbar,
+  .ar-tool,
+  .ar-btn,
+  .ar-reset-btn,
+  #power-bar-wrap,
+  #scale-row,
+  #ar-coords { touch-action: none; }
+
   /* Hide mobile-only buttons on desktop */
   @media (min-width: 1024px) {
     #ar-3d-mode, #ar-grid-toggle { display: none !important; }
@@ -958,7 +973,7 @@
     </div>
     <div class="hero">
       <div class="hero-label" id="hero-label">→ 多種沉浸式體驗</div>
-      <h1>空間<br><span class="accent">遊樂場</span></h1>
+      <h1>空間<span class="slash">／</span><span class="accent">遊樂場</span></h1>
       <p>基於 WebXR 的空間計算實驗室。在真實世界中繪畫、測量、放置物件、發射粒子的多種沉浸式體驗。</p>
     </div>
   </header>
@@ -1014,8 +1029,6 @@
       <div id="hud-info-main"><span class="counter" id="hud-counter">0</span> <span id="hud-counter-label">objects</span></div>
     </div>
   </div>
-  <!-- Center mode title -->
-  <div id="hud-mode-title" style="position:absolute;top:calc(env(safe-area-inset-top)+14px);left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(255,255,255,0.75);text-shadow:0 1px 4px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;"></div>
 
   <div class="ar-instruction" id="ar-instruction">
     <div class="ar-instruction-icon">
@@ -1031,6 +1044,11 @@
 
   <!-- Small reset spatial anchor button -->
   <button class="ar-reset-btn" id="ar-reset" title="重置空間定位">↺</button>
+
+  <!-- PC controls hint -->
+  <div id="pc-controls-hint" style="position:absolute;bottom:calc(env(safe-area-inset-bottom)+110px);left:16px;font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.35);line-height:1.8;pointer-events:none;display:none;">
+    W/S 前進後退 · A/D 左右平移<br>Q 上升 · E 下降 · Shift 加速<br>拖曳 旋轉
+  </div>
 
   <div class="ar-hud-bottom">
     <div class="slider-row" id="scale-row" style="display:none; width: calc(100% - 32px); max-width: 320px;">
@@ -1140,7 +1158,7 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><path d="M15 75 L50 55 L85 75 L50 95 Z"/><path d="M50 15 L50 55"/><rect x="40" y="20" width="20" height="25"/><circle cx="50" cy="55" r="2" fill="currentColor"/></svg>`,
     instruction: '移動手機掃描平面<br>點擊畫面放置物件',
     hudLabel: 'objects',
-    tools: ['shape', 'color', 'scale', 'upload', 'delete', 'capture']
+    tools: ['shape', 'scale', 'upload', 'delete', 'capture']
   },
   {
     id: 'pet', num: '02', title: '虛擬寵物',
@@ -1180,7 +1198,7 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><line x1="15" y1="82" x2="85" y2="82" stroke-width="2.5" stroke-linecap="round"/><line x1="15" y1="82" x2="15" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="85" y1="82" x2="85" y2="65" stroke-width="2.5" stroke-linecap="round"/><line x1="35" y1="82" x2="35" y2="72" stroke-width="1.5" stroke-linecap="round"/><line x1="50" y1="82" x2="50" y2="69" stroke-width="1.5" stroke-linecap="round"/><line x1="65" y1="82" x2="65" y2="72" stroke-width="1.5" stroke-linecap="round"/><circle cx="15" cy="62" r="4"/><circle cx="85" cy="62" r="4"/></svg>`,
     instruction: '點擊第一點<br>移動後再點擊第二點',
     hudLabel: 'points',
-    tools: ['undo', 'clear', 'capture']
+    tools: ['undo', 'redo', 'clear', 'capture']
   },
   {
     id: 'shooter', num: '08', title: '空間射擊',
@@ -1204,7 +1222,7 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><rect x="15" y="60" width="25" height="25" rx="2"/><rect x="42" y="60" width="25" height="25" rx="2"/><rect x="27" y="33" width="25" height="25" rx="2"/><rect x="60" y="45" width="20" height="20" rx="2" opacity="0.5"/></svg>`,
     instruction: '掃描地板後積木自動生成<br>點擊積木可抓取並堆疊',
     hudLabel: 'blocks',
-    tools: ['clear', 'capture']
+    tools: ['hand-toggle', 'clear', 'capture']
   },
   {
     id: 'particles', num: '07', title: '粒子噴泉',
@@ -1404,15 +1422,18 @@ async function launchExperience(exp) {
   $('#hud-counter-label').textContent = exp.hudLabel;
   $('#hud-counter').textContent = '0';
   $('#instruction-text').innerHTML = exp.instruction;
-  // Center mode title
-  const titleEl = $('#hud-mode-title');
-  if (titleEl) titleEl.textContent = exp.title;
   $('#ar-overlay').classList.add('active');
   $('#ar-sub-toolbar').innerHTML = '';
   $('#ar-sub-toolbar').classList.remove('visible');
   $('#pc-crosshair').style.display = 'none';
 
   buildToolbar(exp);
+
+  // Prevent ALL touches on AR overlay UI from reaching the XR canvas
+  $('#ar-overlay').querySelectorAll('button, input, .ar-sub-toolbar').forEach(el => {
+    el.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: false, capture: true });
+    el.addEventListener('touchend',   e => { e.stopPropagation(); }, { passive: false, capture: true });
+  });
   showLoader('初始化場景');
 
   try {
@@ -1604,8 +1625,8 @@ function initFallback() {
   // WASD keyboard controls
   if (!state._wasdBound) {
     state._wasdBound = true;
-    window.addEventListener('keydown', e => { if(state.pcKeys) state.pcKeys[e.key.toLowerCase()] = true; });
-    window.addEventListener('keyup',   e => { if(state.pcKeys) state.pcKeys[e.key.toLowerCase()] = false; });
+    window.addEventListener('keydown', e => { if(state.pcKeys) { state.pcKeys[e.key.toLowerCase()] = true; state.pcKeys[e.code] = true; } });
+    window.addEventListener('keyup',   e => { if(state.pcKeys) { state.pcKeys[e.key.toLowerCase()] = false; state.pcKeys[e.code] = false; } });
   }
 
   tryDeviceOrientation();
@@ -1616,8 +1637,9 @@ function initFallback() {
     pointerDownX = e.clientX; pointerDownY = e.clientY;
     dragging = false;
     if (e.target !== canvas) return;
-    // For physics, start hold timer on pointerdown (not selectStart which double-fires)
-    if (state.experience?.id === 'physics') {
+    if (state.experience?.id === 'graffiti') {
+      startGraffitiStroke();
+    } else if (state.experience?.id === 'physics') {
       startPhysicsHold();
     } else {
       onSelectStart();
@@ -1635,8 +1657,10 @@ function initFallback() {
     }
   });
   canvas.addEventListener('pointerup', (e) => {
-    if (state.experience?.id === 'physics') {
-      // Always fire on release regardless of drag — single ball guaranteed
+    if (state.experience?.id === 'graffiti') {
+      endGraffitiStroke();
+      // Graffiti: also count as a tap if very short stroke
+    } else if (state.experience?.id === 'physics') {
       releasePhysicsHold();
     } else {
       onSelectEnd();
@@ -1647,6 +1671,9 @@ function initFallback() {
   // Remove scan instruction entirely on PC
   $('#ar-instruction').classList.add('hidden');
   $('#instruction-text').innerHTML = '3D 模式 · WASD 移動 · 拖曳旋轉 · 點擊放置';
+  // Show PC controls hint
+  const pcHint = $('#pc-controls-hint');
+  if (pcHint) pcHint.style.display = 'block';
 
   state.renderer.setAnimationLoop(renderLoop);
 }
@@ -1786,24 +1813,31 @@ function renderLoop(timestamp, frame) {
       if (state.reticle) state.reticle.visible = false;
     }
 
-    // WASD + QE keyboard movement (absolute screen directions)
+    // WASD + QE keyboard movement with inertia
     if (state.pcKeys && state.camera && state.experience?.id !== 'shooter') {
-      const speed = 0.04;
-      // Get camera right vector (screen-left/right)
-      const right = new THREE.Vector3();
-      const up = new THREE.Vector3(0, 1, 0);
+      if (!state.camVelocity) state.camVelocity = new THREE.Vector3();
+      const baseSpeed = 0.02;  // half of original 0.04
+      const speed = (state.pcKeys['shift'] || state.pcKeys['ShiftLeft'] || state.pcKeys['ShiftRight'] || state.pcKeys[' ']) ? baseSpeed * 2 : baseSpeed;
+      const damping = 0.82;
+
       const forward = new THREE.Vector3();
+      const right = new THREE.Vector3();
       state.camera.getWorldDirection(forward);
-      right.crossVectors(forward, up).normalize();
-      // W/S: forward/back along camera look direction
-      if (state.pcKeys['w']) { state.camera.position.addScaledVector(forward, speed); if (state.controls) state.controls.target.addScaledVector(forward, speed); }
-      if (state.pcKeys['s']) { state.camera.position.addScaledVector(forward, -speed); if (state.controls) state.controls.target.addScaledVector(forward, -speed); }
-      // A/D: screen-space left/right (absolute horizontal strafe)
-      if (state.pcKeys['a']) { state.camera.position.addScaledVector(right, -speed); if (state.controls) state.controls.target.addScaledVector(right, -speed); }
-      if (state.pcKeys['d']) { state.camera.position.addScaledVector(right, speed);  if (state.controls) state.controls.target.addScaledVector(right, speed); }
-      // E up / Q down (absolute world-space vertical)
-      if (state.pcKeys['e']) { state.camera.position.y += speed; if (state.controls) state.controls.target.y += speed; }
-      if (state.pcKeys['q']) { state.camera.position.y -= speed; if (state.controls) state.controls.target.y -= speed; }
+      right.crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+
+      const acc = new THREE.Vector3();
+      if (state.pcKeys['w']) acc.addScaledVector(forward, speed);
+      if (state.pcKeys['s']) acc.addScaledVector(forward, -speed);
+      if (state.pcKeys['a']) acc.addScaledVector(right, -speed);
+      if (state.pcKeys['d']) acc.addScaledVector(right, speed);
+      if (state.pcKeys['q']) acc.y += speed;   // Q = up
+      if (state.pcKeys['e']) acc.y -= speed;   // E = down
+
+      state.camVelocity.add(acc).multiplyScalar(damping);
+      if (state.camVelocity.length() > 0.0005) {
+        state.camera.position.add(state.camVelocity);
+        if (state.controls) state.controls.target.add(state.camVelocity);
+      }
     }
 
     // Shooter mouse-look (PC pointer lock)
@@ -1911,6 +1945,10 @@ function onSelectEnd() {
 // --------- Exit experience ---------
 function exitExperience() {
   if (!state.experience && !state.renderer && !state.session) return;
+
+  // Clean up hand tracking canvas
+  const handCanvas = document.getElementById('hand-canvas');
+  if (handCanvas) handCanvas.style.display = 'none';
 
   // Clean up shooter artefacts
   $('#shooter-intro')?.remove();
@@ -2082,7 +2120,20 @@ function buildToolbar(exp) {
         btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2zM3 15l4-4 4 4 4-4 6 6"/></svg>`;
         btn.onclick = () => cyclePortalScene(btn);
         break;
-      case 'brush':
+      case 'hand-toggle':
+        btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 00-4 0v5M14 10V4a2 2 0 00-4 0v6M10 10.5V6a2 2 0 00-4 0v8.5M6 14v-2M18 14a4 4 0 01-4 4H8a4 4 0 01-4-4v-2"/></svg>`;
+        btn.title = '手勢辨識開關';
+        btn.onclick = () => {
+          const handCanvas = document.getElementById('hand-canvas');
+          if (handCanvas) {
+            const isVisible = handCanvas.style.display !== 'none';
+            handCanvas.style.display = isVisible ? 'none' : 'block';
+            btn.classList.toggle('active', !isVisible);
+            toast(isVisible ? '手部骨架 關閉' : '手部骨架 開啟');
+            if (!isVisible) startHandTracking();
+          }
+        };
+        break;
         btn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M3 12a9 9 0 0118 0"/></svg>`;
         btn.title = '筆刷大小';
         btn.onclick = () => {
@@ -2226,8 +2277,7 @@ function buildShapeSubToolbar() {
     b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
     b.onclick = () => {
       state.currentShape = shape;
-      buildShapeSubToolbar(); // refresh to highlight
-      // Update main shape button icon
+      buildShapeSubToolbar();
       const shapeMainBtn = $('[data-tool="shape"]');
       if (shapeMainBtn) shapeMainBtn.innerHTML = SHAPE_ICONS[shape];
     };
@@ -2239,23 +2289,25 @@ function buildShapeSubToolbar() {
   sep.style.cssText = 'width:1px;height:28px;background:var(--line-strong);flex-shrink:0;';
   sub.appendChild(sep);
 
-  // Color swatches
-  COLORS.forEach(c => {
-    const b = document.createElement('button');
-    b.className = 'ar-tool';
-    b.style.cssText = `background:${c};width:28px;height:28px;border-radius:50%;border:2px solid ${c === state.color ? 'white' : 'transparent'};flex-shrink:0;`;
-    b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-    b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-    b.onclick = () => {
-      state.color = c;
-      // Update main color swatch
-      const colorBtn = $('[data-tool="color"]');
-      if (colorBtn) colorBtn.style.background = c;
-      buildShapeSubToolbar();
-    };
-    sub.appendChild(b);
-  });
+  // Single color cycle button (shows current color, click to advance)
+  const colorBtn = document.createElement('button');
+  colorBtn.className = 'ar-tool';
+  colorBtn.style.cssText = `width:32px;height:32px;border-radius:50%;background:${state.color};border:2px solid rgba(255,255,255,0.6);flex-shrink:0;position:relative;overflow:hidden;`;
+  colorBtn.title = '切換顏色';
+  // Small arrow indicator
+  colorBtn.innerHTML = `<svg viewBox="0 0 16 16" style="width:12px;height:12px;position:absolute;bottom:1px;right:1px;opacity:.7;"><path d="M4 6l4 4 4-4" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
+  colorBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+  colorBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+  colorBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+  colorBtn.onclick = () => {
+    const i = COLORS.indexOf(state.color);
+    state.color = COLORS[(i + 1) % COLORS.length];
+    // Update main toolbar color swatch too
+    const mainColorBtn = $('[data-tool="color"]');
+    if (mainColorBtn) mainColorBtn.style.background = state.color;
+    buildShapeSubToolbar(); // refresh to update color button
+  };
+  sub.appendChild(colorBtn);
 }
 
 function showModelSubToolbar(modelName) {
@@ -2535,6 +2587,10 @@ function clearAll() {
       $('#pc-crosshair').style.display = 'none';
       document.removeEventListener('keydown', _shooterEscHandler);
       document.exitPointerLock?.();
+      // Clean up mobile fire listener
+      if (state.shooter?._mobileFireHandler && state.shooter?._mobileFireTarget) {
+        state.shooter._mobileFireTarget.removeEventListener('touchend', state.shooter._mobileFireHandler);
+      }
     }
   }
   updateCounter();
@@ -2577,6 +2633,7 @@ function handleSelect(exp, pos, quat) {
     case 'shooter': shooterFire(); break;
     case 'graffiti': break; // handled by selectstart/end
     case 'blocks': grabBlock(pos); break;
+    case 'shooter': if (!state.uiBlocked) fireShooterBullet(); break;
   }
 }
 
@@ -2651,7 +2708,6 @@ function addMeasurePoint(pos) {
     state.scene.add(liveLine);
     toast('第一點已標記，瞄準後點擊第二點');
   } else if (state.measure.points.length === 2) {
-    // Remove live line
     if (state.measure.liveLine) {
       state.scene.remove(state.measure.liveLine);
       state.measure.liveLine = null;
@@ -2660,10 +2716,16 @@ function addMeasurePoint(pos) {
     const [a, b] = state.measure.points;
     const dist = a.distanceTo(b);
 
-    // Final line
-    const lineGeom = new THREE.BufferGeometry().setFromPoints([a, b]);
-    const lineMat = new THREE.LineBasicMaterial({ color: 0xff8c42 });
-    const line = new THREE.Line(lineGeom, lineMat);
+    // Final line — same Line2 thickness as rubber-band (3px)
+    const finalGeom = new LineGeometry();
+    finalGeom.setPositions([a.x, a.y, a.z, b.x, b.y, b.z]);
+    const finalMat = new LineMaterial({
+      color: 0xff8c42,
+      linewidth: 3,
+      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+    });
+    const line = new Line2(finalGeom, finalMat);
+    line.frustumCulled = false;
     state.scene.add(line);
 
     // Label sprite
@@ -2702,13 +2764,15 @@ function startDrawStroke() {
   state.drawing.isDrawing = true;
   state.drawing.currentPoints = [];
 
+  // Create Line2 for real-time preview — this line will ALSO become the final stroke
   const lineGeom = new LineGeometry();
-  lineGeom.setPositions([0, 0, 0, 0.001, 0, 0]); // two distinct seed points
+  lineGeom.setPositions([0, 0, 0, 0.001, 0, 0]);
   const lineMat = new LineMaterial({
     color: new THREE.Color(state.color).getHex(),
-    linewidth: 5,
+    linewidth: Math.max(5, state.drawing.thickness * 500),
     resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
     dashed: false,
+    alphaToCoverage: false,
   });
   const line = new Line2(lineGeom, lineMat);
   line.frustumCulled = false;
@@ -2734,20 +2798,16 @@ function updateDrawStroke() {
 
   const pts = state.drawing.currentPoints;
   const lastPt = pts[pts.length - 1];
-  // Sample every ~6mm of movement
-  if (!lastPt || lastPt.distanceTo(drawPos) > 0.006) {
+  if (!lastPt || lastPt.distanceTo(drawPos) > 0.004) {
     pts.push(drawPos.clone());
   }
 
-  // Rebuild Line2 every frame from all points (ensures visible even with 1 point)
-  if (state.drawing.currentLine) {
-    const workPts = pts.length >= 2 ? pts : (pts.length === 1 ? [pts[0], pts[0].clone().addScalar(0.0001)] : null);
-    if (workPts) {
-      const coords = [];
-      workPts.forEach(p => coords.push(p.x, p.y, p.z));
-      state.drawing.currentLine.geometry.setPositions(coords);
-      state.drawing.currentLine.computeLineDistances();
-    }
+  // Always update Line2 with all accumulated points — this IS the live preview
+  if (state.drawing.currentLine && pts.length >= 2) {
+    const coords = [];
+    pts.forEach(p => coords.push(p.x, p.y, p.z));
+    state.drawing.currentLine.geometry.setPositions(coords);
+    state.drawing.currentLine.computeLineDistances();
   }
 }
 
@@ -2758,31 +2818,43 @@ function endDrawStroke() {
   if (state.drawCursor) state.drawCursor.visible = false;
 
   const pts = state.drawing.currentPoints;
-  // Remove the Line2 preview
-  if (state.drawing.currentLine) {
-    state.scene.remove(state.drawing.currentLine);
-    state.drawing.currentLine.geometry.dispose();
-    state.drawing.currentLine.material.dispose();
+  const line = state.drawing.currentLine;
+
+  if (pts.length < 2) {
+    // Too short — remove
+    if (line) { state.scene.remove(line); line.geometry.dispose(); line.material.dispose(); }
     state.drawing.currentLine = null;
+    state.drawing.currentPoints = [];
+    return;
   }
 
-  if (pts.length < 2) return;
+  // The Line2 is already in the scene and already shows the full path.
+  // Keep it as-is — just register it as a completed stroke.
+  // Also build a thin backup TubeGeometry for thickness-based strokes
+  const useThickTube = state.drawing.thickness > 0.012;
+  if (useThickTube) {
+    // Remove the Line2 preview and replace with a tube for thicker strokes
+    if (line) { state.scene.remove(line); line.geometry.dispose(); line.material.dispose(); }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const segments = Math.max(pts.length * 3, 24);
+    const tubeGeom = new THREE.TubeGeometry(curve, segments, state.drawing.thickness, 8, false);
+    const tubeMat = new THREE.MeshStandardMaterial({
+      color: state.color,
+      emissive: new THREE.Color(state.color).multiplyScalar(0.3),
+      emissiveIntensity: 0.8,
+      roughness: 0.3,
+      metalness: 0.4
+    });
+    const tube = new THREE.Mesh(tubeGeom, tubeMat);
+    tube.frustumCulled = false;
+    state.scene.add(tube);
+    state.drawing.strokes.push(tube);
+  } else {
+    // Keep the Line2 as the final stroke
+    state.drawing.strokes.push(line);
+  }
 
-  // Build smooth final tube
-  const curve = new THREE.CatmullRomCurve3(pts);
-  const segments = Math.max(pts.length * 3, 24);
-  const tubeGeom = new THREE.TubeGeometry(curve, segments, state.drawing.thickness, 8, false);
-  const tubeMat = new THREE.MeshStandardMaterial({
-    color: state.color,
-    emissive: new THREE.Color(state.color).multiplyScalar(0.3),
-    emissiveIntensity: 0.8,
-    roughness: 0.3,
-    metalness: 0.4
-  });
-  const tube = new THREE.Mesh(tubeGeom, tubeMat);
-  tube.frustumCulled = false;
-  state.scene.add(tube);
-  state.drawing.strokes.push(tube);
+  state.drawing.currentLine = null;
   state.drawing.currentPoints = [];
   updateCounter();
 }
@@ -3100,8 +3172,6 @@ function placePortal(pos, quat) {
 
   state.scene.add(group);
   state.objects.push(group);
-
-  toast('傳送門已開啟，靠近探索另一個世界');
 }
 
 // --------- 5. Physics ---------
@@ -3321,11 +3391,20 @@ function initShooter() {
     spawnTimer: 0, spawnInterval: 3.5, maxEnemies: 2, active: false,
     yaw: 0, pitch: 0, started: false
   };
-  // Hide reticle in shooter (crosshair replaces it)
   if (state.reticle) state.reticle.visible = false;
 
+  // Enemy indicators container — works for both mobile and PC
+  let indContainer = $('#shooter-indicators');
+  if (!indContainer) {
+    indContainer = document.createElement('div');
+    indContainer.id = 'shooter-indicators';
+    indContainer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;';
+    document.body.appendChild(indContainer);
+  }
+  state.shooter.indContainer = indContainer;
+
   if (state.pcMode) {
-    // Show click-to-start overlay
+    // PC: show click-to-start overlay
     const overlay = document.createElement('div');
     overlay.id = 'shooter-intro';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);pointer-events:auto;';
@@ -3341,30 +3420,38 @@ function initShooter() {
       overlay.remove();
       state.shooter.started = true;
       state.shooter.active = true;
-      state.camera.position.set(0, 0, 0);
-      state.camera.quaternion.identity();
+      if (state.camera) { state.camera.position.set(0, 0, 0); state.camera.quaternion.identity(); }
       if (state.controls) state.controls.enabled = false;
       $('#pc-crosshair').style.display = 'block';
       state.canvas.requestPointerLock?.();
-      // ESC listener
       document.addEventListener('keydown', _shooterEscHandler);
     };
-
-    // Show enemy indicators container
-    let indContainer = $('#shooter-indicators');
-    if (!indContainer) {
-      indContainer = document.createElement('div');
-      indContainer.id = 'shooter-indicators';
-      indContainer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;';
-      document.body.appendChild(indContainer);
-    }
-    state.shooter.indContainer = indContainer;
   } else {
-    // Mobile: start immediately with gyroscope
+    // Mobile: start immediately — no plane scan required
     state.shooter.active = true;
     state.shooter.started = true;
+
+    // Start gyroscope for aim control
     startGyroscope(state.camera);
+
+    // Show crosshair
     $('#pc-crosshair').style.display = 'block';
+
+    // Mobile tap fires bullet — attach to XR controller AND canvas overlay
+    // The canvas receives touchend from WebXR select
+    // We also add a tap listener on the ar-overlay for direct mobile support
+    const mobileFire = (e) => {
+      // Only fire if tap is NOT on a UI button
+      if (state.uiBlocked) return;
+      if (e.target && e.target.closest && e.target.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom')) return;
+      if (state.shooter?.active) fireShooterBullet();
+    };
+    // Attach to the transparent region of the overlay
+    const overlayEl = $('#ar-overlay');
+    overlayEl.addEventListener('touchend', mobileFire, { passive: true });
+    state.shooter._mobileFireHandler = mobileFire;
+    state.shooter._mobileFireTarget = overlayEl;
+
     toast('轉動手機瞄準，點擊射擊！');
   }
 }
@@ -3384,7 +3471,18 @@ function _shooterEscHandler(e) {
 }
 
 function _updateShooterIndicators() {
-  const cont = state.shooter?.indContainer;
+  // Create indicator container if missing (works for both mobile and PC)
+  if (!state.shooter?.indContainer) {
+    let cont = $('#shooter-indicators');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'shooter-indicators';
+      cont.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;';
+      document.body.appendChild(cont);
+    }
+    state.shooter.indContainer = cont;
+  }
+  const cont = state.shooter.indContainer;
   if (!cont || !state.shooter?.enemies?.length) {
     if (cont) cont.innerHTML = '';
     return;
@@ -3394,24 +3492,20 @@ function _updateShooterIndicators() {
   cont.innerHTML = '';
 
   state.shooter.enemies.forEach(en => {
-    // Project enemy to screen
     const screenPos = en.position.clone().project(state.camera);
-    // If on screen, no indicator needed
-    if (Math.abs(screenPos.x) < 0.85 && Math.abs(screenPos.y) < 0.85) return;
+    if (Math.abs(screenPos.x) < 0.8 && Math.abs(screenPos.y) < 0.8) return;
 
-    // Calculate edge position
-    const angle = Math.atan2(screenPos.y, screenPos.x);
-    const margin = 36;
+    const angle = Math.atan2(-screenPos.y, screenPos.x);
+    const margin = 40;
     const ex = cx + Math.cos(angle) * (cx - margin);
-    const ey = cy - Math.sin(angle) * (cy - margin);
-    // Clamp to edge
+    const ey = cy + Math.sin(angle) * (cy - margin);
     const clampX = Math.max(margin, Math.min(w - margin, ex));
     const clampY = Math.max(margin, Math.min(h - margin, ey));
 
-    const arrowRot = (-angle * 180 / Math.PI) + 90;
+    const arrowRot = (angle * 180 / Math.PI) + 90;
     const el = document.createElement('div');
-    el.style.cssText = `position:absolute;left:${clampX}px;top:${clampY}px;transform:translate(-50%,-50%) rotate(${arrowRot}deg);width:20px;height:20px;pointer-events:none;`;
-    el.innerHTML = `<svg viewBox="0 0 20 20" style="width:20px;height:20px;"><polygon points="10,2 18,18 10,14 2,18" fill="#f87171" opacity="0.9"/></svg>`;
+    el.style.cssText = `position:absolute;left:${clampX}px;top:${clampY}px;transform:translate(-50%,-50%) rotate(${arrowRot}deg);width:24px;height:24px;pointer-events:none;filter:drop-shadow(0 0 4px #f87171);`;
+    el.innerHTML = `<svg viewBox="0 0 24 24" style="width:24px;height:24px;"><polygon points="12,3 21,21 12,17 3,21" fill="#f87171" opacity="0.95"/></svg>`;
     cont.appendChild(el);
   });
 }
@@ -3535,24 +3629,24 @@ function updateGraffiti() {
 
   let drawPos;
   if (state.reticle?.visible) {
-    // AR mode: use hit-test reticle position (on the actual AR plane)
     const m = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
     drawPos = new THREE.Vector3().setFromMatrixPosition(m);
   } else {
-    // PC/fallback: use screen-center raycast to ground plane
     const { pos: camPos, quat: camQuat } = getCameraPose();
     const fwd = new THREE.Vector3(0, 0, -0.4).applyQuaternion(camQuat);
     drawPos = camPos.clone().add(fwd);
   }
 
   const pts = state.graffiti.currentPoints;
-  if (!pts.length || pts[pts.length-1].distanceTo(drawPos) > 0.005) {
+  if (!pts.length || pts[pts.length-1].distanceTo(drawPos) > 0.004) {
     pts.push(drawPos.clone());
-    if (pts.length >= 2 && state.graffiti.currentLine) {
-      const coords = []; pts.forEach(p => coords.push(p.x,p.y,p.z));
-      state.graffiti.currentLine.geometry.setPositions(coords);
-      state.graffiti.currentLine.computeLineDistances();
-    }
+  }
+
+  // Always update Line2 — this IS the live preview
+  if (state.graffiti.currentLine && pts.length >= 2) {
+    const coords = []; pts.forEach(p => coords.push(p.x,p.y,p.z));
+    state.graffiti.currentLine.geometry.setPositions(coords);
+    state.graffiti.currentLine.computeLineDistances();
   }
 }
 
@@ -3562,9 +3656,14 @@ function startGraffitiStroke() {
   state.graffiti.currentPoints = [];
   const geom = new LineGeometry();
   geom.setPositions([0,0,0,0.001,0,0]);
-  const mat = new LineMaterial({ color: new THREE.Color(state.color).getHex(), linewidth: Math.max(2, state.graffiti.brushSize * 200), resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+  const mat = new LineMaterial({
+    color: new THREE.Color(state.color).getHex(),
+    linewidth: Math.max(2, state.graffiti.brushSize * 200),
+    resolution: new THREE.Vector2(window.innerWidth, window.innerHeight)
+  });
   const line = new Line2(geom, mat);
   line.frustumCulled = false;
+  line.renderOrder = 998;
   state.graffiti.currentLine = line;
   state.scene.add(line);
 }
@@ -3572,20 +3671,24 @@ function startGraffitiStroke() {
 function endGraffitiStroke() {
   if (!state.graffiti?.isDrawing) return;
   state.graffiti.isDrawing = false;
-  if (state.graffiti.currentPoints.length > 1) {
-    state.graffiti.strokes.push(state.graffiti.currentLine);
+  const pts = state.graffiti.currentPoints;
+  const line = state.graffiti.currentLine;
+  if (pts.length > 1) {
+    // Line2 is already in scene and fully drawn — keep it as final stroke
+    state.graffiti.strokes.push(line);
     updateCounter();
-  } else if (state.graffiti.currentLine) {
-    state.scene.remove(state.graffiti.currentLine);
+  } else if (line) {
+    state.scene.remove(line);
+    line.geometry.dispose();
+    line.material.dispose();
   }
   state.graffiti.currentLine = null;
   state.graffiti.currentPoints = [];
 }
 
-// --------- 10. Blocks ---------
+// --------- 10. Blocks + Hand Gesture ---------
 function initBlocks() {
-  state.blocks = { pieces: [], grabbed: null, grabOffset: new THREE.Vector3(), placed: 0 };
-  // Spawn 10 blocks on detected plane
+  state.blocks = { pieces: [], grabbed: null, grabOffset: new THREE.Vector3(), placed: 0, handActive: false };
   const floor = state.physics.floorY ?? -0.5;
   for (let i = 0; i < 10; i++) {
     const colors = [0xff8c42, 0x5eead4, 0xf87171, 0xfbbf24, 0xa78bfa, 0x60a5fa];
@@ -3599,7 +3702,186 @@ function initBlocks() {
     state.scene.add(block);
     state.blocks.pieces.push(block);
   }
-  toast('點擊積木抓取，再點放置');
+
+  // Create hand skeleton canvas overlay
+  let handCanvas = document.getElementById('hand-canvas');
+  if (!handCanvas) {
+    handCanvas = document.createElement('canvas');
+    handCanvas.id = 'hand-canvas';
+    handCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:160;pointer-events:none;display:none;';
+    document.body.appendChild(handCanvas);
+  }
+  state.blocks.handCanvas = handCanvas;
+  state.blocks.handCtx = handCanvas.getContext('2d');
+
+  // Try to init MediaPipe Hands via CDN
+  initMediaPipeHands();
+  toast('點擊積木抓取，或用手勢互動');
+}
+
+// Hand tracking state
+let _mpHands = null, _mpHandsReady = false;
+
+async function initMediaPipeHands() {
+  if (_mpHands) return;
+  try {
+    // Dynamically import MediaPipe from CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+    script.crossOrigin = 'anonymous';
+    script.onload = async () => {
+      try {
+        const { Hands } = window;
+        _mpHands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        _mpHands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 0,      // 0 = lite, fastest
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.5
+        });
+        _mpHands.onResults(onHandResults);
+        await _mpHands.initialize();
+        _mpHandsReady = true;
+
+        // Get camera stream for hand tracking
+        if (!state._handStream) {
+          state._handStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 320, height: 240 } });
+          state._handVideo = document.createElement('video');
+          state._handVideo.srcObject = state._handStream;
+          state._handVideo.autoplay = true;
+          state._handVideo.playsInline = true;
+          state._handVideo.style.display = 'none';
+          document.body.appendChild(state._handVideo);
+          state._handVideo.onloadedmetadata = () => {
+            state._handVideo.play();
+            startHandTracking();
+            toast('✋ 手勢辨識已啟動');
+          };
+        } else {
+          startHandTracking();
+        }
+      } catch(e) {
+        console.warn('MediaPipe init failed:', e);
+        toast('手勢辨識不可用於此裝置');
+      }
+    };
+    script.onerror = () => toast('手勢辨識載入失敗（需要網路）');
+    document.head.appendChild(script);
+  } catch(e) {
+    console.warn('Hand tracking unavailable:', e);
+  }
+}
+
+function startHandTracking() {
+  if (!_mpHandsReady || !state._handVideo || state.experience?.id !== 'blocks') return;
+  const sendFrame = async () => {
+    if (!state.blocks || state.experience?.id !== 'blocks') return;
+    if (_mpHandsReady && state._handVideo.readyState >= 2) {
+      try { await _mpHands.send({ image: state._handVideo }); } catch(e) {}
+    }
+    setTimeout(sendFrame, 100); // 10fps is enough for hand tracking
+  };
+  sendFrame();
+}
+
+// MediaPipe connections for drawing skeleton
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17]
+];
+
+function onHandResults(results) {
+  if (!state.blocks || state.experience?.id !== 'blocks') return;
+  const canvas = state.blocks.handCanvas;
+  const ctx = state.blocks.handCtx;
+  if (!canvas || !ctx) return;
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!results.multiHandLandmarks?.length) {
+    state.blocks.handActive = false;
+    return;
+  }
+  state.blocks.handActive = true;
+  const lm = results.multiHandLandmarks[0];
+
+  // Draw skeleton connections
+  ctx.strokeStyle = 'rgba(94, 234, 212, 0.8)';
+  ctx.lineWidth = 2;
+  HAND_CONNECTIONS.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(lm[a].x * canvas.width, lm[a].y * canvas.height);
+    ctx.lineTo(lm[b].x * canvas.width, lm[b].y * canvas.height);
+    ctx.stroke();
+  });
+
+  // Draw landmark dots
+  lm.forEach((pt, i) => {
+    ctx.beginPath();
+    ctx.arc(pt.x * canvas.width, pt.y * canvas.height, i === 8 || i === 4 ? 6 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = i === 8 ? '#ff8c42' : i === 4 ? '#f87171' : '#5eead4';
+    ctx.fill();
+  });
+
+  // Pinch gesture: index tip (8) and thumb tip (4) close together
+  const indexTip = lm[8], thumbTip = lm[4];
+  const pinchDist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+  const pinching = pinchDist < 0.06;
+
+  // Map index fingertip to 3D world position
+  // Use depth from wrist landmark as rough Z estimate
+  const wrist = lm[0];
+  const handScale = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) * 2;
+  const worldX = (indexTip.x - 0.5) * -2;  // mirrored
+  const worldY = (0.5 - indexTip.y) * 1.5;
+  const worldZ = -0.5 - wrist.z * 2;
+  const fingerWorldPos = new THREE.Vector3(worldX, worldY, worldZ);
+
+  if (pinching) {
+    // Pinch: grab nearest block or move grabbed block
+    if (!state.blocks.grabbed) {
+      let closest = null, minDist = 0.35;
+      state.blocks.pieces.forEach(b => {
+        const d = b.position.distanceTo(fingerWorldPos);
+        if (d < minDist) { minDist = d; closest = b; }
+      });
+      if (closest) {
+        state.blocks.grabbed = closest;
+        closest.userData.onFloor = false;
+        // Highlight grabbed block
+        closest.material.emissive = new THREE.Color(0xff8c42);
+        closest.material.emissiveIntensity = 0.4;
+      }
+    }
+    if (state.blocks.grabbed) {
+      state.blocks.grabbed.position.lerp(fingerWorldPos, 0.25);
+      state.blocks.grabbed.userData.velocity.set(0,0,0);
+    }
+
+    // Visual: draw pinch indicator
+    ctx.beginPath();
+    ctx.arc(indexTip.x * canvas.width, indexTip.y * canvas.height, 18, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ff8c42';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  } else {
+    // Release
+    if (state.blocks.grabbed) {
+      state.blocks.grabbed.material.emissive = new THREE.Color(0);
+      state.blocks.grabbed.material.emissiveIntensity = 0;
+      state.blocks.grabbed.userData.onFloor = false;
+      state.blocks.grabbed.userData.velocity.set((Math.random()-.5)*0.2, 0.1, (Math.random()-.5)*0.2);
+      state.blocks.grabbed = null;
+    }
+  }
 }
 
 function updateBlocks(dt) {
@@ -3738,6 +4020,10 @@ function updateParticles(dt) {
 // --------- 8. Virtual Pet ---------
 function placePet(pos) {
   if (state.customModel) {
+    // Remove all default pets (avoid conflict with custom model)
+    state.pet.pets.forEach(p => state.scene.remove(p));
+    state.pet.pets = [];
+
     toast('正在放置模型...');
     const placePos = (state.pcMode && state.pcReticlePos) ? state.pcReticlePos.clone() : pos.clone();
     setTimeout(() => {
@@ -3756,7 +4042,6 @@ function placePet(pos) {
         state.scene.add(clone);
         state.pet.pets.push(clone);
         updateCounter();
-        // Ensure controls re-enabled after async clone
         if (state.controls && state.experience?.id !== 'shooter') {
           state.controls.enabled = true;
         }
@@ -3924,30 +4209,53 @@ function toggleLight() {
   if (state.sceneLights) {
     state.sceneLights.forEach(l => { l.visible = state.lightOn; });
   }
-  // Make all placed objects emissive in dark mode
+
+  // Deep traverse all scene objects
   if (state.scene) {
     state.scene.traverse(obj => {
-      if (!obj.isMesh || !obj.material || obj.userData.isReticle || obj.userData.isGrid) return;
-      const mat = obj.material;
-      if (!mat.color) return;
+      if (!obj.isMesh || !obj.material) return;
+
       if (!state.lightOn) {
-        // Self-emissive: emissive = own color, intensity 1
-        if (mat.emissive !== undefined) {
-          mat.emissive.copy(mat.color);
-          mat.emissiveIntensity = 1.0;
-          mat.needsUpdate = true;
+        // --- Switch to unlit/emissive mode ---
+        const mat = obj.material;
+
+        // Store original material for restoration
+        if (!obj.userData._origMat) {
+          obj.userData._origMat = mat;
         }
+
+        // Build a MeshBasicMaterial that inherits any texture maps
+        // This properly shows GLB/GLTF textures without lighting
+        const basicMat = new THREE.MeshBasicMaterial({
+          color: mat.color ? mat.color.clone() : new THREE.Color(0xffffff),
+          map: mat.map || null,                    // diffuse/albedo texture
+          alphaMap: mat.alphaMap || null,
+          transparent: mat.transparent || false,
+          opacity: mat.opacity !== undefined ? mat.opacity : 1,
+          side: mat.side || THREE.FrontSide,
+          toneMapped: false,
+        });
+
+        // If no texture, keep the original color (emissive-style)
+        if (!basicMat.map && mat.color) {
+          basicMat.color.copy(mat.color);
+        }
+
+        obj.material = basicMat;
+        obj.userData._basicMat = basicMat;
+
       } else {
-        // Restore to subtle emissive
-        if (mat.emissive !== undefined) {
-          mat.emissive.copy(mat.color).multiplyScalar(0.3);
-          mat.emissiveIntensity = 0.1;
-          mat.needsUpdate = true;
+        // --- Restore original material ---
+        if (obj.userData._origMat) {
+          obj.material = obj.userData._origMat;
+          delete obj.userData._origMat;
+          delete obj.userData._basicMat;
         }
       }
+      obj.material.needsUpdate = true;
     });
   }
-  toast(state.lightOn ? '場景燈光 開啟' : '純色自發光模式');
+  toast(state.lightOn ? '場景燈光 開啟' : '純貼圖模式（原生顏色）');
 }
 function toggleGrid() {
   state.gridEnabled = !state.gridEnabled;
