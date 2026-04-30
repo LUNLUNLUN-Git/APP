@@ -1892,17 +1892,7 @@ function renderLoop(timestamp, frame) {
     updateExperience(state.experience, dt, timestamp);
   }
 
-  // Portal world pre-render to RenderTarget
-  const isPortal = state.experience?.id === 'portal';
-  if (isPortal && state.portalRT && state.portalWorldData && state.objects.length > 0) {
-    updatePortalCamera();
-    updatePortalWorld(dt, timestamp);
-    state.renderer.setRenderTarget(state.portalRT);
-    state.renderer.clearColor();
-    state.renderer.clearDepth();
-    state.renderer.render(state.portalWorldData.scene, state.portalWorldData.cam);
-    state.renderer.setRenderTarget(null);
-  }
+  // Portal: shader-based, no RT pre-render needed
 
   // Main scene render — clearColor only (camera feed is behind from WebXR, we don't want black overlay)
   if (state.inSession) {
@@ -1937,6 +1927,9 @@ function onSelect() {
     toast('請先瞄準平面');
     return;
   }
+
+  // Physics uses selectstart/end pair only (no select firing here, prevents double-ball)
+  if (state.experience.id === 'physics') return;
 
   handleSelect(state.experience, pos, quat);
   updateCounter();
@@ -2258,12 +2251,13 @@ function cyclePortalScene(btn) {
   state.portalSceneType = state.portalSceneType || 'nebula';
   const i = scenes.indexOf(state.portalSceneType);
   state.portalSceneType = scenes[(i + 1) % scenes.length];
-  // Rebuild portal world for new type
-  state.portalWorldData = buildPortalWorldScene(state.portalSceneType);
-  // Update disc material if portal already placed
+
+  // If portal already placed, re-place it to update colors
   if (state.objects.length > 0) {
-    const disc = state.objects[0].children.find(c => c.userData.isPortalDisc);
-    if (disc && state.portalRT) disc.material.map = state.portalRT.texture;
+    const oldPortal = state.objects[0];
+    const oldPos = oldPortal.position.clone();
+    const oldQuat = oldPortal.quaternion.clone();
+    placePortal(oldPos, oldQuat);
   }
   toast('場景: ' + state.portalSceneType.toUpperCase());
 }
@@ -2644,7 +2638,7 @@ function handleSelect(exp, pos, quat) {
     case 'pet': placePet(pos); break;
     case 'shooter': shooterFire(); break;
     case 'graffiti': break; // handled by selectstart/end
-    case 'blocks': grabBlock(pos); break;
+    case 'blocks': break; // display only — no interaction
     case 'shooter': if (!state.uiBlocked) fireShooterBullet(); break;
   }
 }
@@ -2775,26 +2769,46 @@ function addMeasurePoint(pos) {
 function startDrawStroke() {
   state.drawing.isDrawing = true;
   state.drawing.currentPoints = [];
-
-  // Create Line2 for real-time preview — this line will ALSO become the final stroke
-  const lineGeom = new LineGeometry();
-  lineGeom.setPositions([0, 0, 0, 0.001, 0, 0]);
-  const lineMat = new LineMaterial({
-    color: new THREE.Color(state.color).getHex(),
-    linewidth: Math.max(5, state.drawing.thickness * 500),
-    resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-    dashed: false,
-    alphaToCoverage: false,
-  });
-  const line = new Line2(lineGeom, lineMat);
-  line.frustumCulled = false;
-  line.renderOrder = 999;
-  state.drawing.currentLine = line;
-  state.scene.add(line);
+  state.drawing.previewMesh = null;
+  state.drawing.lastRebuild = 0;
 
   if (state.reticle) state.reticle.visible = false;
   if (state.drawCursor) state.drawCursor.visible = true;
   $('#ar-instruction').classList.add('hidden');
+}
+
+function _rebuildDrawPreview() {
+  const pts = state.drawing.currentPoints;
+  if (pts.length < 2) return;
+
+  // Remove old preview
+  if (state.drawing.previewMesh) {
+    state.scene.remove(state.drawing.previewMesh);
+    state.drawing.previewMesh.geometry.dispose();
+    state.drawing.previewMesh.material.dispose();
+  }
+
+  // Build a fresh tube — works reliably in both WebXR and PC mode
+  try {
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const segs = Math.max(pts.length * 2, 12);
+    const radius = state.drawing.thickness;
+    const tubeGeom = new THREE.TubeGeometry(curve, segs, radius, 6, false);
+    const color = new THREE.Color(state.color);
+    const tubeMat = state.lightOn
+      ? new THREE.MeshStandardMaterial({
+          color, emissive: color.clone().multiplyScalar(0.4),
+          emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.3
+        })
+      : new THREE.MeshBasicMaterial({ color, toneMapped: false });
+    const tube = new THREE.Mesh(tubeGeom, tubeMat);
+    tube.frustumCulled = false;
+    tube.renderOrder = 999;
+    state.scene.add(tube);
+    state.drawing.previewMesh = tube;
+  } catch(e) {
+    // CatmullRomCurve3 may fail with degenerate points
+  }
 }
 
 function updateDrawStroke() {
@@ -2810,23 +2824,10 @@ function updateDrawStroke() {
 
   const pts = state.drawing.currentPoints;
   const lastPt = pts[pts.length - 1];
-  if (!lastPt || lastPt.distanceTo(drawPos) > 0.004) {
+  if (!lastPt || lastPt.distanceTo(drawPos) > 0.005) {
     pts.push(drawPos.clone());
-  }
-
-  // Always rebuild Line2 with current points — force buffer update
-  if (state.drawing.currentLine && pts.length >= 2) {
-    const coords = [];
-    pts.forEach(p => coords.push(p.x, p.y, p.z));
-    const geom = state.drawing.currentLine.geometry;
-    geom.setPositions(coords);
-    // Force GPU buffer update on instanced attributes
-    if (geom.attributes.instanceStart) geom.attributes.instanceStart.needsUpdate = true;
-    if (geom.attributes.instanceEnd) geom.attributes.instanceEnd.needsUpdate = true;
-    geom.instanceCount = Math.max(0, pts.length - 1);
-    state.drawing.currentLine.computeLineDistances();
-    // Update resolution in case window resized
-    state.drawing.currentLine.material.resolution.set(window.innerWidth, window.innerHeight);
+    // Rebuild preview every time a new point is added
+    _rebuildDrawPreview();
   }
 }
 
@@ -2837,43 +2838,24 @@ function endDrawStroke() {
   if (state.drawCursor) state.drawCursor.visible = false;
 
   const pts = state.drawing.currentPoints;
-  const line = state.drawing.currentLine;
+  const preview = state.drawing.previewMesh;
 
   if (pts.length < 2) {
-    // Too short — remove
-    if (line) { state.scene.remove(line); line.geometry.dispose(); line.material.dispose(); }
-    state.drawing.currentLine = null;
+    if (preview) {
+      state.scene.remove(preview);
+      preview.geometry.dispose();
+      preview.material.dispose();
+    }
+    state.drawing.previewMesh = null;
     state.drawing.currentPoints = [];
     return;
   }
 
-  // The Line2 is already in the scene and already shows the full path.
-  // Keep it as-is — just register it as a completed stroke.
-  // Also build a thin backup TubeGeometry for thickness-based strokes
-  const useThickTube = state.drawing.thickness > 0.012;
-  if (useThickTube) {
-    // Remove the Line2 preview and replace with a tube for thicker strokes
-    if (line) { state.scene.remove(line); line.geometry.dispose(); line.material.dispose(); }
-    const curve = new THREE.CatmullRomCurve3(pts);
-    const segments = Math.max(pts.length * 3, 24);
-    const tubeGeom = new THREE.TubeGeometry(curve, segments, state.drawing.thickness, 8, false);
-    const tubeMat = new THREE.MeshStandardMaterial({
-      color: state.color,
-      emissive: new THREE.Color(state.color).multiplyScalar(0.3),
-      emissiveIntensity: 0.8,
-      roughness: 0.3,
-      metalness: 0.4
-    });
-    const tube = new THREE.Mesh(tubeGeom, tubeMat);
-    tube.frustumCulled = false;
-    state.scene.add(tube);
-    state.drawing.strokes.push(tube);
-  } else {
-    // Keep the Line2 as the final stroke
-    state.drawing.strokes.push(line);
+  // The preview tube IS the final stroke — just register it
+  if (preview) {
+    state.drawing.strokes.push(preview);
   }
-
-  state.drawing.currentLine = null;
+  state.drawing.previewMesh = null;
   state.drawing.currentPoints = [];
   updateCounter();
 }
@@ -2881,7 +2863,7 @@ function endDrawStroke() {
 // --------- 4. Portal ---------
 function initPortalSceneResources() {
   state.portalSceneType = state.portalSceneType || 'nebula';
-  state.portalWorldData = buildPortalWorldScene(state.portalSceneType);
+  // Shader-based portal — no world scene/RT needed
   state.inPortal = false;
 }
 
@@ -3144,76 +3126,107 @@ function placePortal(pos, quat) {
   state.objects.forEach(o => state.scene.remove(o));
   state.objects = [];
 
-  // Rebuild portal world now so RT is populated on next frame
-  state.portalWorldData = buildPortalWorldScene(state.portalSceneType || 'nebula');
-
   const group = new THREE.Group();
   const { pos: camPos, quat: camQuat } = getCameraPose();
 
-  // Determine portal placement position
-  // If user tapped a valid AR plane, use that position, but ensure it's in front of camera
-  // and at sensible height (don't put it on the floor — raise to standing eye level)
+  // Smart placement: ensure portal is visible in front of camera
   const camForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
-
-  // Use the tap position as base, but enforce minimum 1m distance from camera
   const distFromCam = pos.distanceTo(camPos);
   if (distFromCam < 0.6 || distFromCam > 4) {
-    // Too close or too far — use camera-forward 1.5m as fallback
     const fallback = camPos.clone().addScaledVector(camForward, 1.5);
-    group.position.set(fallback.x, camPos.y - 0.1, fallback.z); // slightly below eye level
+    group.position.set(fallback.x, camPos.y - 0.1, fallback.z);
   } else {
-    // Use the hit position but adjust height so it's standing upright at viewable level
     group.position.copy(pos);
-    // If hit point is on floor (low), raise to eye-ish level
     if (pos.y < camPos.y - 0.5) {
       group.position.y = camPos.y - 0.2;
     } else {
-      group.position.y += 0.1; // slight lift if on wall/table
+      group.position.y += 0.1;
     }
   }
 
-  // Always face the camera (upright)
+  // Face the camera (upright)
   const lookDir = new THREE.Vector3().subVectors(camPos, group.position);
   lookDir.y = 0;
   if (lookDir.length() > 0.001) {
     lookDir.normalize();
-    // Use lookAt-style quaternion
     const m = new THREE.Matrix4().lookAt(group.position, group.position.clone().sub(lookDir), new THREE.Vector3(0, 1, 0));
     group.quaternion.setFromRotationMatrix(m);
   }
 
-  // Outer glow ring
-  const ringGeom = new THREE.TorusGeometry(0.45, 0.035, 16, 64);
-  const ringMat = new THREE.MeshStandardMaterial({
-    color: 0xff8c42, emissive: 0xff8c42, emissiveIntensity: 1.5,
-    metalness: 0.8, roughness: 0.2
-  });
-  group.add(new THREE.Mesh(ringGeom, ringMat));
+  // Pick scene-type colors
+  const sceneType = state.portalSceneType || 'nebula';
+  let primaryHex, secondaryHex;
+  switch (sceneType) {
+    case 'ocean':  primaryHex = 0x00aaff; secondaryHex = 0x88ddff; break;
+    case 'matrix': primaryHex = 0x00ff44; secondaryHex = 0x88ff88; break;
+    default:       primaryHex = 0xff8c42; secondaryHex = 0xffd080; // nebula = amber
+  }
 
-  // Secondary inner ring
-  const ring2Geom = new THREE.TorusGeometry(0.43, 0.01, 8, 64);
-  const ring2Mat = new THREE.MeshBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0.7 });
+  // Outer glow ring
+  const ringGeom = new THREE.TorusGeometry(0.45, 0.04, 16, 48);
+  const ringMat = new THREE.MeshBasicMaterial({ color: primaryHex, toneMapped: false });
+  const outerRing = new THREE.Mesh(ringGeom, ringMat);
+  group.add(outerRing);
+
+  // Inner highlight ring
+  const ring2Geom = new THREE.TorusGeometry(0.42, 0.012, 8, 48);
+  const ring2Mat = new THREE.MeshBasicMaterial({ color: secondaryHex, transparent: true, opacity: 0.7, toneMapped: false });
   group.add(new THREE.Mesh(ring2Geom, ring2Mat));
 
-  // Portal disc — shows RenderTarget texture of the 3D world
-  const portalGeom = new THREE.CircleGeometry(0.43, 48);
-  const portalMat = new THREE.MeshBasicMaterial({
-    map: state.portalRT ? state.portalRT.texture : null,
+  // Portal disc — animated shader for swirl effect (no RenderTarget needed)
+  const portalGeom = new THREE.CircleGeometry(0.42, 48);
+  const portalMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uPrimary: { value: new THREE.Color(primaryHex) },
+      uSecondary: { value: new THREE.Color(secondaryHex) },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec3 uPrimary;
+      uniform vec3 uSecondary;
+      varying vec2 vUv;
+      void main() {
+        vec2 c = vUv - 0.5;
+        float r = length(c);
+        float angle = atan(c.y, c.x);
+        // Spiral swirl
+        float swirl = sin(angle * 3.0 + uTime * 1.5 - r * 12.0) * 0.5 + 0.5;
+        // Concentric rings
+        float rings = sin(r * 25.0 - uTime * 2.0) * 0.4 + 0.6;
+        // Center glow
+        float glow = smoothstep(0.5, 0.0, r);
+        // Edge fade
+        float edge = smoothstep(0.5, 0.4, r);
+        vec3 col = mix(uPrimary * 0.3, uSecondary, swirl * rings);
+        col += uSecondary * glow * 0.6;
+        gl_FragColor = vec4(col * edge, edge);
+      }
+    `,
     side: THREE.DoubleSide,
+    transparent: true,
     depthWrite: false
   });
   const portalDisc = new THREE.Mesh(portalGeom, portalMat);
-  portalDisc.userData.isPortalDisc = true;
   group.add(portalDisc);
 
   group.userData.portalMat = portalMat;
+  group.userData.outerRing = outerRing;
 
-  // Glow light
-  const light = new THREE.PointLight(0xff8c42, 2, 2.5);
+  // Soft glow light
+  const light = new THREE.PointLight(primaryHex, 1.5, 2);
   group.add(light);
 
   state.scene.add(group);
   state.objects.push(group);
+  if (state.experience?.id === 'portal') toast('傳送門已開啟');
 }
 
 // --------- 5. Physics ---------
@@ -3736,35 +3749,41 @@ function endGraffitiStroke() {
 
 // --------- 10. Blocks + Hand Gesture ---------
 function initBlocks() {
-  state.blocks = { pieces: [], grabbed: null, grabOffset: new THREE.Vector3(), placed: 0, handActive: false };
-  const floor = state.physics.floorY ?? -0.5;
-  for (let i = 0; i < 10; i++) {
-    const colors = [0xff8c42, 0x5eead4, 0xf87171, 0xfbbf24, 0xa78bfa, 0x60a5fa];
-    const color = new THREE.Color(colors[i % colors.length]);
-    const sz = 0.06 + Math.random() * 0.06;
-    const geom = new THREE.BoxGeometry(sz, sz, sz);
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1 });
-    const block = new THREE.Mesh(geom, mat);
-    block.position.set((Math.random()-0.5)*0.8, floor + sz/2 + 0.01, -0.5 - Math.random()*0.8);
-    block.userData = { velocity: new THREE.Vector3(), onFloor: false, sz };
-    state.scene.add(block);
-    state.blocks.pieces.push(block);
-  }
+  state.blocks = { pieces: [], showSkeleton: true };
 
-  // Create hand skeleton canvas overlay
+  // Single demo block in the center
+  const color = new THREE.Color(0xff8c42);
+  const sz = 0.15;
+  const geom = new THREE.BoxGeometry(sz, sz, sz);
+  const mat = state.lightOn
+    ? new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.2, emissive: color, emissiveIntensity: 0.15 })
+    : new THREE.MeshBasicMaterial({ color, toneMapped: false });
+  const block = new THREE.Mesh(geom, mat);
+  // Position 1m in front of camera at floor level
+  const { pos: camPos, quat: camQuat } = getCameraPose();
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+  block.position.copy(camPos).addScaledVector(fwd, 1);
+  block.position.y = (state.physics.floorY ?? camPos.y - 0.6) + sz / 2;
+  block.userData.spinSpeed = 0.5;
+  state.scene.add(block);
+  state.blocks.pieces.push(block);
+
+  // Create hand skeleton canvas overlay (visible by default)
   let handCanvas = document.getElementById('hand-canvas');
   if (!handCanvas) {
     handCanvas = document.createElement('canvas');
     handCanvas.id = 'hand-canvas';
-    handCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:160;pointer-events:none;display:none;';
+    handCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:160;pointer-events:none;display:block;';
     document.body.appendChild(handCanvas);
+  } else {
+    handCanvas.style.display = 'block';
   }
   state.blocks.handCanvas = handCanvas;
   state.blocks.handCtx = handCanvas.getContext('2d');
 
-  // Try to init MediaPipe Hands via CDN
+  // Auto-init MediaPipe
   initMediaPipeHands();
-  toast('點擊積木抓取，或用手勢互動');
+  toast('正在啟動手勢辨識...');
 }
 
 // Hand tracking state
@@ -3850,20 +3869,20 @@ function onHandResults(results) {
   const ctx = state.blocks.handCtx;
   if (!canvas || !ctx) return;
 
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  // Adapt canvas resolution
+  if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if (!results.multiHandLandmarks?.length) {
-    state.blocks.handActive = false;
-    return;
-  }
-  state.blocks.handActive = true;
+  if (!results.multiHandLandmarks?.length) return;
   const lm = results.multiHandLandmarks[0];
 
   // Draw skeleton connections
-  ctx.strokeStyle = 'rgba(94, 234, 212, 0.8)';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(94, 234, 212, 0.85)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
   HAND_CONNECTIONS.forEach(([a, b]) => {
     ctx.beginPath();
     ctx.moveTo(lm[a].x * canvas.width, lm[a].y * canvas.height);
@@ -3874,123 +3893,28 @@ function onHandResults(results) {
   // Draw landmark dots
   lm.forEach((pt, i) => {
     ctx.beginPath();
-    ctx.arc(pt.x * canvas.width, pt.y * canvas.height, i === 8 || i === 4 ? 6 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = i === 8 ? '#ff8c42' : i === 4 ? '#f87171' : '#5eead4';
+    const r = (i === 8 || i === 4) ? 7 : 4;  // index/thumb tips bigger
+    ctx.arc(pt.x * canvas.width, pt.y * canvas.height, r, 0, Math.PI * 2);
+    ctx.fillStyle = i === 8 ? '#ff8c42' : (i === 4 ? '#f87171' : '#5eead4');
     ctx.fill();
-  });
-
-  // Pinch gesture: index tip (8) and thumb tip (4) close together
-  const indexTip = lm[8], thumbTip = lm[4];
-  const pinchDist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
-  const pinching = pinchDist < 0.06;
-
-  // Map index fingertip to 3D world position
-  // Use depth from wrist landmark as rough Z estimate
-  const wrist = lm[0];
-  const handScale = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) * 2;
-  const worldX = (indexTip.x - 0.5) * -2;  // mirrored
-  const worldY = (0.5 - indexTip.y) * 1.5;
-  const worldZ = -0.5 - wrist.z * 2;
-  const fingerWorldPos = new THREE.Vector3(worldX, worldY, worldZ);
-
-  if (pinching) {
-    // Pinch: grab nearest block or move grabbed block
-    if (!state.blocks.grabbed) {
-      let closest = null, minDist = 0.35;
-      state.blocks.pieces.forEach(b => {
-        const d = b.position.distanceTo(fingerWorldPos);
-        if (d < minDist) { minDist = d; closest = b; }
-      });
-      if (closest) {
-        state.blocks.grabbed = closest;
-        closest.userData.onFloor = false;
-        // Highlight grabbed block
-        closest.material.emissive = new THREE.Color(0xff8c42);
-        closest.material.emissiveIntensity = 0.4;
-      }
-    }
-    if (state.blocks.grabbed) {
-      state.blocks.grabbed.position.lerp(fingerWorldPos, 0.25);
-      state.blocks.grabbed.userData.velocity.set(0,0,0);
-    }
-
-    // Visual: draw pinch indicator
-    ctx.beginPath();
-    ctx.arc(indexTip.x * canvas.width, indexTip.y * canvas.height, 18, 0, Math.PI * 2);
-    ctx.strokeStyle = '#ff8c42';
-    ctx.lineWidth = 3;
+    // White outline for visibility
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
     ctx.stroke();
-  } else {
-    // Release
-    if (state.blocks.grabbed) {
-      state.blocks.grabbed.material.emissive = new THREE.Color(0);
-      state.blocks.grabbed.material.emissiveIntensity = 0;
-      state.blocks.grabbed.userData.onFloor = false;
-      state.blocks.grabbed.userData.velocity.set((Math.random()-.5)*0.2, 0.1, (Math.random()-.5)*0.2);
-      state.blocks.grabbed = null;
-    }
-  }
+  });
 }
 
 function updateBlocks(dt) {
   if (!state.blocks) return;
-  const floor = state.physics.floorY ?? -0.5;
-  const g = 9.8;
+  // Just gentle spin animation
   state.blocks.pieces.forEach(b => {
-    if (state.blocks.grabbed === b) {
-      // Follow camera center
-      const { pos: camPos, quat: camQuat } = getCameraPose();
-      const fwd = new THREE.Vector3(0, 0, -0.5).applyQuaternion(camQuat);
-      b.position.lerp(camPos.clone().add(fwd), 0.2);
-      b.rotation.y += dt * 1.5;
-      b.userData.velocity.set(0,0,0);
-      return;
-    }
-    if (!b.userData.onFloor) {
-      b.userData.velocity.y -= g * dt;
-      b.position.addScaledVector(b.userData.velocity, dt);
-      const bottom = floor + b.userData.sz / 2;
-      // Floor
-      if (b.position.y < bottom) {
-        b.position.y = bottom;
-        b.userData.velocity.y *= -0.4;
-        b.userData.velocity.x *= 0.7;
-        b.userData.velocity.z *= 0.7;
-        if (Math.abs(b.userData.velocity.y) < 0.05) { b.userData.velocity.set(0,0,0); b.userData.onFloor = true; }
-      }
-      // Block-on-block stacking
-      state.blocks.pieces.forEach(b2 => {
-        if (b2 === b) return;
-        const d = b.position.distanceTo(b2.position);
-        const minD = (b.userData.sz + b2.userData.sz) * 0.5;
-        if (d < minD && d > 0.001) {
-          const n = b.position.clone().sub(b2.position).normalize();
-          b.position.addScaledVector(n, (minD - d) * 0.5);
-          const vRel = b.userData.velocity.dot(n);
-          if (vRel < 0) b.userData.velocity.addScaledVector(n, -vRel * 1.4);
-        }
-      });
-    }
+    b.rotation.y += (b.userData.spinSpeed || 0.5) * dt;
+    b.rotation.x += (b.userData.spinSpeed || 0.5) * dt * 0.4;
   });
 }
 
 function grabBlock(pos) {
-  if (!state.blocks) return;
-  if (state.blocks.grabbed) {
-    // Release
-    state.blocks.grabbed.userData.onFloor = false;
-    state.blocks.grabbed.userData.velocity.set((Math.random()-.5)*0.5, 0.3, (Math.random()-.5)*0.5);
-    state.blocks.grabbed = null;
-    toast('積木已放置');
-    return;
-  }
-  // Find closest block
-  let closest = null, minDist = 0.5;
-  state.blocks.pieces.forEach(b => {
-    const d = b.position.distanceTo(pos);
-    if (d < minDist) { minDist = d; closest = b; }
-  });
-  if (closest) { state.blocks.grabbed = closest; closest.userData.onFloor = false; toast('抓住積木！再點擊放置'); }
+  // Disabled — display only
 }
 
 let _lastPhysicsFire = 0;
@@ -4284,12 +4208,11 @@ function updateExperience(exp, dt, t) {
     case 'graffiti': updateGraffiti(); break;
     case 'blocks': updateBlocks(dt); break;
     case 'portal':
-      // Portal world rendering is handled in renderLoop (pre-render to RT)
-      // Just animate the portal ring glow
+      // Animate shader time uniform
       if (state.objects.length > 0) {
-        const ring = state.objects[0].children[0];
-        if (ring && ring.material) {
-          ring.material.emissiveIntensity = 1.2 + Math.sin(t * 0.003) * 0.3;
+        const portal = state.objects[0];
+        if (portal.userData.portalMat?.uniforms?.uTime) {
+          portal.userData.portalMat.uniforms.uTime.value = t * 0.001;
         }
       }
       break;
