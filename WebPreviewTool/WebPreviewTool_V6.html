@@ -1,0 +1,3711 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>WebPreviewTool V6</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --text: #121827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --dash: #cbd5e1;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --danger: #dc2626;
+      --warning: #b45309;
+      --soft-blue: #eef6ff;
+      --shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+      --tree-bg: #101827;
+      --tree-line: rgba(148, 163, 184, 0.36);
+      --tree-text: #e5e7eb;
+      --tree-muted: #94a3b8;
+      --tree-hover: rgba(59, 130, 246, 0.14);
+      --tree-selected: rgba(59, 130, 246, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    body {
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    button,
+    textarea,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .app {
+      width: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .topbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 26px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.2;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .layout {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 430px minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .panel {
+      min-width: 0;
+      min-height: 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .editor-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .section {
+      width: 100%;
+      min-width: 0;
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section:last-child {
+      border-bottom: 0;
+    }
+
+    .panel-brand {
+      display: grid;
+      gap: 4px;
+      margin-bottom: 14px;
+    }
+
+    .panel-brand-title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: var(--text);
+    }
+
+    .panel-brand-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .dropzone {
+      width: 100%;
+      min-height: 118px;
+      padding: 18px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      border: 1.5px dashed var(--dash);
+      border-radius: 16px;
+      background: #f8fafc;
+      text-align: center;
+      transition: 160ms ease;
+      overflow: hidden;
+    }
+
+    .dropzone.dragover {
+      border-color: var(--primary);
+      background: var(--soft-blue);
+      transform: translateY(-1px);
+      box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+    }
+
+    .dropzone-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.35;
+      font-weight: 800;
+    }
+
+    .dropzone-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .drop-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 16px;
+      cursor: pointer;
+      font-weight: 750;
+      line-height: 1;
+      transition: 150ms ease;
+      white-space: nowrap;
+    }
+
+    .button.primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .button.primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .button.ghost {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .button.light {
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    .button.danger {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .button.warn {
+      background: #fef3c7;
+      color: var(--warning);
+    }
+
+    .button.small {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+
+    .button:active {
+      transform: scale(0.98);
+    }
+
+    .project-box {
+      display: none;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fbfdff;
+    }
+
+    .project-box.active {
+      display: none;
+    }
+
+    .project-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .project-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .project-meta span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .entry-row {
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .entry-select {
+      width: 100%;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    .entry-select.compact {
+      width: min(170px, 36vw);
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.96);
+    }
+
+    .entry-inline {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      color: var(--tree-muted);
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 0;
+    }
+
+    .mode-project .entry-inline {
+      display: inline-flex;
+    }
+
+    .workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 0;
+    }
+
+    .workspace-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .workspace-title {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .workspace-title strong {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    #status {
+      display: none;
+    }
+
+    .editor-view,
+    .project-view {
+      min-height: 0;
+      flex: 1;
+      display: none;
+    }
+
+    .mode-code .editor-view {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mode-project .project-view {
+      display: flex;
+      flex-direction: column;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 0;
+      flex: 1;
+      resize: none;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      outline: none;
+      background: #0f172a;
+      color: #e5e7eb;
+      line-height: 1.55;
+      font-size: 13px;
+      tab-size: 2;
+      white-space: pre;
+      overflow: auto;
+    }
+
+    textarea:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    .tree-shell {
+      flex: 1;
+      min-height: 0;
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: var(--tree-bg);
+      color: var(--tree-text);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tree-toolbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(15, 23, 42, 0.86);
+    }
+
+    .tree-toolbar span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--tree-muted);
+      font-size: 12px;
+    }
+
+    .tree-toolbar-actions {
+      display: flex;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .tree-btn {
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 999px;
+      padding: 6px 9px;
+      background: rgba(30, 41, 59, 0.95);
+      color: #dbeafe;
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .tree-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 10px 8px 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .tree-node {
+      position: relative;
+    }
+
+    .tree-row {
+      width: 100%;
+      min-width: max-content;
+      min-height: 27px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 8px;
+      color: var(--tree-text);
+      cursor: default;
+      user-select: none;
+      white-space: pre;
+    }
+
+    .tree-row:hover {
+      background: var(--tree-hover);
+    }
+
+    .tree-row.selected {
+      background: var(--tree-selected);
+      color: #fff;
+    }
+
+    .tree-indent {
+      flex: 0 0 auto;
+      height: 100%;
+      position: relative;
+    }
+
+    .tree-indent::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 9px;
+      border-left: 1px dotted var(--tree-line);
+    }
+
+    .tree-toggle {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.7);
+      color: #e2e8f0;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .tree-toggle.empty {
+      border-color: transparent;
+      background: transparent;
+      color: transparent;
+    }
+
+    .tree-icon {
+      width: 18px;
+      flex: 0 0 auto;
+      text-align: center;
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .tree-name {
+      overflow: visible;
+      text-overflow: clip;
+    }
+
+    .tree-size {
+      color: var(--tree-muted);
+      font-size: 11px;
+      margin-left: 8px;
+    }
+
+    .tree-children {
+      display: block;
+    }
+
+    .tree-node.collapsed > .tree-children {
+      display: none;
+    }
+
+    .file-preview {
+      flex: 0 0 auto;
+      display: none;
+      max-height: 34%;
+      min-height: 92px;
+      border-top: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(15, 23, 42, 0.88);
+      overflow: hidden;
+    }
+
+    .file-preview.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .file-preview-head {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      color: var(--tree-muted);
+      font-size: 12px;
+    }
+
+    .file-preview-head span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-preview pre {
+      flex: 1;
+      min-height: 0;
+      margin: 0;
+      padding: 10px;
+      overflow: auto;
+      color: #dbeafe;
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    .tree-summary {
+      flex: 0 0 auto;
+      display: none;
+      padding: 9px 12px;
+      border-top: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(15, 23, 42, 0.92);
+      color: var(--tree-muted);
+      font-size: 12px;
+      line-height: 1.45;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .tree-summary.active {
+      display: block;
+    }
+
+    .tree-empty {
+      padding: 18px;
+      color: var(--tree-muted);
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .switch-row input {
+      margin-top: 3px;
+    }
+
+    .preview-panel {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-header {
+      flex: 0 0 auto;
+      min-height: 56px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+
+    .preview-title {
+      min-width: 0;
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 36px;
+      overflow: hidden;
+    }
+
+    .preview-title strong {
+      flex: 0 0 auto;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .preview-title span {
+      min-width: 0;
+      flex: 1 1 auto;
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      line-height: 1.2;
+    }
+
+    .preview-tools {
+      flex: 0 0 auto;
+      min-width: 0;
+    }
+
+    .preview-tools {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .frame-wrap {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      background: #fff;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #fff;
+    }
+
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .empty-card {
+      max-width: 440px;
+      padding: 24px;
+      border-radius: 20px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+    }
+
+    .empty-card h2 {
+      margin: 0 0 8px;
+      color: var(--text);
+      font-size: 20px;
+    }
+
+    .empty-card p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .back-only {
+      display: none;
+    }
+
+    .preview-mode .editor-panel,
+    .preview-mode .topbar {
+      display: none;
+    }
+
+    .preview-mode.app {
+      padding: 0;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    .preview-mode .layout {
+      display: block;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    .preview-mode .preview-panel {
+      height: 100dvh;
+      border-radius: 0;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .preview-mode .back-only {
+      display: inline-flex;
+    }
+
+
+    .busy-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, 0.28);
+      backdrop-filter: blur(4px);
+      pointer-events: auto;
+    }
+
+    .busy-overlay.active {
+      display: flex;
+    }
+
+    .busy-card {
+      min-width: min(88vw, 280px);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 18px 56px rgba(15, 23, 42, 0.2);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .busy-spinner {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      border: 3px solid #dbeafe;
+      border-top-color: var(--primary);
+      animation: spin 780ms linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.46);
+      backdrop-filter: blur(8px);
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-card {
+      width: min(92vw, 420px);
+      border-radius: 22px;
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.26);
+      overflow: hidden;
+      animation: modalIn 160ms ease-out;
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .modal-body {
+      padding: 22px 22px 18px;
+    }
+
+    .modal-kicker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: var(--primary);
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .modal-title {
+      margin: 0 0 8px;
+      color: var(--text);
+      font-size: 18px;
+      line-height: 1.35;
+      font-weight: 850;
+      letter-spacing: -0.02em;
+    }
+
+    .modal-message {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      white-space: pre-line;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+    }
+
+    .modal-actions .button {
+      min-width: 88px;
+    }
+
+
+    .preview-tools {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      row-gap: 8px;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+
+    .tool-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tool-group-secondary {
+      justify-content: flex-end;
+    }
+
+    .device-select,
+    .viewport-select,
+    .viewport-input {
+      min-height: 34px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .device-select {
+      min-width: 180px;
+    }
+
+    .viewport-select {
+      min-width: 82px;
+    }
+
+    .viewport-metric {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      min-height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .viewport-metric span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .viewport-input {
+      width: 72px;
+      min-width: 0;
+      padding-left: 0;
+      padding-right: 0;
+      border: 0;
+      border-radius: 0;
+      text-align: center;
+      background: transparent;
+    }
+
+    .viewport-input:disabled,
+    .viewport-select:disabled,
+    .device-select:disabled,
+    .icon-btn:disabled {
+      color: #9ca3af;
+      background: #f9fafb;
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .icon-btn {
+      width: 34px;
+      min-width: 34px;
+      padding-left: 0;
+      padding-right: 0;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .frame-wrap {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 0;
+      background: #0f172a;
+      isolation: isolate;
+    }
+
+    .device-viewport {
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      overflow: hidden;
+      flex: 0 0 auto;
+      position: relative;
+      transition: width 120ms ease, height 120ms ease, transform 120ms ease, border-radius 120ms ease, box-shadow 120ms ease;
+      transform-origin: center center;
+      box-shadow: 0 18px 56px rgba(0, 0, 0, 0.22);
+    }
+
+    .device-viewport iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .preview-panel.viewport-mode-custom .frame-wrap {
+      padding: 0;
+      background: #fff;
+    }
+
+    .preview-panel.viewport-mode-custom .device-viewport {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+      transform: none !important;
+      box-shadow: none;
+    }
+
+    .preview-panel.viewport-mode-fixed .frame-wrap,
+    .preview-panel.viewport-mode-responsive .frame-wrap {
+      padding: 20px;
+      background: #0f172a;
+    }
+
+    .preview-panel.viewport-mode-fixed .device-viewport,
+    .preview-panel.viewport-mode-responsive .device-viewport {
+      width: var(--device-width, 390px);
+      height: var(--device-height, 844px);
+      max-width: none;
+      max-height: none;
+      border-radius: 24px;
+      transform: scale(var(--device-scale, 1));
+    }
+
+    .preview-panel.viewport-mode-responsive .frame-wrap {
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-panel.viewport-mode-responsive .device-viewport {
+      min-width: 10px;
+      min-height: 10px;
+      border-radius: 0;
+      border: 2px solid rgba(191, 219, 254, 0.95);
+      box-shadow: 0 16px 45px rgba(15, 23, 42, 0.3);
+      transition: transform 120ms ease;
+    }
+
+    .viewport-resize-handle {
+      display: none;
+      position: absolute;
+      z-index: 12;
+      background: rgba(37, 99, 235, 0.72);
+      opacity: 0.9;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .preview-panel.viewport-mode-responsive .viewport-resize-handle {
+      display: block;
+    }
+
+    .resize-right {
+      top: 0;
+      right: -4px;
+      width: 8px;
+      height: 100%;
+      cursor: ew-resize;
+    }
+
+    .resize-bottom {
+      left: 0;
+      bottom: -4px;
+      width: 100%;
+      height: 8px;
+      cursor: ns-resize;
+    }
+
+    .resize-corner {
+      right: -5px;
+      bottom: -5px;
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      cursor: nwse-resize;
+    }
+
+    .diagnostic-panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      height: var(--diagnostic-height, 240px);
+      min-height: 18px;
+      border-top: 1px solid rgba(148, 163, 184, 0.32);
+      background: rgba(15, 23, 42, 0.98);
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.32);
+      transition: height 120ms ease;
+    }
+
+    .diagnostic-panel.is-hidden {
+      display: none;
+    }
+
+    .diagnostic-panel.is-collapsed {
+      height: 44px;
+    }
+
+    .diagnostic-panel.is-minimized {
+      height: 18px;
+    }
+
+    .diagnostic-panel.is-minimized .diagnostic-header,
+    .diagnostic-panel.is-minimized .diagnostic-log {
+      display: none;
+    }
+
+    .diagnostic-resize-handle {
+      flex: 0 0 auto;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: ns-resize;
+      user-select: none;
+      touch-action: none;
+      background: rgba(15, 23, 42, 0.98);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .diagnostic-resize-handle::before {
+      content: "";
+      width: 54px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.48);
+    }
+
+    .diagnostic-header {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(15, 23, 42, 0.94);
+    }
+
+    .diagnostic-title {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .diagnostic-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: rgba(96, 165, 250, 0.18);
+      color: #bfdbfe;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .diagnostic-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .diagnostic-toggle-btn {
+      background: rgba(37, 99, 235, 0.95);
+      border-color: rgba(147, 197, 253, 0.42);
+      color: #fff;
+      font-weight: 850;
+    }
+
+    .diagnostic-toggle-btn:hover {
+      background: rgba(29, 78, 216, 0.98);
+    }
+
+    .diagnostic-close {
+      min-width: 28px;
+      font-weight: 900;
+    }
+
+    .diagnostic-log {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 8px 10px 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .diagnostic-empty {
+      color: #94a3b8;
+      padding: 16px 8px;
+      text-align: center;
+      line-height: 1.7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+      font-size: 12px;
+    }
+
+    .diagnostic-item {
+      display: grid;
+      grid-template-columns: 70px minmax(0, 1fr);
+      gap: 8px;
+      padding: 7px 4px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.13);
+    }
+
+    .diagnostic-type {
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #93c5fd;
+    }
+
+    .diagnostic-item.error .diagnostic-type,
+    .diagnostic-item.missing .diagnostic-type {
+      color: #fca5a5;
+    }
+
+    .diagnostic-item.warn .diagnostic-type,
+    .diagnostic-item.warning .diagnostic-type {
+      color: #fcd34d;
+    }
+
+    .diagnostic-item.ok .diagnostic-type {
+      color: #86efac;
+    }
+
+    .diagnostic-message {
+      min-width: 0;
+      color: #e5e7eb;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .diagnostic-path {
+      color: #94a3b8;
+      margin-top: 3px;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        height: auto;
+        min-height: 100dvh;
+        padding: 14px;
+        overflow: visible;
+      }
+
+
+      .layout {
+        grid-template-columns: 1fr;
+        overflow: visible;
+      }
+
+      .dropzone {
+        min-height: 132px;
+        padding: 18px 14px;
+      }
+
+      .dropzone-title {
+        font-size: 20px;
+      }
+
+      .dropzone-subtitle {
+        font-size: 13px;
+      }
+
+      .project-meta,
+      .entry-row {
+        font-size: 12px;
+      }
+
+      .workspace {
+        min-height: 420px;
+      }
+
+      .preview-panel {
+        display: none;
+        min-height: 60dvh;
+      }
+
+      .has-preview .preview-panel,
+      .preview-mode .preview-panel {
+        display: flex;
+      }
+
+      .frame-wrap {
+        min-height: 58dvh;
+      }
+
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      textarea {
+        min-height: 320px;
+        font-size: 12px;
+      }
+
+      .preview-header {
+        height: auto;
+        min-height: 56px;
+        flex-wrap: wrap;
+      }
+
+      .preview-header {
+        align-items: flex-start;
+      }
+
+      .preview-title {
+        width: 100%;
+        min-height: 0;
+      }
+
+      .preview-title span {
+        max-width: 84vw;
+      }
+
+      .entry-inline {
+        width: 100%;
+      }
+
+      .entry-select.compact {
+        width: 100%;
+      }
+
+      .preview-tools {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .tool-group {
+        width: 100%;
+      }
+
+      .tool-group-primary {
+        display: none;
+      }
+
+      .tool-group-secondary {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .tool-group-secondary .back-only {
+        order: 98;
+        margin-left: auto;
+      }
+
+      .tool-group-secondary #fullscreenBtn {
+        order: 99;
+      }
+
+      .desktop-only {
+        display: none !important;
+      }
+
+      .frame-wrap {
+        min-height: 58dvh;
+        padding: 0;
+      }
+
+      .preview-panel.viewport-mode-fixed .frame-wrap,
+      .preview-panel.viewport-mode-responsive .frame-wrap {
+        padding: 0;
+      }
+
+      .preview-panel.viewport-mode-fixed .device-viewport,
+      .preview-panel.viewport-mode-responsive .device-viewport {
+        width: 100% !important;
+        height: 100% !important;
+        transform: none !important;
+        border-radius: 0;
+      }
+
+      .diagnostic-panel {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: calc(100% - 16px);
+      }
+
+      #status {
+        max-width: 44vw;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .button {
+        padding-left: 13px;
+        padding-right: 13px;
+      }
+
+      .drop-actions {
+        width: 100%;
+      }
+
+      .drop-actions .button {
+        flex: 1 1 130px;
+      }
+
+      .tree-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="app" class="app">
+<section class="layout">
+      <aside class="panel editor-panel">
+        <div class="section">
+          <div class="panel-brand">
+            <h1 class="panel-brand-title">Web專案檢測工具</h1>
+          </div>
+
+          <div id="dropzone" class="dropzone">
+            <p class="dropzone-title">上傳或拖曳 HTML / 專案資料夾</p>
+            <p class="dropzone-subtitle">支援單一 HTML，也支援含 index.html、styles.css、app.js、assets 的完整資料夾；不支援壓縮檔</p>
+            <div class="drop-actions">
+              <button id="pickHtmlBtn" class="button ghost small" type="button">選擇 HTML</button>
+              <button id="pickFolderBtn" class="button ghost small" type="button">選擇資料夾</button>
+            </div>
+          </div>
+
+          <input id="fileInput" class="file-input" type="file" accept=".html,.htm,.txt,text/html,text/plain" />
+          <input id="folderInput" class="file-input" type="file" webkitdirectory directory multiple />
+
+          <div id="projectBox" class="project-box" aria-hidden="true"></div>
+        </div>
+
+        <div id="workspace" class="section workspace mode-code">
+          <div class="workspace-head">
+            <div class="workspace-title">
+              <strong id="workspaceTitle">HTML 代碼</strong>
+              <label id="entryInline" class="entry-inline">
+                <span>入口</span>
+                <select id="entrySelect" class="entry-select compact"></select>
+              </label>
+            </div>
+            <span id="status">尚未載入檔案</span>
+          </div>
+
+          <div class="editor-view">
+            <textarea id="codeInput" spellcheck="false" autocomplete="off" autocapitalize="off">&lt;!doctype html&gt;
+&lt;html lang="zh-Hant"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8" /&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1" /&gt;
+  &lt;title&gt;測試頁面&lt;/title&gt;
+  &lt;style&gt;
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg, #dbeafe, #f5f3ff);
+      color: #111827;
+    }
+    .card {
+      width: min(90vw, 520px);
+      padding: 32px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+      text-align: center;
+    }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class="card"&gt;
+    &lt;h1&gt;Hello HTML Preview&lt;/h1&gt;
+    &lt;p&gt;把 HTML 貼到左側，然後按「預覽」&lt;/p&gt;
+  &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;</textarea>
+          </div>
+
+          <div class="project-view">
+            <div class="tree-shell">
+              <div class="tree-toolbar">
+                <span id="treeHint">載入專案資料夾後，這裡會顯示完整資料夾結構</span>
+                <div class="tree-toolbar-actions">
+                  <button id="editEntryBtn" class="tree-btn" type="button">編輯 HTML</button>
+                  <button id="toggleTreeBtn" class="tree-btn" type="button">全部收合</button>
+                </div>
+              </div>
+              <div id="treeScroll" class="tree-scroll">
+                <div class="tree-empty">尚未載入專案資料夾</div>
+              </div>
+              <div id="filePreview" class="file-preview">
+                <div class="file-preview-head">
+                  <span id="filePreviewTitle">檔案預覽</span>
+                  <button id="closeFilePreviewBtn" class="tree-btn" type="button">關閉</button>
+                </div>
+                <pre id="filePreviewCode"></pre>
+              </div>
+              <div id="projectSummary" class="tree-summary">尚未載入專案</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="actions">
+            <button id="previewBtn" class="button primary" type="button">預覽</button>
+            <button id="clearBtn" class="button danger" type="button">清空</button>
+          </div>
+
+          <label class="switch-row">
+            <input id="advancedAllow" type="checkbox" checked />
+            <span>啟用相機、麥克風、陀螺儀、加速度計、定位、WebXR、全螢幕等 iframe 權限提示。</span>
+          </label>
+        </div>
+      </aside>
+
+      <section class="panel preview-panel viewport-mode-custom">
+        <div class="preview-header">
+          <div class="preview-title">
+            <strong>預覽畫面</strong>
+            <span id="previewMeta"></span>
+          </div>
+          <div class="preview-tools">
+            <div class="tool-group tool-group-primary">
+              <select id="deviceSelect" class="device-select desktop-only" title="裝置預覽">
+                <option value="custom" selected>Custom</option>
+                <option value="responsive">Responsive</option>
+                <option value="iphone-se">iPhone SE</option>
+                <option value="iphone-xr">iPhone XR</option>
+                <option value="iphone12pro">iPhone 12 Pro</option>
+                <option value="iphone14promax">iPhone 14 Pro Max</option>
+                <option value="pixel7">Pixel 7</option>
+                <option value="galaxy-s8plus">Samsung Galaxy S8+</option>
+                <option value="galaxy-s20ultra">Samsung Galaxy S20 Ultra</option>
+                <option value="galaxy-a51">Samsung Galaxy A51/71</option>
+                <option value="ipad-mini">iPad Mini</option>
+                <option value="ipad-air">iPad Air</option>
+                <option value="ipad-pro">iPad Pro</option>
+                <option value="surface-pro7">Surface Pro 7</option>
+                <option value="surface-duo">Surface Duo</option>
+                <option value="galaxy-zfold5">Galaxy Z Fold 5</option>
+                <option value="asus-zenbook-fold">Asus Zenbook Fold</option>
+                <option value="nest-hub">Nest Hub</option>
+                <option value="nest-hub-max">Nest Hub Max</option>
+              </select>
+              <label class="viewport-metric desktop-only"><span>W</span><input id="viewportWidth" class="viewport-input" type="number" min="10" max="3000" step="1" value="960" /></label>
+              <label class="viewport-metric desktop-only"><span>H</span><input id="viewportHeight" class="viewport-input" type="number" min="10" max="3000" step="1" value="640" /></label>
+              <select id="zoomSelect" class="viewport-select desktop-only" title="縮放比例">
+                <option value="0.25">25%</option>
+                <option value="0.5">50%</option>
+                <option value="0.75">75%</option>
+                <option value="1" selected>100%</option>
+                <option value="1.25">125%</option>
+                <option value="1.5">150%</option>
+              </select>
+              <button id="rotateBtn" class="button light small icon-btn desktop-only" type="button" title="旋轉" aria-label="旋轉">↻</button>
+            </div>
+            <div class="tool-group tool-group-secondary">
+              <button id="exportReportBtn" class="button ghost small" type="button">診斷報告</button>
+              <button id="refreshBtn" class="button ghost small" type="button">重新整理</button>
+              <button id="backBtn" class="button light small back-only" type="button">返回編輯</button>
+              <button id="fullscreenBtn" class="button light small icon-btn" type="button" title="全螢幕" aria-label="全螢幕">⛶</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-wrap" id="frameWrap">
+          <div id="deviceViewport" class="device-viewport">
+            <iframe
+              id="previewFrame"
+              title="WebPreviewTool Preview"
+              referrerpolicy="no-referrer"
+              allow="camera; microphone; geolocation; gyroscope; accelerometer; magnetometer; xr-spatial-tracking; fullscreen; autoplay; clipboard-read; clipboard-write"
+              sandbox="allow-scripts allow-forms allow-modals allow-pointer-lock allow-popups allow-downloads allow-same-origin"
+            ></iframe>
+            <div class="viewport-resize-handle resize-right" data-resize-axis="x" title="拖曳調整寬度"></div>
+            <div class="viewport-resize-handle resize-bottom" data-resize-axis="y" title="拖曳調整高度"></div>
+            <div class="viewport-resize-handle resize-corner" data-resize-axis="xy" title="拖曳調整寬高"></div>
+          </div>
+          <div id="emptyState" class="empty-state">
+            <div class="empty-card">
+              <h2>尚未產生預覽</h2>
+              <p>輸入 HTML、上傳 HTML，或拖曳整個專案資料夾後，按下「預覽」。壓縮檔不會被解析。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagnostic-panel is-collapsed" id="diagnosticPanel">
+          <div id="diagnosticResizeHandle" class="diagnostic-resize-handle" title="拖曳調整高度"></div>
+          <div class="diagnostic-header">
+            <div class="diagnostic-title">診斷報告 <span id="diagnosticCount" class="diagnostic-count">0</span></div>
+            <div class="diagnostic-actions">
+              <button id="healthBtn" class="tree-btn diagnostic-toggle-btn" type="button">匯出報告</button>
+              <button id="rerunDiagnosticsBtn" class="tree-btn" type="button">刷新</button>
+              <button id="clearDiagnosticsBtn" class="tree-btn" type="button">清除</button>
+              <button id="closeDiagnosticsBtn" class="tree-btn diagnostic-close" type="button" aria-label="關閉">✕</button>
+            </div>
+          </div>
+          <div id="diagnosticLog" class="diagnostic-log">
+            <div class="diagnostic-empty">目前尚無診斷紀錄。當偵測到錯誤時會自動顯示，也可由右上角「診斷報告」開啟。</div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-card">
+        <div class="modal-body">
+          <div id="modalKicker" class="modal-kicker">!</div>
+          <h2 id="modalTitle" class="modal-title">提示</h2>
+          <p id="modalMessage" class="modal-message"></p>
+        </div>
+        <div id="modalActions" class="modal-actions"></div>
+      </div>
+    </div>
+
+<div id="busyOverlay" class="busy-overlay" aria-live="polite" aria-busy="true">
+      <div class="busy-card">
+        <span class="busy-spinner" aria-hidden="true"></span>
+        <span id="busyText">正在處理...</span>
+      </div>
+    </div>
+
+
+  </main>
+
+  <script>
+    const app = document.getElementById("app");
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+    const folderInput = document.getElementById("folderInput");
+    const pickHtmlBtn = document.getElementById("pickHtmlBtn");
+    const pickFolderBtn = document.getElementById("pickFolderBtn");
+    const codeInput = document.getElementById("codeInput");
+    const previewBtn = document.getElementById("previewBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    const backBtn = document.getElementById("backBtn");
+    const deviceSelect = document.getElementById("deviceSelect");
+    const viewportWidth = document.getElementById("viewportWidth");
+    const viewportHeight = document.getElementById("viewportHeight");
+    const zoomSelect = document.getElementById("zoomSelect");
+    const rotateBtn = document.getElementById("rotateBtn");
+    const deviceViewport = document.getElementById("deviceViewport");
+    const frameWrap = document.getElementById("frameWrap");
+    const healthBtn = document.getElementById("healthBtn");
+    const exportReportBtn = document.getElementById("exportReportBtn");
+    const diagnosticPanel = document.getElementById("diagnosticPanel");
+    const diagnosticResizeHandle = document.getElementById("diagnosticResizeHandle");
+    const diagnosticLog = document.getElementById("diagnosticLog");
+    const diagnosticCount = document.getElementById("diagnosticCount");
+    const rerunDiagnosticsBtn = document.getElementById("rerunDiagnosticsBtn");
+    const clearDiagnosticsBtn = document.getElementById("clearDiagnosticsBtn");
+    const closeDiagnosticsBtn = document.getElementById("closeDiagnosticsBtn");
+    const previewFrame = document.getElementById("previewFrame");
+    const emptyState = document.getElementById("emptyState");
+    const status = document.getElementById("status");
+    const previewMeta = document.getElementById("previewMeta");
+    const advancedAllow = document.getElementById("advancedAllow");
+    const projectBox = document.getElementById("projectBox");
+    const projectSummary = document.getElementById("projectSummary");
+    const entrySelect = document.getElementById("entrySelect");
+    const workspace = document.getElementById("workspace");
+    const workspaceTitle = document.getElementById("workspaceTitle");
+    const treeHint = document.getElementById("treeHint");
+    const treeScroll = document.getElementById("treeScroll");
+    const toggleTreeBtn = document.getElementById("toggleTreeBtn");
+    const editEntryBtn = document.getElementById("editEntryBtn");
+    const filePreview = document.getElementById("filePreview");
+    const filePreviewTitle = document.getElementById("filePreviewTitle");
+    const filePreviewCode = document.getElementById("filePreviewCode");
+    const closeFilePreviewBtn = document.getElementById("closeFilePreviewBtn");
+    const modalBackdrop = document.getElementById("modalBackdrop");
+    const modalKicker = document.getElementById("modalKicker");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalMessage = document.getElementById("modalMessage");
+    const modalActions = document.getElementById("modalActions");
+    const busyOverlay = document.getElementById("busyOverlay");
+    const busyText = document.getElementById("busyText");
+    let responsiveResizeObserver = null;
+
+
+    function setBusy(active, message = "正在處理...") {
+      if (!busyOverlay || !busyText) return;
+      busyText.textContent = message;
+      busyOverlay.classList.toggle("active", Boolean(active));
+    }
+
+    const DIAGNOSTIC_ISSUE_TYPES = new Set(["error", "warn", "warning", "missing"]);
+
+    function hasDiagnosticIssues() {
+      if (diagnosticState.items.some((item) => DIAGNOSTIC_ISSUE_TYPES.has(item.type))) return true;
+      const health = diagnosticState.healthReport;
+      return Boolean(health && ((health.missingRefs && health.missingRefs.length) || (health.warnings && health.warnings.length)));
+    }
+
+    function setDiagnosticsOpen(open) {
+      diagnosticState.isOpen = Boolean(open);
+      if (diagnosticPanel) {
+        diagnosticPanel.classList.toggle("is-hidden", !diagnosticState.isOpen);
+        diagnosticPanel.classList.remove("is-minimized");
+        diagnosticPanel.classList.remove("is-collapsed");
+        if (diagnosticState.isOpen && !diagnosticPanel.style.getPropertyValue("--diagnostic-height")) {
+          diagnosticPanel.style.setProperty("--diagnostic-height", "240px");
+        }
+      }
+      if (exportReportBtn) exportReportBtn.classList.toggle("active", diagnosticState.isOpen);
+    }
+
+    function addDiagnostic(type, message, detail = {}) {
+      const path = detail.path || detail.url || "";
+      const key = [type, message, path, detail.source || ""].join("|");
+      if ((type === "missing" || type === "health") && diagnosticState.seenKeys.has(key)) return;
+      diagnosticState.seenKeys.add(key);
+
+      diagnosticState.items.unshift({
+        type,
+        message: String(message || ""),
+        path: String(path || ""),
+        source: detail.source || "",
+        time: new Date().toLocaleTimeString()
+      });
+
+      if (diagnosticState.items.length > diagnosticState.maxItems) diagnosticState.items.pop();
+      if (DIAGNOSTIC_ISSUE_TYPES.has(type)) setDiagnosticsOpen(true);
+      renderDiagnostics();
+    }
+
+    function clearDiagnostics(resetHealth = true) {
+      diagnosticState.items = [];
+      diagnosticState.seenKeys.clear();
+      if (resetHealth) diagnosticState.healthReport = null;
+      renderDiagnostics();
+    }
+
+    function renderDiagnostics() {
+      if (!diagnosticLog || !diagnosticCount) return;
+      diagnosticCount.textContent = String(diagnosticState.items.length);
+      if (!diagnosticState.items.length) {
+        diagnosticLog.innerHTML = '<div class="diagnostic-empty">目前尚無診斷紀錄。當偵測到錯誤時會自動顯示，也可由右上角「診斷報告」開啟。</div>';
+        return;
+      }
+
+      diagnosticLog.innerHTML = "";
+      const frag = document.createDocumentFragment();
+      for (const item of diagnosticState.items) {
+        const row = document.createElement("div");
+        row.className = "diagnostic-item " + item.type;
+
+        const type = document.createElement("div");
+        type.className = "diagnostic-type";
+        type.textContent = item.type;
+
+        const body = document.createElement("div");
+        body.className = "diagnostic-message";
+        body.textContent = item.message;
+
+        if (item.path) {
+          const path = document.createElement("div");
+          path.className = "diagnostic-path";
+          path.textContent = item.path;
+          body.appendChild(path);
+        }
+
+        row.appendChild(type);
+        row.appendChild(body);
+        frag.appendChild(row);
+      }
+      diagnosticLog.appendChild(frag);
+    }
+
+    function isFixedDeviceMode() {
+      return viewportState.mode !== "custom" && viewportState.mode !== "responsive";
+    }
+
+    function getSelectedDeviceLabel() {
+      return deviceSelect && deviceSelect.selectedOptions && deviceSelect.selectedOptions[0]
+        ? deviceSelect.selectedOptions[0].textContent
+        : "Custom";
+    }
+
+    function updatePreviewMeta() {
+      if (!previewMeta) return;
+      previewMeta.textContent = projectState.entryPath || lastFileName || "";
+    }
+
+    function syncViewportInputs() {
+      if (viewportWidth) viewportWidth.value = Math.round(viewportState.width || 960);
+      if (viewportHeight) viewportHeight.value = Math.round(viewportState.height || 640);
+      if (zoomSelect) zoomSelect.value = String(viewportState.zoom || 1);
+      const disableSize = viewportState.mode === "custom";
+      const disableRotate = viewportState.mode === "custom" || viewportState.mode === "responsive";
+      [viewportWidth, viewportHeight, zoomSelect].forEach((el) => {
+        if (el) el.disabled = disableSize;
+      });
+      if (rotateBtn) rotateBtn.disabled = disableRotate;
+    }
+
+    function fitScaleForViewport(width, height) {
+      if (!frameWrap) return 1;
+      const pad = viewportState.mode === "custom" ? 0 : 40;
+      const availableWidth = Math.max(10, frameWrap.clientWidth - pad);
+      const availableHeight = Math.max(10, frameWrap.clientHeight - pad);
+      const safeWidth = Math.max(1, Number(width) || 1);
+      const safeHeight = Math.max(1, Number(height) || 1);
+      const fit = Math.min(availableWidth / safeWidth, availableHeight / safeHeight, 1);
+      const zoom = Math.max(0.05, Number(viewportState.zoom) || 1);
+      return Math.max(0.02, fit * zoom);
+    }
+
+    function updateResponsiveHandleBounds() {
+      if (viewportState.mode !== "responsive" || !deviceViewport || !frameWrap) return;
+      const maxWidth = Math.max(10, frameWrap.clientWidth - 40);
+      const maxHeight = Math.max(10, frameWrap.clientHeight - 40);
+      viewportState.width = Math.max(10, Math.min(maxWidth, Number(viewportState.width) || maxWidth));
+      viewportState.height = Math.max(10, Math.min(maxHeight, Number(viewportState.height) || maxHeight));
+      deviceViewport.style.width = `${Math.round(viewportState.width)}px`;
+      deviceViewport.style.height = `${Math.round(viewportState.height)}px`;
+      syncViewportInputs();
+      updatePreviewMeta();
+    }
+
+    function applyViewportState() {
+      const panel = document.querySelector(".preview-panel");
+      if (!panel || !deviceViewport) return;
+      panel.classList.remove("viewport-mode-custom", "viewport-mode-responsive", "viewport-mode-preset", "viewport-mode-fixed");
+
+      if (viewportState.mode === "custom") {
+        panel.classList.add("viewport-mode-custom");
+        panel.style.removeProperty("--device-width");
+        panel.style.removeProperty("--device-height");
+        panel.style.removeProperty("--device-scale");
+        deviceViewport.style.width = "100%";
+        deviceViewport.style.height = "100%";
+        deviceViewport.style.transform = "none";
+      } else if (viewportState.mode === "responsive") {
+        panel.classList.add("viewport-mode-responsive");
+        updateResponsiveHandleBounds();
+        const scale = fitScaleForViewport(viewportState.width, viewportState.height);
+        panel.style.setProperty("--device-width", `${Math.round(viewportState.width)}px`);
+        panel.style.setProperty("--device-height", `${Math.round(viewportState.height)}px`);
+        panel.style.setProperty("--device-scale", String(scale));
+        deviceViewport.style.transform = `scale(${scale})`;
+      } else {
+        panel.classList.add("viewport-mode-fixed", "viewport-mode-preset");
+        const scale = fitScaleForViewport(viewportState.width, viewportState.height);
+        panel.style.setProperty("--device-width", `${Math.round(viewportState.width)}px`);
+        panel.style.setProperty("--device-height", `${Math.round(viewportState.height)}px`);
+        panel.style.setProperty("--device-scale", String(scale));
+        deviceViewport.style.width = `${Math.round(viewportState.width)}px`;
+        deviceViewport.style.height = `${Math.round(viewportState.height)}px`;
+        deviceViewport.style.transform = `scale(${scale})`;
+      }
+
+      syncViewportInputs();
+      updatePreviewMeta();
+    }
+
+    function applyDevicePreset(value) {
+      const preset = devicePresets[value] || devicePresets.custom;
+      if (value === "custom") {
+        viewportState.mode = "custom";
+        viewportState.width = preset.width;
+        viewportState.height = preset.height;
+      } else if (value === "responsive") {
+        viewportState.mode = "responsive";
+        viewportState.width = Math.min(Math.max(320, frameWrap ? frameWrap.clientWidth - 40 : 960), 960);
+        viewportState.height = Math.min(Math.max(240, frameWrap ? frameWrap.clientHeight - 40 : 640), 640);
+      } else {
+        viewportState.mode = value;
+        viewportState.width = preset.width;
+        viewportState.height = preset.height;
+      }
+      applyViewportState();
+    }
+
+    function setManualViewportSize() {
+      if (viewportState.mode === "custom") return;
+      viewportState.width = Math.max(10, Number(viewportWidth && viewportWidth.value) || viewportState.width || 960);
+      viewportState.height = Math.max(10, Number(viewportHeight && viewportHeight.value) || viewportState.height || 640);
+      if (viewportState.mode !== "responsive" && deviceSelect) deviceSelect.value = "custom";
+      if (viewportState.mode !== "responsive") viewportState.mode = "custom";
+      applyViewportState();
+    }
+
+    function beginViewportResize(event) {
+      if (viewportState.mode !== "responsive") return;
+      event.preventDefault();
+      event.stopPropagation();
+      const axis = event.currentTarget.dataset.resizeAxis || "xy";
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startWidth = Math.max(10, Number(viewportState.width) || deviceViewport.offsetWidth || 10);
+      const startHeight = Math.max(10, Number(viewportState.height) || deviceViewport.offsetHeight || 10);
+      const scale = fitScaleForViewport(startWidth, startHeight) || 1;
+      const maxWidth = Math.max(10, frameWrap.clientWidth - 40);
+      const maxHeight = Math.max(10, frameWrap.clientHeight - 40);
+      document.body.style.userSelect = "none";
+      previewFrame.style.pointerEvents = "none";
+      const onMove = (ev) => {
+        const dx = (ev.clientX - startX) / scale;
+        const dy = (ev.clientY - startY) / scale;
+        if (axis.includes("x")) viewportState.width = Math.max(10, Math.min(maxWidth, startWidth + dx));
+        if (axis.includes("y")) viewportState.height = Math.max(10, Math.min(maxHeight, startHeight + dy));
+        deviceViewport.style.width = `${Math.round(viewportState.width)}px`;
+        deviceViewport.style.height = `${Math.round(viewportState.height)}px`;
+        const nextScale = fitScaleForViewport(viewportState.width, viewportState.height);
+        deviceViewport.style.transform = `scale(${nextScale})`;
+        syncViewportInputs();
+        updatePreviewMeta();
+      };
+      const onUp = () => {
+        document.body.style.userSelect = "";
+        previewFrame.style.pointerEvents = "";
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    }
+
+    function rerunDiagnostics() {
+      clearDiagnostics(true);
+      const report = runProjectHealthCheck(false);
+      if (!report) return;
+      setDiagnosticsOpen(true);
+    }
+
+    function beginDiagnosticResize(event) {
+      if (!diagnosticPanel) return;
+      event.preventDefault();
+      const panel = document.querySelector(".preview-panel");
+      if (!panel) return;
+      const rect = panel.getBoundingClientRect();
+      const minHeight = 18;
+      const maxHeight = Math.max(220, rect.height - 16);
+      document.body.style.userSelect = "none";
+      previewFrame.style.pointerEvents = "none";
+      diagnosticPanel.classList.remove("is-collapsed");
+      const onMove = (ev) => {
+        const next = Math.min(maxHeight, Math.max(minHeight, rect.bottom - ev.clientY));
+        diagnosticPanel.style.setProperty("--diagnostic-height", `${next}px`);
+        diagnosticPanel.classList.toggle("is-minimized", next <= 28);
+        diagnosticState.isOpen = next > 44;
+        if (healthBtn) healthBtn.classList.toggle("active", diagnosticState.isOpen);
+      };
+      const onUp = () => {
+        document.body.style.userSelect = "";
+        previewFrame.style.pointerEvents = "";
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    }
+
+    function handlePreviewMessage(event) {
+      if (!previewFrame || event.source !== previewFrame.contentWindow) return;
+      const data = event.data || {};
+      if (!data || data.channel !== "html-preview-diagnostic") return;
+      addDiagnostic(data.type || "log", data.message || "", data.detail || {});
+    }
+
+    window.addEventListener("message", handlePreviewMessage);
+
+    if (window.ResizeObserver && deviceViewport) {
+      responsiveResizeObserver = new ResizeObserver(() => {
+        if (viewportState.mode !== "responsive") return;
+        viewportState.width = Math.max(10, Math.round(deviceViewport.offsetWidth || viewportState.width));
+        viewportState.height = Math.max(10, Math.round(deviceViewport.offsetHeight || viewportState.height));
+        syncViewportInputs();
+        updatePreviewMeta();
+      });
+      responsiveResizeObserver.observe(deviceViewport);
+    }
+
+    window.addEventListener("resize", () => {
+      applyViewportState();
+    });
+    document.addEventListener("fullscreenchange", () => {
+      setTimeout(() => applyViewportState(), 40);
+    });
+
+    const MAX_FILE_COUNT = 5000;
+    const MAX_TEXT_PREVIEW_CHARS = 12000;
+    const MAX_FILE_READ_BYTES = 12 * 1024 * 1024;
+    const MAX_PROJECT_TOTAL_BYTES = 260 * 1024 * 1024;
+    const MAX_OBJECT_URLS = 420;
+
+    const projectState = {
+      rawFiles: [],
+      files: new Map(),
+      entryPath: "",
+      objectUrls: [],
+      processedCache: new Map(),
+      rawUrlCache: new Map(),
+      lowerPathMap: new Map(),
+      currentPreviewUrl: "",
+      treeRoot: null,
+      rootName: "專案資料夾",
+      selectedPath: ""
+    };
+
+    const diagnosticState = {
+      items: [],
+      seenKeys: new Set(),
+      maxItems: 420,
+      healthReport: null,
+      isOpen: false
+    };
+
+    const devicePresets = {
+      custom: { width: 0, height: 0 },
+      responsive: { width: 960, height: 640 },
+      "iphone-se": { width: 375, height: 667 },
+      "iphone-xr": { width: 414, height: 896 },
+      iphone12pro: { width: 390, height: 844 },
+      iphone14promax: { width: 430, height: 932 },
+      pixel7: { width: 412, height: 915 },
+      "galaxy-s8plus": { width: 360, height: 740 },
+      "galaxy-s20ultra": { width: 412, height: 915 },
+      "galaxy-a51": { width: 412, height: 914 },
+      "ipad-mini": { width: 768, height: 1024 },
+      "ipad-air": { width: 820, height: 1180 },
+      "ipad-pro": { width: 1024, height: 1366 },
+      "surface-pro7": { width: 912, height: 1368 },
+      "surface-duo": { width: 540, height: 720 },
+      "galaxy-zfold5": { width: 344, height: 882 },
+      "asus-zenbook-fold": { width: 853, height: 1280 },
+      "nest-hub": { width: 1024, height: 600 },
+      "nest-hub-max": { width: 1280, height: 800 }
+    };
+
+    const viewportState = {
+      mode: "custom",
+      width: 960,
+      height: 640,
+      zoom: 1
+    };
+
+    let lastPreviewHTML = "";
+    let lastFileName = "";
+    let dragDepth = 0;
+    let treeAutoOpenedDepth = 2;
+
+    const ignoredFolders = new Set([
+      ".git",
+      ".svn",
+      ".hg",
+      "node_modules",
+      ".chrome-profile",
+      ".edge-profile",
+      ".tmp",
+      ".cache",
+      ".vite",
+      ".next",
+      ".nuxt"
+    ]);
+
+    function isMobileWidth() {
+      return window.matchMedia("(max-width: 900px)").matches;
+    }
+
+    function setWorkspaceMode(mode) {
+      if (mode === "project") {
+        workspace.classList.remove("mode-code");
+        workspace.classList.add("mode-project");
+        workspaceTitle.textContent = "專案資料夾結構";
+      } else {
+        workspace.classList.remove("mode-project");
+        workspace.classList.add("mode-code");
+        workspaceTitle.textContent = "HTML 代碼";
+      }
+    }
+
+    function setFramePermissionMode() {
+      if (advancedAllow.checked) {
+        previewFrame.setAttribute(
+          "allow",
+          "camera; microphone; geolocation; gyroscope; accelerometer; magnetometer; xr-spatial-tracking; fullscreen; autoplay; clipboard-read; clipboard-write"
+        );
+        previewFrame.setAttribute(
+          "sandbox",
+          "allow-scripts allow-forms allow-modals allow-pointer-lock allow-popups allow-downloads allow-same-origin"
+        );
+      } else {
+        previewFrame.setAttribute("allow", "fullscreen");
+        previewFrame.setAttribute("sandbox", "allow-scripts allow-forms allow-modals allow-pointer-lock allow-popups");
+      }
+    }
+
+    function normalizePath(path) {
+      const parts = String(path || "")
+        .replace(/\\/g, "/")
+        .replace(/^\/+/, "")
+        .split("/");
+
+      const stack = [];
+      for (const part of parts) {
+        if (!part || part === ".") continue;
+        if (part === "..") stack.pop();
+        else stack.push(part);
+      }
+      return stack.join("/");
+    }
+
+    function dirname(path) {
+      const normalized = normalizePath(path);
+      const index = normalized.lastIndexOf("/");
+      return index >= 0 ? normalized.slice(0, index) : "";
+    }
+
+    function basename(path) {
+      const normalized = normalizePath(path);
+      const index = normalized.lastIndexOf("/");
+      return index >= 0 ? normalized.slice(index + 1) : normalized;
+    }
+
+    function extname(path) {
+      const clean = String(path).split(/[?#]/)[0];
+      const dot = clean.lastIndexOf(".");
+      return dot >= 0 ? clean.slice(dot + 1).toLowerCase() : "";
+    }
+
+
+    function isZipLikePath(path) {
+      return /\.(zip|7z|rar|tar|gz|tgz|bz2)$/i.test(String(path || ""));
+    }
+
+    function isZipLikeFile(file) {
+      if (!file) return false;
+      const name = String(file.name || file.relativePath || file.webkitRelativePath || "");
+      const type = String(file.type || "").toLowerCase();
+      return isZipLikePath(name) || type.includes("zip") || type.includes("x-7z") || type.includes("x-rar") || type.includes("gzip");
+    }
+
+    function formatBytes(bytes) {
+      const n = Number(bytes) || 0;
+      if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+      if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${n} B`;
+    }
+
+    function shouldIgnore(path) {
+      const parts = normalizePath(path).split("/");
+      return parts.some((part) => ignoredFolders.has(part)) || parts.some((part) => part === ".DS_Store" || part === "Thumbs.db");
+    }
+
+    function shouldReadText(path, file) {
+      const ext = extname(path);
+      if (file && file.size > MAX_FILE_READ_BYTES) return false;
+      if (["html", "htm", "css", "js", "mjs", "cjs", "json", "svg", "xml", "txt", "md", "csv"].includes(ext)) return true;
+      if (file && file.type && (file.type.startsWith("text/") || file.type.includes("json") || file.type.includes("xml") || file.type.includes("javascript"))) return true;
+      return false;
+    }
+
+    function mimeFromPath(path, fallback = "") {
+      const ext = extname(path);
+      const map = {
+        html: "text/html;charset=utf-8",
+        htm: "text/html;charset=utf-8",
+        css: "text/css;charset=utf-8",
+        js: "text/javascript;charset=utf-8",
+        mjs: "text/javascript;charset=utf-8",
+        cjs: "text/javascript;charset=utf-8",
+        json: "application/json;charset=utf-8",
+        svg: "image/svg+xml",
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        webp: "image/webp",
+        gif: "image/gif",
+        avif: "image/avif",
+        ico: "image/x-icon",
+        mp3: "audio/mpeg",
+        wav: "audio/wav",
+        ogg: "audio/ogg",
+        mp4: "video/mp4",
+        webm: "video/webm",
+        glb: "model/gltf-binary",
+        gltf: "model/gltf+json",
+        wasm: "application/wasm",
+        woff: "font/woff",
+        woff2: "font/woff2",
+        ttf: "font/ttf",
+        otf: "font/otf"
+      };
+      return map[ext] || fallback || "application/octet-stream";
+    }
+
+    function isAssetLikePath(value) {
+      return /\.(png|jpe?g|webp|gif|svg|avif|ico|bmp|mp3|wav|ogg|m4a|mp4|webm|mov|glb|gltf|bin|wasm|json|css|js|mjs|html?|woff2?|ttf|otf)($|[?#])/i.test(String(value || ""));
+    }
+
+    function escapeRegExp(value) {
+      return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+
+    function isPossiblyProjectFileList(files) {
+      const arr = Array.from(files || []);
+      if (arr.length > 1) return true;
+      if (arr.some((file) => normalizePath(file.webkitRelativePath || file.relativePath || file.name).includes("/"))) return true;
+      if (arr.length === 1) {
+        const file = arr[0];
+        const name = String(file.name || "");
+        const type = String(file.type || "");
+        const ext = extname(name);
+        // Windows / Chrome sometimes exposes a dragged folder as one item without a useful file type.
+        if (!type && !["html", "htm", "txt"].includes(ext)) return true;
+      }
+      return false;
+    }
+
+    function isHtmlLikeFile(file) {
+      if (!file) return false;
+      const name = String(file.name || "");
+      const type = String(file.type || "");
+      return (
+        type.includes("html") ||
+        type.includes("text") ||
+        /\.(html|htm|txt)$/i.test(name)
+      );
+    }
+
+    function stripCommonRoot(paths) {
+      const cleanPaths = paths.map(normalizePath).filter(Boolean);
+      if (!cleanPaths.length) return "";
+      const firstSegments = cleanPaths.map((path) => path.split("/")[0]);
+      const first = firstSegments[0];
+      if (!first || firstSegments.some((segment) => segment !== first)) return "";
+
+      const hasRootIndex = cleanPaths.includes("index.html") || cleanPaths.includes("index.htm");
+      const allHaveNested = cleanPaths.every((path) => path.includes("/"));
+      if (!hasRootIndex && allHaveNested) return first + "/";
+      return "";
+    }
+
+    function revokeObjectUrls() {
+      for (const url of projectState.objectUrls) {
+        URL.revokeObjectURL(url);
+      }
+      projectState.objectUrls = [];
+      projectState.processedCache.clear();
+      projectState.rawUrlCache.clear();
+
+      if (projectState.currentPreviewUrl) {
+        URL.revokeObjectURL(projectState.currentPreviewUrl);
+        projectState.currentPreviewUrl = "";
+      }
+    }
+
+    function resetProject(keepEditor = true) {
+      revokeObjectUrls();
+      projectState.rawFiles = [];
+      projectState.files.clear();
+      projectState.lowerPathMap.clear();
+      projectState.entryPath = "";
+      projectState.treeRoot = null;
+      projectState.rootName = "專案資料夾";
+      projectState.selectedPath = "";
+      entrySelect.innerHTML = "";
+      treeScroll.innerHTML = '<div class="tree-empty">尚未載入專案資料夾</div>';
+      treeHint.textContent = "載入專案資料夾後，這裡會顯示完整資料夾結構";
+      closeFilePreview();
+      projectBox.classList.remove("active");
+      projectSummary.textContent = "尚未載入專案";
+      projectSummary.classList.remove("active");
+      if (!keepEditor) {
+        lastFileName = "";
+        status.textContent = "尚未載入檔案";
+      }
+      setWorkspaceMode("code");
+    }
+
+    async function yieldToBrowser() {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    async function getFilesFromHandle(handle, output = [], currentPath = "") {
+      if (!handle || output.length >= MAX_FILE_COUNT) return output;
+
+      const nextPath = normalizePath(currentPath ? currentPath + "/" + handle.name : handle.name);
+
+      if (handle.kind === "file") {
+        try {
+          const file = await handle.getFile();
+          file.relativePath = nextPath;
+          output.push(file);
+        } catch (error) {}
+        return output;
+      }
+
+      if (handle.kind === "directory") {
+        if (shouldIgnore(nextPath)) return output;
+
+        try {
+          for await (const child of handle.values()) {
+            if (output.length >= MAX_FILE_COUNT) break;
+            await getFilesFromHandle(child, output, nextPath);
+
+            if (output.length % 80 === 0) {
+              status.textContent = `正在讀取拖曳內容... 已找到 ${output.length} 個檔案`;
+              await yieldToBrowser();
+            }
+          }
+        } catch (error) {}
+      }
+
+      return output;
+    }
+
+    async function getFilesFromEntry(entry, output = [], rootPrefix = "", depth = 0) {
+      if (!entry || output.length >= MAX_FILE_COUNT) return output;
+
+      const entryPath = normalizePath(rootPrefix || entry.fullPath || entry.name || "");
+
+      if (entry.isFile) {
+        await new Promise((resolve) => {
+          entry.file((file) => {
+            file.relativePath = entryPath || file.name;
+            output.push(file);
+            resolve();
+          }, () => resolve());
+        });
+        return output;
+      }
+
+      if (entry.isDirectory) {
+        const folderName = entry.name || basename(entryPath);
+        if (ignoredFolders.has(folderName) || shouldIgnore(entryPath)) return output;
+
+        const reader = entry.createReader();
+        let readCount = 0;
+
+        while (output.length < MAX_FILE_COUNT) {
+          const batch = await new Promise((resolve) => {
+            reader.readEntries(resolve, () => resolve([]));
+          });
+
+          if (!batch.length) break;
+          readCount += batch.length;
+
+          for (const child of batch) {
+            if (output.length >= MAX_FILE_COUNT) break;
+
+            const childPath = normalizePath((entryPath || folderName) + "/" + child.name);
+            if (shouldIgnore(childPath)) continue;
+
+            await getFilesFromEntry(child, output, childPath, depth + 1);
+          }
+
+          if (readCount % 60 === 0 || output.length % 80 === 0) {
+            status.textContent = `正在讀取拖曳內容... 已找到 ${output.length} 個檔案`;
+            await yieldToBrowser();
+          }
+        }
+      }
+
+      return output;
+    }
+
+    async function readProjectFiles(files) {
+      const incoming = Array.from(files || []).filter(Boolean);
+      if (!incoming.length) {
+        status.textContent = "沒有讀取到檔案";
+        return false;
+      }
+
+      const archiveFiles = incoming.filter(isZipLikeFile);
+      const usableIncoming = incoming.filter((file) => !isZipLikeFile(file));
+      if (archiveFiles.length && !usableIncoming.length) {
+        status.textContent = "不支援壓縮檔";
+        await notify("目前不支援上傳或拖曳壓縮檔。請先在電腦上解壓縮，再拖曳資料夾或使用「選擇資料夾」。", "不支援壓縮檔", "danger");
+        return false;
+      }
+
+      const totalSize = usableIncoming.reduce((sum, file) => sum + (file.size || 0), 0);
+      if (totalSize > MAX_PROJECT_TOTAL_BYTES) {
+        status.textContent = "專案容量過大";
+        await notify(`這個專案約 ${formatBytes(totalSize)}，已超過目前瀏覽器內預覽建議上限 ${formatBytes(MAX_PROJECT_TOTAL_BYTES)}。
+
+請移除大型影片、模型或壓縮檔後再匯入，避免瀏覽器記憶體不足。`, "專案容量過大", "danger");
+        return false;
+      }
+
+      resetProject(true);
+      setWorkspaceMode("project");
+      setBusy(true, "正在解析專案...");
+      status.textContent = `正在解析專案... 0 / ${usableIncoming.length}`;
+
+      const rawItems = [];
+      let processed = 0;
+
+      for (const file of usableIncoming.slice(0, MAX_FILE_COUNT)) {
+        processed += 1;
+
+        const rawPath = normalizePath(file.relativePath || file.webkitRelativePath || file.name);
+        if (!rawPath || shouldIgnore(rawPath) || isZipLikePath(rawPath)) continue;
+
+        let text = null;
+        if (shouldReadText(rawPath, file)) {
+          try {
+            text = await file.text();
+          } catch (error) {
+            text = "";
+          }
+        }
+
+        const item = {
+          rawPath,
+          file,
+          text,
+          size: file.size || 0,
+          type: file.type || mimeFromPath(rawPath)
+        };
+
+        rawItems.push(item);
+
+        if (processed % 40 === 0) {
+          status.textContent = `正在解析專案... ${processed} / ${usableIncoming.length}`;
+          busyText.textContent = `正在解析專案... ${processed} / ${usableIncoming.length}`;
+          await yieldToBrowser();
+        }
+      }
+
+      if (!rawItems.length) {
+        status.textContent = "沒有可讀取的專案檔案";
+        setBusy(false);
+        treeScroll.innerHTML = '<div class="tree-empty">沒有可讀取的專案檔案。請確認不是拖到空資料夾，或資料夾沒有被瀏覽器阻擋。</div>';
+        return false;
+      }
+
+      const stripPrefix = stripCommonRoot(rawItems.map((item) => item.rawPath));
+      projectState.rootName = stripPrefix ? stripPrefix.replace(/\/$/, "") : "專案資料夾";
+
+      for (const item of rawItems) {
+        const path = normalizePath(stripPrefix && item.rawPath.startsWith(stripPrefix) ? item.rawPath.slice(stripPrefix.length) : item.rawPath);
+        if (!path || shouldIgnore(path)) continue;
+        const normalizedItem = { ...item, path };
+        projectState.files.set(path, normalizedItem);
+      }
+
+      projectState.rawFiles = Array.from(projectState.files.values()).sort((a, b) => a.path.localeCompare(b.path));
+      projectState.lowerPathMap.clear();
+      for (const item of projectState.rawFiles) {
+        projectState.lowerPathMap.set(item.path.toLowerCase(), item.path);
+      }
+
+      buildAndRenderTree();
+      updateProjectUI();
+      selectBestEntry();
+      runProjectHealthCheck(true);
+      const health = diagnosticState.healthReport;
+      if (health && (health.missingRefs.length || health.warnings.length)) {
+        addDiagnostic("warn", `專案診斷報告發現 ${health.missingRefs.length} 個缺失引用、${health.warnings.length} 個提醒。請展開診斷報告查看。`);
+        for (const warning of health.warnings.slice(0, 8)) addDiagnostic("warn", warning);
+        for (const ref of health.missingRefs.slice(0, 20)) addDiagnostic("missing", `找不到資源引用：${ref.ref}`, { path: ref.source });
+      }
+
+      status.textContent = projectState.entryPath ? `已載入專案入口：${projectState.entryPath}` : "已載入專案，但找不到 HTML 入口";
+      setBusy(false);
+      return true;
+    }
+
+    function getHtmlCandidates() {
+      return projectState.rawFiles
+        .map((item) => item.path)
+        .filter((path) => ["html", "htm"].includes(extname(path)));
+    }
+
+    function updateProjectUI() {
+      const count = projectState.rawFiles.length;
+      const totalSize = projectState.rawFiles.reduce((sum, item) => sum + item.size, 0);
+
+      projectBox.classList.add("active");
+      const imageCount = projectState.rawFiles.filter((item) => /\.(png|jpe?g|webp|gif|svg|avif|ico|bmp)$/i.test(item.path)).length;
+      projectSummary.textContent = `${count} 個檔案 · ${imageCount} 張圖片 · ${formatBytes(totalSize)}`;
+      projectSummary.classList.add("active");
+
+      const htmlFiles = getHtmlCandidates();
+      entrySelect.innerHTML = "";
+      for (const path of htmlFiles) {
+        const option = document.createElement("option");
+        option.value = path;
+        option.textContent = path;
+        entrySelect.appendChild(option);
+      }
+
+      treeHint.textContent = `${count} 個檔案 · 已依資料夾 / 子資料夾 / 檔案階層顯示`;
+    }
+
+    function selectBestEntry() {
+      const htmlFiles = getHtmlCandidates();
+      if (!htmlFiles.length) {
+        projectState.entryPath = "";
+        return;
+      }
+
+      const preferredNames = [
+        "index.html",
+        "index.htm",
+        "docs/index.html",
+        "public/index.html",
+        "src/index.html",
+        "app/index.html",
+        "dist/index.html",
+        "build/index.html"
+      ];
+
+      const exact = preferredNames.find((path) => projectState.files.has(path));
+      const basenameIndex = htmlFiles.find((path) => /(^|\/)index\.html?$/i.test(path));
+      projectState.entryPath = exact || basenameIndex || htmlFiles[0];
+      entrySelect.value = projectState.entryPath;
+      loadEntryToEditor(false);
+      markSelectedTreeRow(projectState.entryPath);
+    }
+
+    function loadEntryToEditor(switchToCode = true) {
+      const item = projectState.files.get(projectState.entryPath);
+      if (!item) return;
+      codeInput.value = item.text ?? "";
+      lastFileName = item.path;
+      if (switchToCode) setWorkspaceMode("code");
+      status.textContent = `目前入口：${item.path}`;
+    }
+
+    function createTreeNode(name, path, type) {
+      return {
+        name,
+        path,
+        type,
+        size: 0,
+        children: new Map()
+      };
+    }
+
+    function buildTree() {
+      const root = createTreeNode(projectState.rootName || "專案資料夾", "", "folder");
+
+      for (const item of projectState.rawFiles) {
+        const parts = item.path.split("/");
+        let current = root;
+
+        for (let i = 0; i < parts.length; i += 1) {
+          const part = parts[i];
+          const isFile = i === parts.length - 1;
+          const childPath = parts.slice(0, i + 1).join("/");
+
+          if (!current.children.has(part)) {
+            current.children.set(part, createTreeNode(part, childPath, isFile ? "file" : "folder"));
+          }
+
+          current = current.children.get(part);
+          if (isFile) current.size = item.size;
+        }
+      }
+
+      return root;
+    }
+
+    function sortTreeChildren(children) {
+      return Array.from(children.values()).sort((a, b) => {
+        if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+      });
+    }
+
+    function fileIcon(path) {
+      const ext = extname(path);
+      if (["html", "htm"].includes(ext)) return "🌐";
+      if (["css"].includes(ext)) return "🎨";
+      if (["js", "mjs", "cjs"].includes(ext)) return "🧩";
+      if (["png", "jpg", "jpeg", "webp", "gif", "svg", "avif", "ico"].includes(ext)) return "🖼️";
+      if (["mp3", "wav", "ogg"].includes(ext)) return "🎵";
+      if (["mp4", "webm"].includes(ext)) return "🎬";
+      if (["glb", "gltf"].includes(ext)) return "📦";
+      if (["md", "txt"].includes(ext)) return "📄";
+      if (["json"].includes(ext)) return "🔧";
+      return "📄";
+    }
+
+    function renderTreeNode(node, depth = 0, prefix = "", isLast = true) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "tree-node";
+      wrapper.dataset.path = node.path;
+      wrapper.dataset.type = node.type;
+
+      if (node.type === "folder" && depth >= treeAutoOpenedDepth) {
+        wrapper.classList.add("collapsed");
+      }
+
+      const row = document.createElement("div");
+      row.className = "tree-row";
+      row.dataset.path = node.path;
+      row.dataset.type = node.type;
+
+      const hasChildren = node.type === "folder" && node.children.size > 0;
+
+      const toggle = document.createElement("span");
+      toggle.className = "tree-toggle";
+      toggle.textContent = hasChildren ? (wrapper.classList.contains("collapsed") ? "+" : "−") : "";
+      if (!hasChildren) toggle.classList.add("empty");
+      row.appendChild(toggle);
+
+      const icon = document.createElement("span");
+      icon.className = "tree-icon";
+      icon.textContent = node.type === "folder"
+        ? (wrapper.classList.contains("collapsed") ? "📁" : "📂")
+        : fileIcon(node.path);
+      row.appendChild(icon);
+
+      const name = document.createElement("span");
+      name.className = "tree-name";
+
+      if (depth === 0) {
+        name.textContent = `${node.name || "專案資料夾"}`;
+      } else {
+        const branch = isLast ? "└── " : "├── ";
+        name.textContent = `${prefix}${branch}${node.name}`;
+      }
+
+      row.appendChild(name);
+
+      if (node.type === "file") {
+        const size = document.createElement("span");
+        size.className = "tree-size";
+        size.textContent = formatBytes(node.size);
+        row.appendChild(size);
+      }
+
+      row.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        if (node.type === "folder") {
+          toggleFolder(wrapper);
+          return;
+        }
+
+        projectState.selectedPath = node.path;
+        markSelectedTreeRow(node.path);
+        showFilePreview(node.path);
+      });
+
+      row.addEventListener("dblclick", (event) => {
+        event.stopPropagation();
+
+        if (node.type === "file" && ["html", "htm"].includes(extname(node.path))) {
+          projectState.entryPath = node.path;
+          entrySelect.value = node.path;
+          loadEntryToEditor(false);
+          markSelectedTreeRow(node.path);
+          status.textContent = `已設為入口：${node.path}`;
+        }
+      });
+
+      wrapper.appendChild(row);
+
+      if (node.type === "folder") {
+        const children = document.createElement("div");
+        children.className = "tree-children";
+        const sorted = sortTreeChildren(node.children);
+        const childPrefix = depth === 0 ? "" : prefix + (isLast ? "    " : "│   ");
+
+        sorted.forEach((child, index) => {
+          children.appendChild(renderTreeNode(child, depth + 1, childPrefix, index === sorted.length - 1));
+        });
+
+        wrapper.appendChild(children);
+      }
+
+      return wrapper;
+    }
+
+    function toggleFolder(wrapper) {
+      const wasCollapsed = wrapper.classList.toggle("collapsed");
+      const toggle = wrapper.querySelector(":scope > .tree-row .tree-toggle");
+      const icon = wrapper.querySelector(":scope > .tree-row .tree-icon");
+      if (toggle && !toggle.classList.contains("empty")) toggle.textContent = wasCollapsed ? "+" : "−";
+      if (icon) icon.textContent = wasCollapsed ? "📁" : "📂";
+    }
+
+    function buildAndRenderTree() {
+      projectState.treeRoot = buildTree();
+      treeScroll.innerHTML = "";
+      const rootNode = renderTreeNode(projectState.treeRoot, 0, "", true);
+      treeScroll.appendChild(rootNode);
+    }
+
+    function setAllTreeCollapsed(collapsed) {
+      const nodes = treeScroll.querySelectorAll(".tree-node[data-type='folder']");
+      nodes.forEach((node) => {
+        if (node.dataset.path === "") {
+          node.classList.remove("collapsed");
+        } else {
+          node.classList.toggle("collapsed", collapsed);
+        }
+
+        const toggle = node.querySelector(":scope > .tree-row .tree-toggle");
+        const icon = node.querySelector(":scope > .tree-row .tree-icon");
+        if (toggle && !toggle.classList.contains("empty")) toggle.textContent = node.classList.contains("collapsed") ? "+" : "−";
+        if (icon) icon.textContent = node.classList.contains("collapsed") ? "📁" : "📂";
+      });
+    }
+
+    function markSelectedTreeRow(path) {
+      treeScroll.querySelectorAll(".tree-row.selected").forEach((row) => row.classList.remove("selected"));
+      const row = treeScroll.querySelector(`.tree-row[data-path="${CSS.escape(path)}"]`);
+      if (row) {
+        row.classList.add("selected");
+        openParentsForPath(path);
+      }
+    }
+
+    function openParentsForPath(path) {
+      const parts = normalizePath(path).split("/");
+      let currentPath = "";
+      for (let i = 0; i < parts.length - 1; i += 1) {
+        currentPath = currentPath ? currentPath + "/" + parts[i] : parts[i];
+        const node = treeScroll.querySelector(`.tree-node[data-path="${CSS.escape(currentPath)}"]`);
+        if (node && node.classList.contains("collapsed")) {
+          node.classList.remove("collapsed");
+          const toggle = node.querySelector(":scope > .tree-row .tree-toggle");
+          const icon = node.querySelector(":scope > .tree-row .tree-icon");
+          if (toggle) toggle.textContent = "−";
+          if (icon) icon.textContent = "📂";
+        }
+      }
+    }
+
+    function showFilePreview(path) {
+      const item = projectState.files.get(path);
+      if (!item) return;
+
+      filePreview.classList.add("active");
+      filePreviewTitle.textContent = path;
+
+      if (item.text !== null && item.text !== undefined) {
+        const text = item.text.length > MAX_TEXT_PREVIEW_CHARS
+          ? item.text.slice(0, MAX_TEXT_PREVIEW_CHARS) + "\n\n...內容過長，僅顯示前段..."
+          : item.text;
+        filePreviewCode.textContent = text;
+      } else {
+        filePreviewCode.textContent = `此檔案為二進位或大型檔案，無法以文字預覽。\n\n檔案大小：${formatBytes(item.size)}\n檔案類型：${item.type || mimeFromPath(path)}`;
+      }
+    }
+
+    function closeFilePreview() {
+      filePreview.classList.remove("active");
+      filePreviewTitle.textContent = "檔案預覽";
+      filePreviewCode.textContent = "";
+    }
+
+    function getBestAssetUrl(path) {
+      return createRawUrl(path);
+    }
+
+    function createRawUrl(path) {
+      if (projectState.rawUrlCache.has(path)) return projectState.rawUrlCache.get(path);
+
+      const item = projectState.files.get(path);
+      if (!item) return "";
+
+      const blob = item.text !== null && item.text !== undefined
+        ? new Blob([item.text], { type: mimeFromPath(path, item.type) })
+        : item.file;
+
+      const url = URL.createObjectURL(blob);
+      projectState.objectUrls.push(url);
+      projectState.rawUrlCache.set(path, url);
+      pruneObjectUrlCache();
+      return url;
+    }
+
+
+
+    function pruneObjectUrlCache() {
+      while (projectState.objectUrls.length > MAX_OBJECT_URLS) {
+        const url = projectState.objectUrls.shift();
+        try { URL.revokeObjectURL(url); } catch (error) {}
+
+        for (const [key, value] of projectState.rawUrlCache) {
+          if (value === url) projectState.rawUrlCache.delete(key);
+        }
+        for (const [key, value] of projectState.processedCache) {
+          if (value === url) projectState.processedCache.delete(key);
+        }
+      }
+    }
+
+    function isExternalUrl(value) {
+      return /^(?:[a-z][a-z0-9+.-]*:|#|\/\/|mailto:|tel:|javascript:|data:|blob:)/i.test(String(value || "").trim());
+    }
+
+    function splitUrlSuffix(value) {
+      const raw = String(value || "");
+      const match = raw.match(/^([^?#]*)([?#].*)?$/);
+      return {
+        clean: match ? match[1] : raw,
+        suffix: match && match[2] ? match[2] : ""
+      };
+    }
+
+    function resolveProjectPath(ref, importerPath) {
+      const value = String(ref || "").trim();
+      if (!value || isExternalUrl(value)) return null;
+
+      const { clean, suffix } = splitUrlSuffix(value);
+      if (!clean || isExternalUrl(clean)) return null;
+
+      const candidates = [];
+      if (clean.startsWith("/")) {
+        candidates.push(normalizePath(clean));
+      } else {
+        candidates.push(normalizePath(dirname(importerPath) + "/" + clean));
+        candidates.push(normalizePath(clean));
+      }
+
+      const expanded = [];
+      for (const candidate of candidates) {
+        expanded.push(candidate);
+        expanded.push(candidate + "/index.html");
+        expanded.push(candidate + "/index.htm");
+      }
+
+      for (const candidate of expanded) {
+        if (projectState.files.has(candidate)) return { path: candidate, suffix };
+        const lower = projectState.lowerPathMap.get(candidate.toLowerCase());
+        if (lower) return { path: lower, suffix };
+      }
+
+      return null;
+    }
+
+    function collectRefsFromText(text, importerPath, kind) {
+      const refs = [];
+      const source = importerPath || "editor";
+      const content = String(text || "");
+      const push = (ref, hint) => {
+        const value = String(ref || "").trim();
+        if (!value || isExternalUrl(value) || value.startsWith("#")) return;
+        if (!isAssetLikePath(value) && !/[./]/.test(value)) return;
+        refs.push({ ref: value, source, kind, hint });
+      };
+
+      content.replace(/\b(?:src|href|poster|data-src|data-href)\s*=\s*(["'])(.*?)\1/gi, (m, q, ref) => push(ref, "html-attr"));
+      content.replace(/url\(\s*(["']?)(.*?)\1\s*\)/gi, (m, q, ref) => push(ref, "css-url"));
+      content.replace(/@import\s+(?:url\(\s*)?(["'])(.*?)\1/gi, (m, q, ref) => push(ref, "css-import"));
+      content.replace(/\b(?:import|export)\s+[^"']*?\s+from\s+(["'])([^"']+)\1/gi, (m, q, ref) => push(ref, "module"));
+      content.replace(/\bimport\s*\(\s*(["'])([^"']+)\1\s*\)/gi, (m, q, ref) => push(ref, "dynamic-import"));
+      content.replace(/(["'`])([^"'`\n\r]{1,320}\.(?:png|jpe?g|webp|gif|svg|avif|ico|bmp|mp3|wav|ogg|m4a|mp4|webm|mov|glb|gltf|bin|wasm|json|css|js|mjs|html?|woff2?|ttf|otf)(?:[?#][^"'`\s]*)?)\1/gi, (m, q, ref) => push(ref, "string-ref"));
+      return refs;
+    }
+
+    function runProjectHealthCheck(silent = false) {
+      if (!projectState.files.size && !codeInput.value.trim()) {
+        if (!silent) addDiagnostic("warn", "尚未載入專案或 HTML，無法執行診斷報告。");
+        return null;
+      }
+
+      const report = {
+        checkedAt: new Date().toISOString(),
+        entryPath: projectState.entryPath || lastFileName || "editor",
+        fileCount: projectState.rawFiles.length,
+        imageCount: projectState.rawFiles.filter((item) => /\.(png|jpe?g|webp|gif|svg|avif|ico|bmp)$/i.test(item.path)).length,
+        audioCount: projectState.rawFiles.filter((item) => /\.(mp3|wav|ogg|m4a)$/i.test(item.path)).length,
+        missingRefs: [],
+        warnings: []
+      };
+
+      const filesToScan = projectState.files.size
+        ? projectState.rawFiles.filter((item) => item.text !== null && item.text !== undefined && ["html","htm","css","js","mjs","cjs"].includes(extname(item.path)))
+        : [{ path: lastFileName || "editor.html", text: codeInput.value }];
+
+      for (const item of filesToScan) {
+        const refs = collectRefsFromText(item.text, item.path, extname(item.path));
+        for (const ref of refs) {
+          if (!resolveProjectPath(ref.ref, item.path)) {
+            report.missingRefs.push(ref);
+          }
+        }
+      }
+
+      const assetFolders = ["assets", "assets/processed", "assets/processed/ui", "assets/processed/awawa", "assets/processed/background", "assets/processed/obstacles", "assets/audio"];
+      for (const folder of assetFolders) {
+        const hasAny = projectState.rawFiles.some((item) => item.path.startsWith(folder + "/"));
+        const hasUseful = projectState.rawFiles.some((item) => item.path.startsWith(folder + "/") && item.size > 0);
+        if (hasAny && !hasUseful) report.warnings.push(`${folder} 看起來沒有實際資源檔。`);
+      }
+
+      diagnosticState.healthReport = report;
+
+      if (!silent) {
+        addDiagnostic("health", `診斷完成：${report.fileCount || 1} 個檔案、${report.imageCount} 張圖片、${report.audioCount} 個音效。`);
+        for (const warning of report.warnings) addDiagnostic("warn", warning);
+        if (report.missingRefs.length) {
+          for (const ref of report.missingRefs.slice(0, 80)) {
+            addDiagnostic("missing", `找不到資源引用：${ref.ref}`, { path: ref.source });
+          }
+          if (report.missingRefs.length > 80) addDiagnostic("warn", `缺失資源超過 80 筆，僅顯示前 80 筆。`);
+        } else {
+          addDiagnostic("ok", "沒有在靜態掃描中發現缺失資源引用。");
+        }
+      }
+
+      return report;
+    }
+
+    function exportDiagnosticsReport() {
+      const report = diagnosticState.healthReport || runProjectHealthCheck(true) || {};
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        entryPath: projectState.entryPath || lastFileName || "editor",
+        summary: report,
+        diagnostics: diagnosticState.items.slice().reverse()
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `WebPreviewTool-report-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 800);
+    }
+
+    window.__HTML_PREVIEW_RESOLVE_ASSET__ = function(value, importerPath = projectState.entryPath) {
+      const resolved = resolveProjectPath(value, importerPath || projectState.entryPath);
+      if (!resolved) {
+        if (isAssetLikePath(value)) {
+          addDiagnostic("missing", `執行時找不到資源：${value}`, { path: importerPath || projectState.entryPath || "runtime" });
+        }
+        return value;
+      }
+      const url = getBestAssetUrl(resolved.path);
+      return url ? url + resolved.suffix : value;
+    };
+
+    function urlForRef(ref, importerPath, processed = true) {
+      const resolved = resolveProjectPath(ref, importerPath);
+      if (!resolved) return ref;
+      const url = processed ? getProcessedUrl(resolved.path) : getBestAssetUrl(resolved.path);
+      return url ? url + resolved.suffix : ref;
+    }
+
+    function replaceKnownProjectRefsInText(text, importerPath) {
+      let output = String(text || "");
+      const candidates = projectState.rawFiles
+        .map((item) => item.path)
+        .filter((path) => {
+          const ext = extname(path);
+          return ["png","jpg","jpeg","webp","gif","svg","avif","ico","bmp","mp3","wav","ogg","m4a","mp4","webm","mov","glb","gltf","bin","wasm","json"].includes(ext);
+        })
+        .sort((a, b) => b.length - a.length)
+        .slice(0, 900);
+
+      for (const path of candidates) {
+        const variants = new Set([
+          path,
+          "./" + path,
+          "/" + path,
+          basename(path)
+        ]);
+
+        for (const variant of variants) {
+          if (!variant || variant.length < 3 || !output.includes(variant)) continue;
+          const escaped = escapeRegExp(variant);
+          output = output.replace(new RegExp(`(["'\`])(${escaped})([?#][^"'\`\\s]*)?\\1`, "g"), (match, quote, ref, suffix = "") => {
+            const url = getBestAssetUrl(path);
+            return `${quote}${url}${suffix}${quote}`;
+          });
+        }
+      }
+
+      return output;
+    }
+
+    function escapeAttr(value, quote) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(quote === '"' ? /"/g : /'/g, quote === '"' ? "&quot;" : "&#39;");
+    }
+
+    function rewriteCss(css, importerPath) {
+      return String(css || "")
+        .replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (match, quote, ref) => {
+          const trimmed = String(ref || "").trim();
+          if (!trimmed || isExternalUrl(trimmed)) return match;
+          return `url("${urlForRef(trimmed, importerPath, false)}")`;
+        })
+        .replace(/@import\s+(?:url\(\s*)?(['"])(.*?)\1\s*\)?/gi, (match, quote, ref) => {
+          const trimmed = String(ref || "").trim();
+          if (!trimmed || isExternalUrl(trimmed)) return match;
+          return `@import url("${urlForRef(trimmed, importerPath, false)}")`;
+        });
+    }
+
+    function rewriteSrcset(srcset, importerPath) {
+      return String(srcset || "")
+        .split(",")
+        .map((part) => {
+          const trimmed = part.trim();
+          if (!trimmed) return trimmed;
+          const pieces = trimmed.split(/\s+/);
+          const url = pieces.shift();
+          return [urlForRef(url, importerPath, false), ...pieces].join(" ");
+        })
+        .join(", ");
+    }
+
+    function rewriteJs(js, importerPath) {
+      let output = String(js || "");
+
+      output = output.replace(
+        /\b(import|export)\s+([^'"]*?\s+from\s+)?(['"])([^'"]+)\3/g,
+        (match, keyword, middle, quote, ref) => {
+          if (!ref || isExternalUrl(ref)) return match;
+          return `${keyword} ${middle || ""}${quote}${urlForRef(ref, importerPath)}${quote}`;
+        }
+      );
+
+      output = output.replace(
+        /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
+        (match, quote, ref) => {
+          if (!ref || isExternalUrl(ref)) return match;
+          return `import(${quote}${urlForRef(ref, importerPath)}${quote})`;
+        }
+      );
+
+      output = output.replace(
+        /(['"`])([^'"`\n\r]{1,360})\1/g,
+        (match, quote, ref) => {
+          if (!ref || isExternalUrl(ref)) return match;
+          if (!/[/.]/.test(ref) && !/\.(png|jpe?g|webp|gif|svg|json|mp3|wav|ogg|mp4|webm|glb|gltf|css|js|wasm|html?|woff2?|ttf|otf)($|[?#])/i.test(ref)) return match;
+
+          const resolved = resolveProjectPath(ref, importerPath);
+          if (!resolved) return match;
+
+          const url = urlForRef(ref, importerPath);
+          return `${quote}${url}${quote}`;
+        }
+      );
+
+      output = replaceKnownProjectRefsInText(output, importerPath);
+
+      return output;
+    }
+
+    function projectHelperScript(importerPath) {
+      const script = `
+<script>
+(function () {
+  const entryPath = ${JSON.stringify(importerPath)};
+
+  function sendDiagnostic(type, message, detail) {
+    try {
+      window.parent.postMessage({
+        channel: "html-preview-diagnostic",
+        type,
+        message: String(message || ""),
+        detail: Object.assign({ source: entryPath }, detail || {})
+      }, "*");
+    } catch (error) {}
+  }
+
+  ["log", "warn", "error"].forEach(function(level) {
+    const original = console[level] && console[level].bind(console);
+    if (!original) return;
+    console[level] = function() {
+      const args = Array.from(arguments).map(function(value) {
+        if (value instanceof Error) return value.stack || value.message;
+        if (typeof value === "object") {
+          try { return JSON.stringify(value); } catch (error) { return String(value); }
+        }
+        return String(value);
+      });
+      sendDiagnostic(level === "error" ? "error" : level, args.join(" "));
+      return original.apply(console, arguments);
+    };
+  });
+
+  window.addEventListener("error", function(event) {
+    const target = event.target;
+    if (target && target !== window && (target.src || target.href)) {
+      sendDiagnostic("missing", "資源載入失敗", { url: target.src || target.href, tag: target.tagName });
+      return;
+    }
+    sendDiagnostic("error", event.message || "JavaScript error", {
+      url: event.filename || "",
+      line: event.lineno || 0,
+      column: event.colno || 0
+    });
+  }, true);
+
+  window.addEventListener("unhandledrejection", function(event) {
+    const reason = event.reason;
+    sendDiagnostic("error", reason && (reason.stack || reason.message) ? (reason.stack || reason.message) : String(reason || "Unhandled promise rejection"));
+  });
+
+  function isExternalUrl(value) {
+    return /^(?:[a-z][a-z0-9+.-]*:|#|\/\/|mailto:|tel:|javascript:|data:|blob:)/i.test(String(value || "").trim());
+  }
+
+  function resolveAsset(value) {
+    if (typeof value !== "string" || !value || isExternalUrl(value)) return value;
+
+    try {
+      if (window.parent && typeof window.parent.__HTML_PREVIEW_RESOLVE_ASSET__ === "function") {
+        return window.parent.__HTML_PREVIEW_RESOLVE_ASSET__(value, entryPath);
+      }
+    } catch (error) {}
+
+    return value;
+  }
+
+  window.__PROJECT_ASSET__ = resolveAsset;
+
+  function patchSrcProperty(proto, prop) {
+    if (!proto) return;
+    const desc = Object.getOwnPropertyDescriptor(proto, prop);
+    if (!desc || !desc.set || !desc.get) return;
+    Object.defineProperty(proto, prop, {
+      configurable: true,
+      enumerable: desc.enumerable,
+      get: desc.get,
+      set: function(value) {
+        return desc.set.call(this, resolveAsset(value));
+      }
+    });
+  }
+
+  patchSrcProperty(HTMLImageElement && HTMLImageElement.prototype, "src");
+  patchSrcProperty(HTMLScriptElement && HTMLScriptElement.prototype, "src");
+  patchSrcProperty(HTMLLinkElement && HTMLLinkElement.prototype, "href");
+  patchSrcProperty(HTMLMediaElement && HTMLMediaElement.prototype, "src");
+  patchSrcProperty(HTMLSourceElement && HTMLSourceElement.prototype, "src");
+
+  const originalSetAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    const n = String(name || "").toLowerCase();
+    if (["src", "href", "poster", "data-src", "data-href"].includes(n)) {
+      value = resolveAsset(value);
+    }
+    return originalSetAttribute.call(this, name, value);
+  };
+
+  const originalFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (originalFetch) {
+    window.fetch = function(input, init) {
+      if (typeof input === "string") {
+        input = resolveAsset(input);
+      } else if (input && typeof input.url === "string") {
+        const resolved = resolveAsset(input.url);
+        if (resolved !== input.url) input = new Request(resolved, input);
+      }
+      return originalFetch(input, init).then(function(response) {
+        if (!response.ok) sendDiagnostic("missing", "fetch 請求失敗：" + response.status, { url: typeof input === "string" ? input : (input && input.url) || "" });
+        return response;
+      }).catch(function(error) {
+        sendDiagnostic("error", "fetch 發生錯誤：" + (error && error.message ? error.message : error), { url: typeof input === "string" ? input : (input && input.url) || "" });
+        throw error;
+      });
+    };
+  }
+
+  const originalOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    const originalUrl = url;
+    if (typeof url === "string") arguments[1] = resolveAsset(url);
+    this.addEventListener("loadend", function() {
+      if (this.status >= 400) sendDiagnostic("missing", "XHR 請求失敗：" + this.status, { url: originalUrl });
+    });
+    this.addEventListener("error", function() {
+      sendDiagnostic("error", "XHR 發生錯誤", { url: originalUrl });
+    });
+    return originalOpen.apply(this, arguments);
+  };
+})();
+<\/script>`;
+
+      return script;
+    }
+
+    function rewriteHtml(html, importerPath) {
+      let output = String(html || "");
+
+      output = output.replace(/<base\b[^>]*>/gi, "");
+
+      output = output.replace(
+        /<style\b([^>]*)>([\s\S]*?)<\/style>/gi,
+        (match, attrs, css) => `<style${attrs}>${rewriteCss(css, importerPath)}</style>`
+      );
+
+      output = output.replace(
+        /<link\b([^>]*?)\bhref\s*=\s*(['"])(.*?)\2([^>]*)>/gi,
+        (match, before, quote, href, after) => {
+          const attrs = `${before} ${after}`;
+          const isStylesheet = /\brel\s*=\s*(['"])stylesheet\1/i.test(attrs) || /(^|\s)stylesheet(\s|$)/i.test(attrs);
+          const resolved = resolveProjectPath(href, importerPath);
+          if (!isStylesheet || !resolved) return match;
+
+          const cssItem = projectState.files.get(resolved.path);
+          if (!cssItem || cssItem.text === null || cssItem.text === undefined) return match;
+
+          const css = rewriteCss(cssItem.text, resolved.path).replace(/<\/style/gi, "<\\/style");
+          return `<style data-inlined-from="${resolved.path}">\n${css}\n</style>`;
+        }
+      );
+
+      output = output.replace(
+        /<script\b([^>]*?)\bsrc\s*=\s*(['"])(.*?)\2([^>]*)>\s*<\/script>/gi,
+        (match, before, quote, src, after) => {
+          const resolved = resolveProjectPath(src, importerPath);
+          if (!resolved) return match;
+
+          const jsItem = projectState.files.get(resolved.path);
+          if (!jsItem || jsItem.text === null || jsItem.text === undefined) return match;
+
+          const attrs = `${before} ${after}`.replace(/\s*\bsrc\s*=\s*(['"]).*?\1/i, "");
+          const js = rewriteJs(jsItem.text, resolved.path).replace(/<\/script/gi, "<\\/script");
+          return `<script${attrs} data-inlined-from="${resolved.path}">\n${js}\n<\/script>`;
+        }
+      );
+
+      output = output.replace(
+        /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
+        (match, attrs, js) => {
+          if (/\bsrc\s*=/.test(attrs)) return match;
+          return `<script${attrs}>${rewriteJs(js, importerPath).replace(/<\/script/gi, "<\\/script")}<\/script>`;
+        }
+      );
+
+      output = output.replace(
+        /\b(src|href|poster|data-src|data-href|xlink:href)\s*=\s*(['"])(.*?)\2/gi,
+        (match, attr, quote, ref) => {
+          if (!ref || isExternalUrl(ref)) return match;
+          const resolved = resolveProjectPath(ref, importerPath);
+          const useProcessed = resolved && ["html", "htm"].includes(extname(resolved.path));
+          const url = urlForRef(ref, importerPath, useProcessed);
+          return `${attr}=${quote}${escapeAttr(url, quote)}${quote}`;
+        }
+      );
+
+      output = output.replace(
+        /\bsrcset\s*=\s*(['"])(.*?)\1/gi,
+        (match, quote, value) => `srcset=${quote}${escapeAttr(rewriteSrcset(value, importerPath), quote)}${quote}`
+      );
+
+      output = output.replace(
+        /\bstyle\s*=\s*(['"])(.*?)\1/gi,
+        (match, quote, value) => `style=${quote}${escapeAttr(rewriteCss(value, importerPath), quote)}${quote}`
+      );
+
+      const helper = projectHelperScript(importerPath);
+      if (/<head\b[^>]*>/i.test(output)) {
+        output = output.replace(/<head\b([^>]*)>/i, `<head$1>${helper}`);
+      } else {
+        output = helper + output;
+      }
+
+      return output;
+    }
+
+    function getProcessedUrl(path) {
+      if (projectState.processedCache.has(path)) return projectState.processedCache.get(path);
+
+      const item = projectState.files.get(path);
+      if (!item) return "";
+
+      const ext = extname(path);
+      let content = null;
+      let blob;
+
+      if (item.text !== null && item.text !== undefined && ["html", "htm", "css", "js", "mjs", "cjs"].includes(ext)) {
+        if (ext === "css") content = rewriteCss(item.text, path);
+        else if (["js", "mjs", "cjs"].includes(ext)) content = rewriteJs(item.text, path);
+        else content = rewriteHtml(path === projectState.entryPath ? codeInput.value : item.text, path);
+
+        blob = new Blob([content], { type: mimeFromPath(path, item.type) });
+      } else if (path === projectState.entryPath && item.text !== null && item.text !== undefined) {
+        blob = new Blob([codeInput.value], { type: mimeFromPath(path, item.type) });
+      } else {
+        return getBestAssetUrl(path);
+      }
+
+      const url = URL.createObjectURL(blob);
+      projectState.objectUrls.push(url);
+      projectState.processedCache.set(path, url);
+      pruneObjectUrlCache();
+      return url;
+    }
+
+    async function renderPreview() {
+      const html = codeInput.value.trim();
+
+      setFramePermissionMode();
+      clearDiagnostics();
+      runProjectHealthCheck(false);
+      setBusy(true, "正在建立預覽...");
+
+      try {
+        if (projectState.entryPath && projectState.files.size) {
+          revokeObjectUrls();
+          projectState.processedCache.clear();
+
+          const entryItem = projectState.files.get(projectState.entryPath);
+          if (!entryItem || entryItem.text === null || entryItem.text === undefined) {
+            await notify("找不到可讀取的 HTML 入口檔案，請在專案結構中雙擊其他 .html 檔案設為入口。", "入口檔案錯誤", "danger");
+            return;
+          }
+
+          const processedHtml = rewriteHtml(codeInput.value || entryItem.text, projectState.entryPath);
+
+          previewFrame.removeAttribute("src");
+          previewFrame.srcdoc = processedHtml;
+
+          emptyState.style.display = "none";
+          app.classList.add("has-preview");
+          updatePreviewMeta();
+          status.textContent = `預覽中：${projectState.entryPath}`;
+          markSelectedTreeRow(projectState.entryPath);
+        } else {
+          if (!html) {
+            await notify("請先輸入 HTML 代碼、上傳 HTML，或拖曳專案資料夾。");
+            return;
+          }
+
+          if (projectState.currentPreviewUrl) {
+            URL.revokeObjectURL(projectState.currentPreviewUrl);
+            projectState.currentPreviewUrl = "";
+          }
+
+          lastPreviewHTML = html;
+          previewFrame.removeAttribute("src");
+          previewFrame.srcdoc = html;
+
+          emptyState.style.display = "none";
+          app.classList.add("has-preview");
+          updatePreviewMeta();
+        }
+
+        if (isMobileWidth()) {
+          app.classList.add("preview-mode");
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function readSingleHtmlFile(file) {
+      if (!file) return;
+
+      if (isZipLikeFile(file)) {
+        await notify("目前不支援上傳或拖曳壓縮檔。請先在電腦上解壓縮，再拖曳資料夾或使用「選擇資料夾」。", "不支援壓縮檔", "danger");
+        status.textContent = "不支援壓縮檔";
+        return;
+      }
+
+      if (!isHtmlLikeFile(file)) {
+        await notify("請上傳 .html / .htm / .txt 檔案；如果是整個專案，請拖曳資料夾或使用「選擇資料夾」。", "檔案格式不支援", "danger");
+        status.textContent = "檔案格式不支援";
+        return;
+      }
+
+      resetProject(true);
+
+      try {
+        const text = await file.text();
+        codeInput.value = text;
+        lastFileName = file.name;
+        status.textContent = `已載入：${file.name}`;
+        setWorkspaceMode("code");
+      } catch (error) {
+        await notify("檔案讀取失敗，請再試一次。", "讀取失敗", "danger");
+        status.textContent = "檔案讀取失敗";
+      }
+    }
+
+    async function handleDrop(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragDepth = 0;
+      dropzone.classList.remove("dragover");
+
+      const items = Array.from(event.dataTransfer.items || []);
+      const files = Array.from(event.dataTransfer.files || []);
+
+      if (files.length && files.every(isZipLikeFile)) {
+        status.textContent = "不支援壓縮檔";
+        await notify("目前不支援上傳或拖曳壓縮檔。請先在電腦上解壓縮，再拖曳資料夾或使用「選擇資料夾」。", "不支援壓縮檔", "danger");
+        return;
+      }
+
+      try {
+        status.textContent = "正在讀取拖曳內容...";
+
+        let gatheredFiles = [];
+        let hasDirectoryEntry = false;
+        let usedProjectReader = false;
+
+        // Modern Chromium API: more stable for dragged folders when available.
+        if (items.length && typeof items[0].getAsFileSystemHandle === "function") {
+          for (const item of items) {
+            const handle = await item.getAsFileSystemHandle().catch(() => null);
+            if (!handle) continue;
+
+            usedProjectReader = true;
+            if (handle.kind === "directory") hasDirectoryEntry = true;
+
+            await getFilesFromHandle(handle, gatheredFiles, "");
+            if (gatheredFiles.length >= MAX_FILE_COUNT) break;
+          }
+        }
+
+        // Legacy Chromium API: supports folder recursion in many desktop browsers.
+        if (!gatheredFiles.length && items.length && items.some((item) => typeof item.webkitGetAsEntry === "function")) {
+          for (const item of items) {
+            const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+            if (!entry) continue;
+
+            usedProjectReader = true;
+            if (entry.isDirectory) hasDirectoryEntry = true;
+
+            await getFilesFromEntry(entry, gatheredFiles, entry.fullPath || entry.name);
+            if (gatheredFiles.length >= MAX_FILE_COUNT) break;
+          }
+        }
+
+        if (!gatheredFiles.length && files.length) {
+          gatheredFiles = files;
+        }
+
+        if (!gatheredFiles.length) {
+          status.textContent = hasDirectoryEntry
+            ? "資料夾讀取失敗"
+            : "沒有讀取到拖曳內容";
+
+          await notify(
+            hasDirectoryEntry
+              ? "瀏覽器沒有成功讀取這個拖曳資料夾。請改用「選擇資料夾」按鈕，通常會比直接拖曳更穩定。"
+              : "沒有讀取到檔案。若你是拖曳資料夾，請改用「選擇資料夾」按鈕。",
+            "資料夾讀取提醒",
+            "danger"
+          );
+          return;
+        }
+        if (gatheredFiles.every(isZipLikeFile)) {
+          status.textContent = "不支援壓縮檔";
+          await notify("目前不支援上傳或拖曳壓縮檔。請先在電腦上解壓縮，再拖曳資料夾或使用「選擇資料夾」。", "不支援壓縮檔", "danger");
+          return;
+        }
+
+
+        const shouldTreatAsProject =
+          hasDirectoryEntry ||
+          usedProjectReader ||
+          isPossiblyProjectFileList(gatheredFiles);
+
+        if (shouldTreatAsProject) {
+          const ok = await readProjectFiles(gatheredFiles);
+          if (ok && projectState.entryPath) await renderPreview();
+          return;
+        }
+
+        if (gatheredFiles.length === 1 && isHtmlLikeFile(gatheredFiles[0])) {
+          await readSingleHtmlFile(gatheredFiles[0]);
+          return;
+        }
+
+        const ok = await readProjectFiles(gatheredFiles);
+        if (ok && projectState.entryPath) await renderPreview();
+      } catch (error) {
+        setBusy(false);
+        console.error(error);
+        status.textContent = "拖曳讀取失敗";
+        await notify("拖曳讀取失敗。請改用「選擇資料夾」按鈕，或確認不是拖到過大的上層資料夾。", "拖曳讀取失敗", "danger");
+      }
+    }
+
+    pickHtmlBtn.addEventListener("click", () => fileInput.click());
+    pickFolderBtn.addEventListener("click", () => folderInput.click());
+
+    fileInput.addEventListener("change", async (event) => {
+      await readSingleHtmlFile(event.target.files[0]);
+      fileInput.value = "";
+    });
+
+    folderInput.addEventListener("change", async (event) => {
+      const ok = await readProjectFiles(event.target.files);
+      folderInput.value = "";
+      if (ok && projectState.entryPath) await renderPreview();
+    });
+
+    dropzone.addEventListener("dragenter", (event) => {
+      event.preventDefault();
+      dragDepth += 1;
+      dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", (event) => {
+      event.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", handleDrop);
+
+    entrySelect.addEventListener("change", () => {
+      projectState.entryPath = entrySelect.value;
+      loadEntryToEditor(false);
+      markSelectedTreeRow(projectState.entryPath);
+    });
+
+    previewBtn.addEventListener("click", () => renderPreview());
+    deviceSelect.addEventListener("change", () => applyDevicePreset(deviceSelect.value));
+    viewportWidth.addEventListener("change", () => {
+      if (viewportState.mode === "custom") return;
+      viewportState.width = Math.max(10, Number(viewportWidth.value) || viewportState.width);
+      if (viewportState.mode === "responsive") {
+        updateResponsiveHandleBounds();
+        applyViewportState();
+      } else {
+        applyViewportState();
+      }
+    });
+    viewportHeight.addEventListener("change", () => {
+      if (viewportState.mode === "custom") return;
+      viewportState.height = Math.max(10, Number(viewportHeight.value) || viewportState.height);
+      if (viewportState.mode === "responsive") {
+        updateResponsiveHandleBounds();
+        applyViewportState();
+      } else {
+        applyViewportState();
+      }
+    });
+    zoomSelect.addEventListener("change", () => {
+      viewportState.zoom = Number(zoomSelect.value) || 1;
+      applyViewportState();
+    });
+    rotateBtn.addEventListener("click", () => {
+      if (rotateBtn.disabled) return;
+      const nextWidth = Number(viewportHeight.value) || viewportState.height;
+      const nextHeight = Number(viewportWidth.value) || viewportState.width;
+      viewportState.width = nextWidth;
+      viewportState.height = nextHeight;
+      applyViewportState();
+    });
+    document.querySelectorAll(".viewport-resize-handle").forEach((handle) => {
+      handle.addEventListener("mousedown", beginViewportResize);
+    });
+    exportReportBtn.addEventListener("click", () => {
+      if (diagnosticState.isOpen) {
+        setDiagnosticsOpen(false);
+      } else {
+        setDiagnosticsOpen(true);
+        runProjectHealthCheck(false);
+      }
+    });
+    healthBtn.addEventListener("click", exportDiagnosticsReport);
+    rerunDiagnosticsBtn.addEventListener("click", rerunDiagnostics);
+    clearDiagnosticsBtn.addEventListener("click", () => clearDiagnostics(true));
+    closeDiagnosticsBtn.addEventListener("click", () => setDiagnosticsOpen(false));
+    diagnosticResizeHandle.addEventListener("mousedown", beginDiagnosticResize);
+
+    refreshBtn.addEventListener("click", async () => {
+      if (projectState.entryPath && projectState.files.size) {
+        await renderPreview();
+      } else if (lastPreviewHTML) {
+        setFramePermissionMode();
+        previewFrame.removeAttribute("src");
+        previewFrame.srcdoc = lastPreviewHTML;
+      } else {
+        await renderPreview();
+      }
+    });
+
+    clearBtn.addEventListener("click", async () => {
+      if (!(await askConfirm("確定要清空目前內容與專案資料嗎？", "清空確認"))) return;
+      const baseUrl = window.location.href.split("#")[0].split("?")[0];
+      window.location.replace(baseUrl + "?reset=" + Date.now());
+    });
+
+    let treeToggleCollapsed = false;
+    toggleTreeBtn.addEventListener("click", () => {
+      treeToggleCollapsed = !treeToggleCollapsed;
+      setAllTreeCollapsed(treeToggleCollapsed);
+      toggleTreeBtn.textContent = treeToggleCollapsed ? "全部展開" : "全部收合";
+    });
+
+    editEntryBtn.addEventListener("click", () => {
+      if (projectState.entryPath) {
+        loadEntryToEditor(true);
+      } else {
+        setWorkspaceMode("code");
+      }
+    });
+
+    closeFilePreviewBtn.addEventListener("click", closeFilePreview);
+
+    fullscreenBtn.addEventListener("click", () => {
+      const panel = document.querySelector(".preview-panel");
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+        return;
+      }
+
+      if (panel.requestFullscreen) {
+        panel.requestFullscreen().catch(() => {
+          app.classList.add("preview-mode");
+        });
+      } else {
+        app.classList.add("preview-mode");
+      }
+    });
+
+    backBtn.addEventListener("click", () => {
+      app.classList.remove("preview-mode");
+    });
+
+    advancedAllow.addEventListener("change", async () => {
+      if (projectState.entryPath && projectState.files.size) {
+        await renderPreview();
+      } else if (lastPreviewHTML) {
+        setFramePermissionMode();
+        previewFrame.srcdoc = lastPreviewHTML;
+      }
+    });
+
+    if (deviceSelect) deviceSelect.value = "custom";
+    applyDevicePreset("custom");
+    setDiagnosticsOpen(false);
+    renderDiagnostics();
+    updatePreviewMeta();
+
+    document.addEventListener("keydown", async (event) => {
+      const isMac = navigator.platform.toLowerCase().includes("mac");
+      const mod = isMac ? event.metaKey : event.ctrlKey;
+
+      if (mod && event.key === "Enter") {
+        event.preventDefault();
+        await renderPreview();
+      }
+
+      if (event.key === "Escape") {
+        app.classList.remove("preview-mode");
+        setDiagnosticsOpen(false);
+      }
+    });
+  </script>
+</body>
+</html>
