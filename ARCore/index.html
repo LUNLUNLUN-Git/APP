@@ -5111,6 +5111,9 @@ function stopCameraMode() {
   $('#star-canvas').style.display = 'none';
   // Stop all rAF loops
   if (state._visionRAF) { cancelAnimationFrame(state._visionRAF); state._visionRAF = null; }
+  // Clean up water surface
+  stopWater();
+  clearInterval(state._waterAutoInterval);
 }
 
 // ─── Shared cleanup hook ───────────────────────────────────
@@ -5904,14 +5907,6 @@ _initText3DRow();
 
 // ─── Wire new toolbar cases ───────────────────────────────
 // (coach-mode and water-reset added to buildToolbar switch below)
-
-// ─── New experience cleanup in stopCameraMode ─────────────
-const _origStopCamera = stopCameraMode;
-function stopCameraMode() {
-  _origStopCamera();
-  stopWater();
-  clearInterval(state._waterAutoInterval);
-}
 
 // ============================================================
 // --------- Boot ---------
