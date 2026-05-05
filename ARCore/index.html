@@ -904,11 +904,11 @@
     white-space: nowrap;
     pointer-events: none;
   }
-  .tech-tag.tag-webxr    { background: rgba(255,140,66,.18); color: #ff8c42; border: 1px solid rgba(255,140,66,.4); }
-  .tech-tag.tag-camera   { background: rgba(94,234,212,.14); color: #5eead4; border: 1px solid rgba(94,234,212,.35); }
-  .tech-tag.tag-skeleton { background: rgba(248,113,113,.15); color: #fca5a5; border: 1px solid rgba(248,113,113,.35); }
-  .tech-tag.tag-face     { background: rgba(251,191,36,.15);  color: #fcd34d; border: 1px solid rgba(251,191,36,.35); }
-  .tech-tag.tag-gyro     { background: rgba(96,165,250,.15);  color: #93c5fd; border: 1px solid rgba(96,165,250,.35); }
+  .tech-tag.tag-webxr    { background: rgba(255,140,66,.22); color: #ff8c42; }
+  .tech-tag.tag-camera   { background: rgba(94,234,212,.18); color: #5eead4; }
+  .tech-tag.tag-skeleton { background: rgba(248,113,113,.20); color: #fca5a5; }
+  .tech-tag.tag-face     { background: rgba(251,191,36,.18);  color: #fcd34d; }
+  .tech-tag.tag-gyro     { background: rgba(96,165,250,.18);  color: #93c5fd; }
 
   #water-canvas { position:fixed;inset:0;width:100%;height:100%;z-index:49;display:none;pointer-events:auto; }
 
@@ -1051,6 +1051,9 @@
   </footer>
 </div>
 
+<!-- Scanning particle effect canvas (behind instruction modal) -->
+<canvas id="scan-particles" style="position:fixed;inset:0;width:100%;height:100%;z-index:97;pointer-events:none;display:none;"></canvas>
+
 <!-- ==================== AR OVERLAY ==================== -->
 <div id="ar-overlay">
   <div class="ar-hud-top">
@@ -1058,9 +1061,6 @@
       <button class="ar-btn" id="ar-back">
         <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>退出</span>
-      </button>
-      <button class="ar-btn icon" id="ar-3d-mode" title="切換 3D 模式（關閉相機）">
-        <svg viewBox="0 0 24 24"><path d="M2 12C2 12 5 5 12 5s10 7 10 7-3 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><line x1="2" y1="2" x2="22" y2="22" stroke-linecap="round"/></svg>
       </button>
       <button class="ar-btn icon" id="ar-grid-toggle" title="平面網格開關">
         <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>
@@ -1079,16 +1079,13 @@
     <div class="ar-instruction-icon">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
     </div>
-    <h3>// 掃描中</h3>
+    <h3>// 請掃描平面</h3>
     <p id="instruction-text">移動手機掃描環境<br>尋找適合的平面</p>
   </div>
 
   <div class="ar-coords" id="ar-coords">
     X: 0.00<br>Y: 0.00<br>Z: 0.00<br>FPS: --
   </div>
-
-  <!-- Small reset spatial anchor button -->
-  <button class="ar-reset-btn" id="ar-reset" title="重置空間定位">↺</button>
 
   <!-- PC controls hint -->
   <div id="pc-controls-hint" style="position:absolute;bottom:calc(env(safe-area-inset-bottom)+110px);left:16px;font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.35);line-height:1.8;pointer-events:none;display:none;">
@@ -1278,8 +1275,8 @@ const EXPERIENCES = [
     tools: ['color', 'preset', 'clear', 'capture']
   },
   {
-    id: 'emotion', num: '08', title: 'AR 情緒濾鏡',
-    desc: 'FACE · 即時情緒辨識與濾鏡',
+    id: 'emotion', num: '08', title: 'AR 臉部辨識',
+    desc: 'FACE · 臉部骨架辨識與虛擬寵物',
     featured: false,
     tag: '臉部辨識',
     icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="48" r="28" fill="none" stroke-width="2.5"/><circle cx="40" cy="42" r="4" fill="currentColor"/><circle cx="60" cy="42" r="4" fill="currentColor"/><path id="mouth" d="M35 58 Q50 70 65 58" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M28 35 Q35 28 42 34" stroke-width="1.5" fill="none"/><path d="M58 34 Q65 28 72 35" stroke-width="1.5" fill="none"/></svg>`,
@@ -1322,29 +1319,7 @@ const EXPERIENCES = [
     tools: ['starmap-toggle', 'capture']
   },
   {
-    id: 'coach', num: '12', title: 'AR 動作教練',
-    desc: 'POSE · 姿態辨識與即時校正',
-    featured: false,
-    tag: '骨架辨識',
-    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="22" r="8" fill="none" stroke-width="2.5"/><line x1="50" y1="30" x2="50" y2="60" stroke-width="2.5"/><line x1="50" y1="42" x2="32" y2="56" stroke-width="2.5"/><line x1="50" y1="42" x2="68" y2="56" stroke-width="2.5"/><line x1="50" y1="60" x2="37" y2="82" stroke-width="2.5"/><line x1="50" y1="60" x2="63" y2="82" stroke-width="2.5"/><path d="M20 38 Q28 32 32 42" stroke-width="1.5" fill="none" stroke-dasharray="3 2" opacity="0.6"/><path d="M80 38 Q72 32 68 42" stroke-width="1.5" fill="none" stroke-dasharray="3 2" opacity="0.6"/></svg>`,
-    instruction: '後退讓全身入鏡<br>選擇訓練動作開始校正',
-    hudLabel: '姿態',
-    noXR: true,
-    tools: ['coach-mode', 'capture']
-  },
-  {
-    id: 'water', num: '13', title: 'AR 水面模擬',
-    desc: 'FLUID · 互動水面物理效果',
-    featured: false,
-    tag: '相機',
-    icon: `<svg viewBox="0 0 100 100"><path d="M10 60 Q25 48 40 60 Q55 72 70 60 Q85 48 90 55" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M10 72 Q28 60 45 72 Q62 84 80 72" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/><circle cx="50" cy="45" r="4" fill="currentColor" opacity="0.8"/><path d="M50 49 Q47 58 44 62 M50 49 Q53 58 56 62" stroke-width="1.5" fill="none" opacity="0.5"/></svg>`,
-    instruction: '掃描桌面或地板<br>即可生成互動水面',
-    hudLabel: '漣漪',
-    noXR: true,
-    tools: ['water-reset', 'capture']
-  },
-  {
-    id: 'shooter', num: '14', title: '空間射擊',
+    id: 'shooter', num: '12', title: '空間射擊',
     desc: 'FPS · 陀螺儀視角射擊',
     tag: '陀螺儀',
     icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="6" fill="none" stroke-width="2"/><line x1="50" y1="10" x2="50" y2="38" stroke-width="2"/><line x1="50" y1="62" x2="50" y2="90" stroke-width="2"/><line x1="10" y1="50" x2="38" y2="50" stroke-width="2"/><line x1="62" y1="50" x2="90" y2="50" stroke-width="2"/><circle cx="50" cy="20" r="4" fill="currentColor" opacity="0.7"/><circle cx="80" cy="30" r="5" fill="currentColor" opacity="0.6"/></svg>`,
@@ -1566,6 +1541,18 @@ async function launchExperience(exp) {
   $('#ar-sub-toolbar').classList.remove('visible');
   $('#pc-crosshair').style.display = 'none';
 
+  // Hide instruction and light button for noXR (camera/gyro) experiences
+  const lightBtn = $('#ar-light-btn');
+  if (exp.noXR) {
+    $('#ar-instruction').classList.add('hidden');
+    if (lightBtn) lightBtn.style.display = 'none';
+    stopScanParticles();
+  } else {
+    $('#ar-instruction').classList.remove('hidden');
+    if (lightBtn) lightBtn.style.display = '';
+    startScanParticles();
+  }
+
   buildToolbar(exp);
 
   // Prevent ALL touches on AR overlay UI from reaching the XR canvas
@@ -1650,10 +1637,11 @@ async function initXR() {
 
   // Main Reticle (scanning ring - for most experiences)
   const ringGeom = new THREE.RingGeometry(0.09, 0.1, 32).rotateX(-Math.PI / 2);
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.9 });
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false });
   state.reticle = new THREE.Mesh(ringGeom, ringMat);
   state.reticle.matrixAutoUpdate = false;
   state.reticle.visible = false;
+  state.reticle.renderOrder = 999;
 
   // Inner dot for ring reticle
   const dotGeom = new THREE.CircleGeometry(0.012, 16).rotateX(-Math.PI / 2);
@@ -1945,6 +1933,7 @@ function renderLoop(timestamp, frame) {
       // Hide instruction on first hit
       if (!state.hadFirstHit) {
         state.hadFirstHit = true;
+        stopScanParticles();
         setTimeout(() => $('#ar-instruction').classList.add('hidden'), 500);
       }
     } else {
@@ -2103,16 +2092,13 @@ function exitExperience() {
   // Clean up camera-mode (noXR) experiences
   if (state.experience?.noXR) {
     stopCameraMode();
-    if (state._colorCollectFn) {
-      $('#ar-overlay').removeEventListener('touchend', state._colorCollectFn);
-      state._colorCollectFn = null;
-    }
-    if (state._starGyroActive) {
-      window.removeEventListener('deviceorientation', _onStarOrientation, true);
-      state._starGyroActive = false;
-    }
+    if (state._colorCollectFn) { $('#ar-overlay').removeEventListener('touchend', state._colorCollectFn); state._colorCollectFn = null; }
+    if (state._starGyroActive) { window.removeEventListener('deviceorientation', _onStarOrientation, true); state._starGyroActive = false; }
     $('#ar-overlay').style.zIndex = '';
+    const lightBtn = $('#ar-light-btn');
+    if (lightBtn) lightBtn.style.display = '';
   }
+  stopScanParticles();
 
   // Clean up hand tracking canvas
   const handCanvas = document.getElementById('hand-canvas');
@@ -3235,9 +3221,7 @@ function addMeasurePoint(pos) {
       color: 0xff8c42,
       linewidth: 3,
       resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-      dashed: true,
-      dashSize: 0.04,
-      gapSize: 0.02,
+      dashed: false,
     });
     const liveLine = new Line2(liveGeom, liveMat);
     liveLine.frustumCulled = false;
@@ -3261,7 +3245,7 @@ function addMeasurePoint(pos) {
     finalGeom.setPositions([a.x, a.y, a.z, b.x, b.y, b.z]);
     const finalMat = new LineMaterial({
       color: 0xff8c42,
-      linewidth: 3,
+      linewidth: 5,
       resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
     });
     const line = new Line2(finalGeom, finalMat);
@@ -3707,8 +3691,8 @@ function placePortal(pos, quat) {
   const ring2Mat = new THREE.MeshBasicMaterial({ color: secondaryHex, transparent: true, opacity: 0.7, toneMapped: false });
   group.add(new THREE.Mesh(ring2Geom, ring2Mat));
 
-  // Portal disc — animated shader for swirl effect (no RenderTarget needed)
-  const portalGeom = new THREE.CircleGeometry(0.42, 48);
+  // Portal disc — animated shader fills the full opening
+  const portalGeom = new THREE.CircleGeometry(0.435, 64);
   const portalMat = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
@@ -3823,8 +3807,8 @@ function shootBall(power) {
 function updatePhysics(dt) {
   if (!state.physics.floorSet) return;
   const g = 9.8;
-  const restitution = 0.68;   // bounciness
-  const friction    = 0.92;   // horizontal damping on bounce
+  const restitution = 0.68;
+  const friction    = 0.98;   // lower friction = balls roll further
   const airDrag     = 0.998;  // per-frame velocity multiplier in air
 
   state.physics.balls.forEach(b => {
@@ -4988,8 +4972,6 @@ window.addEventListener('resize', () => {
 // --------- Event wiring ---------
 $('#ar-back').addEventListener('click', e => { e.stopPropagation(); exitExperience(); });
 $('#ar-grid-toggle').addEventListener('click', e => { e.stopPropagation(); toggleGrid(); });
-$('#ar-3d-mode').addEventListener('click', e => { e.stopPropagation(); switchTo3DMode(); });
-$('#ar-reset').addEventListener('click', e => { e.stopPropagation(); resetSpatialAnchor(); });
 $('#ar-light-btn').addEventListener('click', e => { e.stopPropagation(); toggleLight(); });
 
 // --------- Desktop Detection & QR Code ---------
@@ -5907,6 +5889,110 @@ _initText3DRow();
 
 // ─── Wire new toolbar cases ───────────────────────────────
 // (coach-mode and water-reset added to buildToolbar switch below)
+
+// ─── Scan Particle Effect ─────────────────────────────────
+let _scanParticleRAF = null;
+const _scanParticles = [];
+
+function startScanParticles() {
+  const canvas = $('#scan-particles');
+  if (!canvas) return;
+  canvas.style.display = 'block';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  _scanParticles.length = 0;
+  for (let i = 0; i < 120; i++) {
+    _scanParticles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: 0.8 + Math.random() * 1.6, vx: (Math.random()-.5)*.4, vy: (Math.random()-.5)*.4, a: 0.15 + Math.random()*.5, da: (Math.random()-.5)*.012 });
+  }
+  function frame() {
+    const c = $('#scan-particles');
+    if (!c || c.style.display === 'none') return;
+    _scanParticleRAF = requestAnimationFrame(frame);
+    c.width = window.innerWidth; c.height = window.innerHeight;
+    ctx.clearRect(0, 0, c.width, c.height);
+    _scanParticles.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.a += p.da;
+      if (p.a <= 0.05 || p.a >= 0.7) p.da *= -1;
+      if (p.x < 0) p.x = c.width; if (p.x > c.width) p.x = 0;
+      if (p.y < 0) p.y = c.height; if (p.y > c.height) p.y = 0;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${p.a.toFixed(2)})`; ctx.fill();
+    });
+  }
+  cancelAnimationFrame(_scanParticleRAF); frame();
+}
+
+function stopScanParticles() {
+  cancelAnimationFrame(_scanParticleRAF);
+  const c = $('#scan-particles');
+  if (c) c.style.display = 'none';
+}
+
+// ─── Fix star map gyroscope (flat phone = look up) ─────────
+function _onStarOrientation(e) {
+  if (e.beta === null) return;
+  state._starPitch = (e.beta || 0) - 90;  // flat=0° → pitch -90 (zenith); upright=90° → pitch 0 (horizon)
+  state._starYaw   = (e.alpha || 0);
+}
+
+// ─── Emotion → FaceMesh skeleton + head pet ───────────────
+const FACE_OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+const FACE_FEATURES = [[33,7,163,144,145,153,154,155,133],[362,382,381,380,374,373,390,249,263],[61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146],[1,2,98,327]];
+
+function initEmotion() {
+  $('#emotion-display').style.display = 'none';
+  $('#anatomy-info').style.display = 'block';
+  $('#anatomy-info').textContent = '正在載入臉部辨識...';
+  state._faceEmoji = '🐱';
+
+  _loadMediaPipeScript('face_mesh', () => {
+    try {
+      const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+      faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.55, minTrackingConfidence: 0.55 });
+      faceMesh.onResults(onFaceResults);
+      state._mpFace = faceMesh;
+      const send = async () => {
+        if (state.experience?.id !== 'emotion') return;
+        if (_camVideo.readyState >= 2) { try { await faceMesh.send({ image: _camVideo }); } catch(e){} }
+        setTimeout(send, 80);
+      };
+      send();
+      $('#anatomy-info').textContent = '臉部辨識中 — 對準攝影機';
+      toast('✓ 臉部辨識已啟動');
+    } catch(e) { $('#anatomy-info').textContent = '⚠ 臉部辨識不支援'; }
+  });
+}
+
+function onFaceResults(results) {
+  if (state.experience?.id !== 'emotion') return;
+  _camCanvas.width = window.innerWidth; _camCanvas.height = window.innerHeight;
+  _camCtx.clearRect(0, 0, _camCanvas.width, _camCanvas.height);
+  if (!results.multiFaceLandmarks?.length) return;
+  const lm = results.multiFaceLandmarks[0];
+  const w = _camCanvas.width, h = _camCanvas.height;
+  const xf = i => (1 - lm[i].x) * w;
+  const yf = i => lm[i].y * h;
+  // Face oval
+  _camCtx.strokeStyle = 'rgba(94,234,212,.75)'; _camCtx.lineWidth = 1.5; _camCtx.lineCap = 'round';
+  _camCtx.beginPath(); FACE_OVAL.forEach((idx,i) => i===0?_camCtx.moveTo(xf(idx),yf(idx)):_camCtx.lineTo(xf(idx),yf(idx))); _camCtx.closePath(); _camCtx.stroke();
+  // Features
+  FACE_FEATURES.forEach(feat => {
+    _camCtx.strokeStyle = 'rgba(255,140,66,.85)'; _camCtx.lineWidth = 1.5;
+    _camCtx.beginPath(); feat.forEach((idx,i) => i===0?_camCtx.moveTo(xf(idx),yf(idx)):_camCtx.lineTo(xf(idx),yf(idx))); _camCtx.stroke();
+  });
+  // Key dots
+  [1,33,263,61,291,4].forEach(idx => { _camCtx.beginPath(); _camCtx.arc(xf(idx),yf(idx),3,0,Math.PI*2); _camCtx.fillStyle='#5eead4'; _camCtx.fill(); });
+  // Head-top pet emoji
+  const petX = xf(10), petY = yf(10) - 55;
+  _camCtx.font = '38px serif'; _camCtx.textAlign = 'center';
+  _camCtx.fillText(state._faceEmoji || '🐱', petX, petY);
+  $('#anatomy-info').textContent = `臉部骨架 · 臉部偵測中`;
+}
+
+// ─── Wire emotion experience description update ────────────
+// The experience title is updated to "AR 臉部辨識" in the EXPERIENCES array tag
+
 
 // ============================================================
 // --------- Boot ---------
