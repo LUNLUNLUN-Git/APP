@@ -1,0 +1,1413 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>HTML 檔案檢測工具</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --soft: #f8fafc;
+      --line: #e5e7eb;
+      --line-2: #d8e0ea;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-2: #1d4ed8;
+      --primary-soft: #eff6ff;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --good: #10b981;
+      --code-bg: #0b1020;
+      --code-bg-2: #0f172a;
+      --code-line: #1f2a44;
+      --code-text: #dbeafe;
+      --code-muted: #71809b;
+      --radius: 18px;
+      --shadow: 0 18px 56px rgba(15, 23, 42, .08);
+      --header-h: 56px;
+      --left-width: 44%;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: radial-gradient(circle at top left, #fff 0, var(--bg) 48%, #edf2f8 100%);
+      color: var(--text);
+      overflow: hidden;
+    }
+    button, input, textarea { font: inherit; }
+    button {
+      border: 1px solid var(--line-2);
+      background: #fff;
+      color: var(--text);
+      border-radius: 12px;
+      min-height: 36px;
+      padding: 7px 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+      transition: transform .14s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease;
+    }
+    button:hover { transform: translateY(-1px); border-color: #b9c6d7; box-shadow: 0 8px 22px rgba(15,23,42,.08); }
+    button:active { transform: translateY(0); box-shadow: none; }
+    button:disabled { opacity: .48; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+    button.primary { color: #fff; background: var(--primary); border-color: var(--primary); }
+    button.primary:hover { background: var(--primary-2); }
+    button.subtle { background: var(--soft); }
+    button.danger { background: #fff5f5; border-color: #fecaca; color: #b91c1c; }
+    .icon { width: 16px; height: 16px; flex: 0 0 auto; stroke: currentColor; }
+    .icon-only { width: 38px; padding-left: 0; padding-right: 0; }
+    .icon-only .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .app {
+      height: 100dvh;
+      padding: 10px;
+      display: grid;
+      grid-template-rows: var(--header-h) minmax(0, 1fr);
+      gap: 10px;
+    }
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+      padding: 0 14px;
+      background: rgba(255,255,255,.84);
+      border: 1px solid rgba(226,232,240,.92);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 32px rgba(15,23,42,.05);
+      backdrop-filter: blur(14px);
+    }
+    .brand { min-width: 0; display: flex; align-items: center; gap: 10px; }
+    .brand-mark {
+      width: 32px; height: 32px; border-radius: 11px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      position: relative;
+      box-shadow: 0 10px 22px rgba(37,99,235,.25);
+    }
+    .brand-mark::after { content: ""; position: absolute; inset: 9px 7px; border: 2px solid rgba(255,255,255,.9); border-left: 0; border-right: 0; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: -.01em; }
+    .top-status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; min-width: 0; }
+    .pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; background: #fff; border: 1px solid var(--line); border-radius: 999px; max-width: 100%; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--muted); flex: 0 0 8px; }
+    .dot.good { background: var(--good); }
+    .dot.warn { background: var(--warn); }
+    .dot.bad { background: var(--danger); }
+
+    .workspace {
+      min-height: 0;
+      display: flex;
+      gap: 0;
+      align-items: stretch;
+    }
+    .pane {
+      min-width: 0;
+      min-height: 0;
+      background: rgba(255,255,255,.94);
+      border: 1px solid rgba(226,232,240,.92);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      backdrop-filter: blur(16px);
+    }
+    .editor-pane { width: var(--left-width); grid-template-rows: auto minmax(0, 1fr) auto auto; }
+    .preview-pane { flex: 1 1 0; grid-template-rows: auto minmax(0, 1fr); }
+
+    .splitter {
+      flex: 0 0 12px;
+      min-height: 0;
+      cursor: col-resize;
+      position: relative;
+      display: grid;
+      place-items: center;
+      touch-action: none;
+      z-index: 5;
+    }
+    .splitter::before {
+      content: "";
+      width: 4px;
+      height: min(100%, 120px);
+      border-radius: 999px;
+      background: #cbd5e1;
+      transition: width .14s ease, background .14s ease, box-shadow .14s ease;
+    }
+    .splitter:hover::before, body.resizing .splitter::before { width: 6px; background: #60a5fa; box-shadow: 0 0 0 5px rgba(96,165,250,.14); }
+    body.resizing { cursor: col-resize; user-select: none; }
+    body.resizing iframe { pointer-events: none; }
+
+    .pane-head {
+      min-height: 56px;
+      padding: 9px 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.82);
+    }
+    .pane-title { display: grid; gap: 2px; min-width: 0; }
+    .pane-title strong { font-size: 14px; }
+    .pane-title small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+    .preview-actions { flex: 1 1 auto; }
+    #fullscreenBtn { margin-left: auto; }
+
+    .editor-wrap {
+      min-height: 0;
+      position: relative;
+      background: var(--code-bg);
+      display: grid;
+      grid-template-columns: 52px minmax(0, 1fr);
+      border-top: 1px solid #111a2f;
+      border-bottom: 1px solid #111a2f;
+    }
+    .line-numbers {
+      min-height: 0;
+      overflow: hidden;
+      padding: 14px 8px 14px 0;
+      background: #070b16;
+      border-right: 1px solid var(--code-line);
+      color: var(--code-muted);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 21px;
+      text-align: right;
+      user-select: none;
+      white-space: pre;
+    }
+    .code-area {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--code-bg);
+    }
+    #highlight, #editor {
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      border: 0;
+      outline: 0;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 21px;
+      tab-size: 2;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
+      font-variant-ligatures: none;
+    }
+    #highlight {
+      min-width: 100%;
+      min-height: 100%;
+      color: var(--code-text);
+      pointer-events: none;
+    }
+    #highlight .tag { color: #7dd3fc; }
+    #highlight .attr { color: #facc15; }
+    #highlight .value { color: #86efac; }
+    #highlight .comment { color: #64748b; font-style: italic; }
+    #highlight .doctype { color: #c084fc; }
+    #highlight .script { color: #f0abfc; }
+    #highlight .style { color: #93c5fd; }
+    #editor {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      background: transparent;
+      color: transparent;
+      caret-color: #ffffff;
+      overflow: auto;
+      z-index: 2;
+    }
+    #editor::selection { background: rgba(96,165,250,.38); color: transparent; }
+    #editor::placeholder { color: rgba(219,234,254,.38); }
+
+    .mobile-actions { display: none; }
+    .statusbar {
+      min-height: 42px;
+      border-top: 1px solid var(--line);
+      padding: 8px 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .status-left, .status-right { min-width: 0; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .switch-row { display: inline-flex; align-items: center; gap: 7px; user-select: none; white-space: nowrap; }
+    .switch-row input { width: 17px; height: 17px; accent-color: var(--primary); }
+
+    .preview-stage {
+      min-height: 0;
+      position: relative;
+      background:
+        linear-gradient(90deg, rgba(15,23,42,.035) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(15,23,42,.035) 1px, transparent 1px),
+        #f8fafc;
+      background-size: 22px 22px;
+      overflow: hidden;
+    }
+    iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      color: #475569;
+      pointer-events: none;
+      text-align: center;
+      z-index: 1;
+    }
+    .empty-card {
+      width: min(600px, 100%);
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 18px 48px rgba(15,23,42,.10);
+    }
+    .empty-card h2 { margin: 0 0 8px; font-size: 20px; color: #0f172a; }
+    .empty-card p { margin: 0; line-height: 1.7; font-size: 14px; }
+
+    .report {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 8;
+      max-height: min(42%, 360px);
+      min-height: 210px;
+      background: rgba(255,255,255,.96);
+      border-top: 1px solid var(--line-2);
+      box-shadow: 0 -18px 42px rgba(15,23,42,.12);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      backdrop-filter: blur(16px);
+    }
+    .report.hidden { display: none !important; }
+    .report-head {
+      min-height: 44px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: #fbfdff;
+    }
+    .report-tabs { display: flex; gap: 7px; overflow-x: auto; }
+    .tab { min-height: 32px; padding: 6px 10px; font-size: 12.5px; border-radius: 999px; background: var(--soft); }
+    .tab.active { background: var(--primary-soft); border-color: #bfdbfe; color: #1d4ed8; font-weight: 750; }
+    .report-body { min-height: 0; overflow: auto; padding: 12px; }
+    .check-list, .console-list, .file-list { display: grid; gap: 8px; }
+    .check-item, .file-item, .log-line {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 14px;
+      padding: 10px 11px;
+      box-shadow: 0 3px 14px rgba(15,23,42,.035);
+      font-size: 12.5px;
+    }
+    .check-item { display: grid; gap: 4px; }
+    .check-item strong { font-size: 13px; display: flex; align-items: center; gap: 7px; }
+    .check-item span, .file-item span { color: var(--muted); line-height: 1.5; }
+    .log-line { font-family: var(--mono); white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+    .log-line.warn { border-color: #fed7aa; color: #9a3412; background: #fff7ed; }
+    .log-line.error, .log-line.bad { border-color: #fecaca; color: #991b1b; background: #fff1f2; }
+    .log-line.info { border-color: #bfdbfe; color: #1e40af; background: #eff6ff; }
+    .hidden { display: none !important; }
+
+    .drop-overlay {
+      position: fixed;
+      inset: 10px;
+      z-index: 100;
+      border: 2px dashed #3b82f6;
+      border-radius: 28px;
+      background: rgba(239,246,255,.88);
+      display: none;
+      place-items: center;
+      text-align: center;
+      color: #1d4ed8;
+      padding: 26px;
+      pointer-events: none;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 24px 70px rgba(37,99,235,.18);
+      backdrop-filter: blur(10px);
+    }
+    body.dragging .drop-overlay { display: grid; }
+    .drop-card { display: grid; gap: 8px; max-width: 520px; }
+    .drop-card strong { font-size: 18px; }
+    .drop-card span { color: #475569; font-size: 14px; line-height: 1.6; }
+
+    .toast {
+      position: fixed;
+      left: 50%; bottom: max(18px, env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      background: #0f172a;
+      color: #fff;
+      border-radius: 999px;
+      padding: 11px 16px;
+      box-shadow: var(--shadow);
+      transition: opacity .18s ease, transform .18s ease;
+      z-index: 110;
+      max-width: calc(100vw - 24px);
+      text-align: center;
+      font-size: 13px;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .app { min-height: 100dvh; height: auto; grid-template-rows: var(--header-h) auto; }
+      .workspace { flex-direction: column; gap: 10px; }
+      .splitter { display: none; }
+      .editor-pane, .preview-pane { width: 100%; min-height: 0; }
+      .editor-pane { height: 48dvh; min-height: 360px; grid-template-rows: auto minmax(0,1fr) auto auto; }
+      .preview-pane { height: 52dvh; min-height: 420px; }
+      .pane-head { align-items: flex-start; flex-direction: column; }
+      .actions { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .preview-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .preview-actions button { width: 100%; }
+      #fullscreenBtn { margin-left: 0; grid-column: 2; }
+      .editor-pane .pane-head .actions { display: none; }
+      .mobile-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding: 8px; border-top: 1px solid #111a2f; background: var(--code-bg-2); }
+      .mobile-actions button { width: 100%; }
+      .statusbar { align-items: flex-start; flex-direction: column; }
+      .report { max-height: 45%; min-height: 210px; }
+    }
+
+    @media (max-width: 560px) {
+      .app { padding: 8px; gap: 8px; grid-template-rows: auto; }
+      .app-header { display: none; }
+      .pane { border-radius: 18px; }
+      .editor-pane { height: 50dvh; min-height: 340px; }
+      .preview-pane { height: 52dvh; min-height: 380px; }
+      .pane-title small { white-space: normal; }
+      .actions, .preview-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .mobile-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .mobile-actions .folder-mobile, .mobile-actions .zip-mobile { grid-column: span 1; }
+      .status-right { width: 100%; justify-content: space-between; }
+      .optional-label { display: none; }
+      .report-head { align-items: flex-start; flex-direction: column; }
+      .report-tabs { width: 100%; }
+      .report .close-report { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <h1>HTML 檔案檢測工具</h1>
+      </div>
+      <div class="top-status">
+        <span class="pill"><span class="dot good"></span><span id="runInfo">尚未預覽</span></span>
+        <span class="pill" id="projectInfo">可拖曳 HTML / 資料夾 / ZIP</span>
+      </div>
+    </header>
+
+    <main class="workspace" id="workspace">
+      <section class="pane editor-pane" aria-label="HTML 原始碼">
+        <div class="pane-head">
+          <div class="pane-title">
+            <strong>HTML 原始碼</strong>
+            <small id="fileInfo">尚未載入檔案</small>
+          </div>
+          <div class="actions editor-actions">
+            <button id="pasteBtn" class="subtle" title="貼上剪貼簿文字"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5h6M9 4.5A2.5 2.5 0 0 1 11.5 2h1A2.5 2.5 0 0 1 15 4.5V6H9V4.5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>貼上</span></button>
+            <button id="fileBtn" class="subtle" title="選擇 HTML / TXT / ZIP 檔案"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v5h5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>選檔</span></button>
+            <button id="folderBtn" class="subtle" title="選擇完整專案資料夾"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v1H3V7Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 10h18l-1.4 8.4A2 2 0 0 1 17.6 20H6.4a2 2 0 0 1-2-1.6L3 10Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>資料夾</span></button>
+            <button id="clearBtn" class="danger" title="清空目前內容"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke-width="2" stroke-linecap="round"/><path d="M6 7l1 14h10l1-14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7V4h6v3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>清空</span></button>
+          </div>
+        </div>
+
+        <div class="editor-wrap" id="editorWrap">
+          <div class="line-numbers" id="lineNumbers">1</div>
+          <div class="code-area" id="codeArea">
+            <pre id="highlight" aria-hidden="true"></pre>
+            <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="請貼上 HTML 語法，或將 .html / 專案資料夾 / ZIP 拖曳到介面中。"></textarea>
+          </div>
+        </div>
+
+        <div class="mobile-actions">
+          <button id="pasteBtnMobile" class="subtle"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5h6M9 4.5A2.5 2.5 0 0 1 11.5 2h1A2.5 2.5 0 0 1 15 4.5V6H9V4.5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>貼上</span></button>
+          <button id="fileBtnMobile" class="subtle"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v5h5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>選檔</span></button>
+          <button id="clearBtnMobile" class="danger"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke-width="2" stroke-linecap="round"/><path d="M6 7l1 14h10l1-14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7V4h6v3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>清空</span></button>
+        </div>
+
+        <div class="statusbar">
+          <div class="status-left">
+            <span id="countState">0 行 · 0 字元</span>
+            <span class="pill"><span class="dot good"></span><span>自動預覽</span></span>
+          </div>
+          <div class="status-right">
+            <label class="switch-row" title="開啟後會讓 iframe 更接近一般網頁執行環境，適合測試你信任的 HTML。">
+              <input type="checkbox" id="compatMode" checked /> 高相容
+            </label>
+            <button id="downloadBtn" class="subtle" title="下載目前入口 HTML">下載</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="拖曳調整左右面板寬度"></div>
+
+      <section class="pane preview-pane" aria-label="HTML 即時預覽">
+        <div class="pane-head">
+          <div class="pane-title">
+            <strong>即時預覽</strong>
+            <small id="previewInfo">等待 HTML 內容</small>
+          </div>
+          <div class="actions preview-actions">
+            <button id="toggleReportBtn" class="subtle" title="開啟或關閉診斷報告"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2-3-2V5a2 2 0 0 1 2-2Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8h8M8 12h8M8 16h5" stroke-width="2" stroke-linecap="round"/></svg><span>診斷報告</span></button>
+            <button id="popoutBtn" class="subtle" disabled title="以新分頁開啟完整預覽"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 3h7v7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 3l-9 9" stroke-width="2" stroke-linecap="round"/><path d="M10 5H6a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>獨立完整預覽</span></button>
+            <button id="refreshBtn" class="subtle icon-only" disabled title="重新載入預覽" aria-label="重新載入預覽"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.4-4.8L4 8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 4v4h4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 13a8 8 0 0 0 14.4 4.8L20 16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 20v-4h-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sr-only">刷新</span></button>
+            <button id="fullscreenBtn" class="primary" disabled title="將預覽畫面全螢幕"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>全螢幕</span></button>
+          </div>
+        </div>
+
+        <div class="preview-stage" id="previewStage">
+          <iframe id="previewFrame" title="HTML 即時預覽" allowfullscreen></iframe>
+          <div class="empty-state" id="emptyState">
+            <div class="empty-card">
+              <h2>拖曳 HTML、資料夾或 ZIP 到這裡</h2>
+              <p>支援單一 HTML、完整專案資料夾與 ZIP。工具會自動尋找 index.html，並將相對路徑轉成可預覽的虛擬檔案路徑。</p>
+            </div>
+          </div>
+
+          <div class="report hidden" id="reportPanel">
+            <div class="report-head">
+              <div class="report-tabs" aria-label="檢測分頁">
+                <button class="tab active" data-tab="diagnostics">診斷</button>
+                <button class="tab" data-tab="consolePanel">紀錄</button>
+                <button class="tab" data-tab="filesPanel">檔案</button>
+              </div>
+              <button id="closeReportBtn" class="subtle close-report" title="關閉診斷報告">關閉診斷報告</button>
+            </div>
+            <div class="report-body">
+              <div id="diagnostics" class="tab-panel check-list"></div>
+              <div id="consolePanel" class="tab-panel console-list hidden"></div>
+              <div id="filesPanel" class="tab-panel file-list hidden"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="drop-overlay" id="dropOverlay">
+    <div class="drop-card">
+      <strong>放開即可讀取專案</strong>
+      <span>可拖曳單一 HTML / 多個檔案 / 完整資料夾 / ZIP。若包含 index.html，會自動作為入口檔。</span>
+    </div>
+  </div>
+
+  <input id="fileInput" type="file" accept=".html,.htm,.txt,.zip,text/html,text/plain,application/zip" hidden />
+  <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const STORAGE_KEY = 'html-checker-draft-v6';
+    const COMPAT_KEY = 'html-checker-compat-v6';
+    const SPLIT_KEY = 'html-checker-left-width-v6';
+
+    const app = $('app');
+    const workspace = $('workspace');
+    const splitter = $('splitter');
+    const editor = $('editor');
+    const highlight = $('highlight');
+    const lineNumbers = $('lineNumbers');
+    const frame = $('previewFrame');
+    const emptyState = $('emptyState');
+    const reportPanel = $('reportPanel');
+    const diagnostics = $('diagnostics');
+    const consolePanel = $('consolePanel');
+    const filesPanel = $('filesPanel');
+    const compatMode = $('compatMode');
+    const runInfo = $('runInfo');
+    const projectInfo = $('projectInfo');
+    const fileInfo = $('fileInfo');
+    const previewInfo = $('previewInfo');
+    const refreshBtn = $('refreshBtn');
+    const popoutBtn = $('popoutBtn');
+    const fullscreenBtn = $('fullscreenBtn');
+    const countState = $('countState');
+
+    let renderTimer = null;
+    let currentPreviewURL = '';
+    let currentPopoutURL = '';
+    let lastHTML = '';
+    let hasPreview = false;
+    let manualReportState = false;
+    let popoutWindow = null;
+    let lastPopoutAt = 0;
+    let projectFiles = new Map();
+    let entryPath = '';
+    let objectURLs = new Map();
+    let transformedCache = new Map();
+    let missingResources = [];
+    let dragDepth = 0;
+
+    function showToast(message) {
+      const toast = $('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 2100);
+    }
+
+    function escapeHTML(text) {
+      return String(text || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function syntaxHighlight(value) {
+      const escaped = escapeHTML(value || '');
+      return escaped
+        .replace(/(&lt;!doctype[\s\S]*?&gt;)/gi, '<span class="doctype">$1</span>')
+        .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="comment">$1</span>')
+        .replace(/(&lt;\/?)([a-zA-Z][\w:-]*)([\s\S]*?)(\/?&gt;)/g, (_m, open, tag, attrs, close) => {
+          const a = attrs.replace(/([\w:-]+)(=)(&quot;.*?&quot;|&#39;.*?&#39;|[^\s&]+)?/g, '<span class="attr">$1</span>$2<span class="value">$3</span>');
+          return `<span class="tag">${open}${tag}</span>${a}<span class="tag">${close}</span>`;
+        });
+    }
+
+    function updateEditorVisuals() {
+      const value = editor.value || '';
+      highlight.innerHTML = syntaxHighlight(value) + (value.endsWith('\n') ? ' ' : '');
+      const lines = Math.max(1, value.split(/\r\n|\r|\n/).length);
+      let nums = '';
+      for (let i = 1; i <= lines; i++) nums += i + (i === lines ? '' : '\n');
+      lineNumbers.textContent = nums;
+      countState.textContent = `${lines} 行 · ${value.length} 字元`;
+      syncEditorScroll();
+    }
+
+    function syncEditorScroll() {
+      highlight.style.transform = `translate(${-editor.scrollLeft}px, ${-editor.scrollTop}px)`;
+      lineNumbers.style.transform = `translateY(${-editor.scrollTop}px)`;
+    }
+
+    function normalizePath(path) {
+      const raw = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+      const parts = [];
+      for (const part of raw.split('/')) {
+        if (!part || part === '.') continue;
+        if (part === '..') parts.pop();
+        else parts.push(part);
+      }
+      return parts.join('/');
+    }
+
+    function dirname(path) {
+      path = normalizePath(path);
+      const i = path.lastIndexOf('/');
+      return i >= 0 ? path.slice(0, i) : '';
+    }
+
+    function extname(path) {
+      const clean = path.split(/[?#]/)[0].toLowerCase();
+      const i = clean.lastIndexOf('.');
+      return i >= 0 ? clean.slice(i) : '';
+    }
+
+    function mimeFromPath(path, fallback = '') {
+      const ext = extname(path);
+      return ({
+        '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript',
+        '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf', '.otf': 'font/otf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav'
+      })[ext] || fallback || 'application/octet-stream';
+    }
+
+    function isExternalURL(value) {
+      const v = String(value || '').trim();
+      return !v || /^#/.test(v) || /^(https?:|data:|blob:|mailto:|tel:|javascript:|about:)/i.test(v);
+    }
+
+    function splitURL(value) {
+      const text = String(value || '');
+      const match = text.match(/^([^?#]*)([?#].*)?$/);
+      return { path: match ? match[1] : text, suffix: match && match[2] ? match[2] : '' };
+    }
+
+    function projectRoot() {
+      const p = normalizePath(entryPath);
+      return p.includes('/') ? p.split('/')[0] : '';
+    }
+
+    function resolvePath(basePath, ref) {
+      if (isExternalURL(ref)) return null;
+      const { path, suffix } = splitURL(ref);
+      if (!path) return null;
+      let candidates = [];
+      if (path.startsWith('/')) {
+        const root = projectRoot();
+        if (root) candidates.push(normalizePath(root + '/' + path.slice(1)));
+        candidates.push(normalizePath(path.slice(1)));
+      } else {
+        candidates.push(normalizePath(dirname(basePath) + '/' + path));
+        candidates.push(normalizePath(path));
+      }
+      for (const c of candidates) if (projectFiles.has(c)) return { path: c, suffix };
+      const normalizedEnd = normalizePath(path).replace(/^\/+/, '');
+      for (const key of projectFiles.keys()) {
+        if (key.endsWith('/' + normalizedEnd) || key === normalizedEnd) return { path: key, suffix };
+      }
+      missingResources.push(path);
+      return null;
+    }
+
+    function clearObjectURLs() {
+      for (const url of objectURLs.values()) URL.revokeObjectURL(url);
+      objectURLs.clear();
+      transformedCache.clear();
+    }
+
+    async function fileText(record) {
+      if (record.text !== undefined) return record.text;
+      if (record.file && typeof record.file.text === 'function') {
+        record.text = await record.file.text();
+        return record.text;
+      }
+      if (record.getText) {
+        record.text = await record.getText();
+        return record.text;
+      }
+      if (record.blob) {
+        record.text = await record.blob.text();
+        return record.text;
+      }
+      return '';
+    }
+
+    async function fileBlob(record) {
+      if (record.blob) return record.blob;
+      if (record.file) return record.file;
+      if (record.getBlob) {
+        record.blob = await record.getBlob();
+        return record.blob;
+      }
+      const text = await fileText(record);
+      return new Blob([text], { type: mimeFromPath(record.path, record.type) });
+    }
+
+    async function getFileURL(path, stack = new Set()) {
+      path = normalizePath(path);
+      if (transformedCache.has(path)) return transformedCache.get(path);
+      if (objectURLs.has(path)) return objectURLs.get(path);
+      const record = projectFiles.get(path);
+      if (!record) return '';
+      const ext = extname(path);
+      let blob;
+      if ((ext === '.css' || ext === '.js' || ext === '.mjs') && !stack.has(path)) {
+        stack.add(path);
+        const raw = await fileText(record);
+        const transformed = ext === '.css' ? await transformCSS(raw, path, stack) : await transformJS(raw, path, stack);
+        blob = new Blob([transformed], { type: mimeFromPath(path, record.type) });
+        stack.delete(path);
+        const url = URL.createObjectURL(blob);
+        transformedCache.set(path, url);
+        return url;
+      }
+      blob = await fileBlob(record);
+      const url = URL.createObjectURL(blob);
+      objectURLs.set(path, url);
+      return url;
+    }
+
+    async function transformCSS(css, basePath, stack) {
+      let out = css;
+      const urlMatches = [...out.matchAll(/url\(\s*(['"]?)(?!data:|https?:|blob:|#)([^'"\)]+)\1\s*\)/gi)];
+      for (const m of urlMatches) {
+        const resolved = resolvePath(basePath, m[2].trim());
+        if (resolved) {
+          const url = await getFileURL(resolved.path, stack);
+          out = out.replace(m[0], `url("${url}${resolved.suffix}")`);
+        }
+      }
+      const importMatches = [...out.matchAll(/@import\s+(?:url\()?\s*(['"])(?!https?:|data:|blob:)([^'"]+)\1\s*\)?/gi)];
+      for (const m of importMatches) {
+        const resolved = resolvePath(basePath, m[2].trim());
+        if (resolved) {
+          const url = await getFileURL(resolved.path, stack);
+          out = out.replace(m[2], url + resolved.suffix);
+        }
+      }
+      return out;
+    }
+
+    async function transformJS(js, basePath, stack) {
+      let out = js;
+      const importMatches = [
+        ...out.matchAll(/(import\s+(?:[^'";]+?\s+from\s+)?['"])(\.\.?\/[^'"]+|\/[^'"]+)(['"])/g),
+        ...out.matchAll(/(import\s*\(\s*['"])(\.\.?\/[^'"]+|\/[^'"]+)(['"]\s*\))/g),
+        ...out.matchAll(/(export\s+[^'";]+?\s+from\s+['"])(\.\.?\/[^'"]+|\/[^'"]+)(['"])/g)
+      ];
+      for (const m of importMatches) {
+        const resolved = resolvePath(basePath, m[2].trim());
+        if (resolved) {
+          const url = await getFileURL(resolved.path, stack);
+          out = out.replace(m[0], `${m[1]}${url}${resolved.suffix}${m[3]}`);
+        }
+      }
+      return out;
+    }
+
+    function ensureDocument(raw) {
+      const value = String(raw || '');
+      if (/<!doctype|<html[\s>]/i.test(value)) return value;
+      return `<!doctype html>\n<html lang="zh-Hant">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Preview</title>\n</head>\n<body>\n${value}\n</body>\n</html>`;
+    }
+
+    async function transformHTML(raw, basePath) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(ensureDocument(raw), 'text/html');
+      const attrs = ['src', 'href', 'poster', 'data'];
+      const styleNodes = [...doc.querySelectorAll('style')];
+      for (const node of styleNodes) node.textContent = await transformCSS(node.textContent || '', basePath, new Set());
+
+      const nodes = [...doc.querySelectorAll('*')];
+      for (const el of nodes) {
+        for (const attr of attrs) {
+          if (!el.hasAttribute(attr)) continue;
+          const value = el.getAttribute(attr);
+          if (!value || isExternalURL(value)) continue;
+          const resolved = resolvePath(basePath, value);
+          if (resolved) {
+            const url = await getFileURL(resolved.path, new Set());
+            el.setAttribute(attr, url + resolved.suffix);
+          }
+        }
+        if (el.hasAttribute('srcset')) {
+          const value = el.getAttribute('srcset') || '';
+          const parts = [];
+          for (const candidate of value.split(',')) {
+            const trimmed = candidate.trim();
+            if (!trimmed) continue;
+            const seg = trimmed.split(/\s+/);
+            const first = seg.shift();
+            const resolved = resolvePath(basePath, first);
+            if (resolved) {
+              const url = await getFileURL(resolved.path, new Set());
+              parts.push([url + resolved.suffix, ...seg].join(' '));
+            } else {
+              parts.push(trimmed);
+            }
+          }
+          el.setAttribute('srcset', parts.join(', '));
+        }
+        if (el.hasAttribute('style')) {
+          const style = el.getAttribute('style') || '';
+          el.setAttribute('style', await transformCSS(style, basePath, new Set()));
+        }
+      }
+      return '<!doctype html>\n' + doc.documentElement.outerHTML;
+    }
+
+    function updateSandbox() {
+      const base = ['allow-scripts', 'allow-forms', 'allow-popups', 'allow-popups-to-escape-sandbox', 'allow-downloads', 'allow-modals', 'allow-pointer-lock'];
+      if (compatMode.checked) base.push('allow-same-origin');
+      frame.setAttribute('sandbox', base.join(' '));
+      frame.setAttribute('allow', 'fullscreen *; camera *; microphone *; geolocation *; clipboard-read *; clipboard-write *; xr-spatial-tracking *; gyroscope *; accelerometer *; magnetometer *; autoplay *; payment *');
+      frame.setAttribute('allowfullscreen', 'true');
+    }
+
+    function dotClass(type) {
+      if (type === 'bad') return 'bad';
+      if (type === 'warn') return 'warn';
+      return 'good';
+    }
+
+    function addCheck(type, title, detail) {
+      const div = document.createElement('div');
+      div.className = 'check-item';
+      div.innerHTML = `<strong><span class="dot ${dotClass(type)}"></span>${escapeHTML(title)}</strong><span>${escapeHTML(detail)}</span>`;
+      diagnostics.appendChild(div);
+    }
+
+    function addLog(type, args) {
+      const div = document.createElement('div');
+      const normalized = /error/i.test(type) ? 'error' : /warn/i.test(type) ? 'warn' : 'info';
+      div.className = `log-line ${normalized}`;
+      div.textContent = `[${new Date().toLocaleTimeString('zh-TW', { hour12: false })}] ${args.map(v => typeof v === 'string' ? v : JSON.stringify(v)).join(' ')}`;
+      consolePanel.prepend(div);
+    }
+
+    function clearPanels() {
+      diagnostics.innerHTML = '';
+      consolePanel.innerHTML = '';
+      filesPanel.innerHTML = '';
+      missingResources = [];
+    }
+
+    function analyzeHTML(html) {
+      const result = { hasProblems: false };
+      if (!/<!doctype\s+html/i.test(html)) { addCheck('warn', '缺少 <!doctype html>', '建議加入標準 doctype，避免瀏覽器使用怪異模式。'); result.hasProblems = true; }
+      else addCheck('good', 'DOCTYPE 正常', '已偵測到 <!doctype html>。');
+      if (!/<meta[^>]+charset=/i.test(html)) { addCheck('warn', '缺少 charset', '建議加入 <meta charset="utf-8">，避免中文或特殊字元亂碼。'); result.hasProblems = true; }
+      else addCheck('good', 'charset 正常', '已偵測到字元編碼設定。');
+      if (!/<meta[^>]+name=["']viewport["']/i.test(html)) { addCheck('warn', '缺少 viewport', '手機版建議加入 viewport 設定，避免響應式畫面比例異常。'); result.hasProblems = true; }
+      else addCheck('good', 'viewport 正常', '已偵測到手機版 viewport 設定。');
+      if (/requestFullscreen|webkitRequestFullscreen/i.test(html)) addCheck('warn', '偵測到全螢幕 API', 'iframe 已加入 fullscreen allow，但部分瀏覽器仍要求使用者點擊觸發。');
+      if (/getUserMedia|mediaDevices/i.test(html)) addCheck('warn', '偵測到相機 / 麥克風 API', '右側 iframe 已盡量開放權限；若仍失敗，建議使用獨立完整預覽或 localhost/HTTPS。');
+      if (/navigator\.geolocation/i.test(html)) addCheck('warn', '偵測到定位 API', '定位通常需要安全來源與使用者授權。');
+      return result;
+    }
+
+    function updateFilesPanel() {
+      filesPanel.innerHTML = '';
+      if (!projectFiles.size) {
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerHTML = '<strong>尚未載入專案檔案</strong><br><span>可拖曳資料夾或 ZIP 來建立虛擬檔案路徑。</span>';
+        filesPanel.appendChild(item);
+        return;
+      }
+      [...projectFiles.values()].sort((a,b) => a.path.localeCompare(b.path)).slice(0, 320).forEach(record => {
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerHTML = `<strong>${escapeHTML(record.path)}${record.path === entryPath ? '（入口）' : ''}</strong><br><span>${escapeHTML(record.type || mimeFromPath(record.path))} · ${record.size ? (record.size/1024).toFixed(1)+' KB' : '—'}</span>`;
+        filesPanel.appendChild(item);
+      });
+    }
+
+    function openReport(auto = false) {
+      if (!auto) manualReportState = true;
+      reportPanel.classList.remove('hidden');
+    }
+
+    function closeReport() {
+      manualReportState = false;
+      reportPanel.classList.add('hidden');
+    }
+
+    function selectTab(tabName) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === tabName));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== tabName));
+    }
+
+    function saveDraft() {
+      localStorage.setItem(STORAGE_KEY, editor.value || '');
+    }
+
+    async function buildPreviewHTML() {
+      clearObjectURLs();
+      missingResources = [];
+      const source = editor.value || '';
+      if (projectFiles.size && entryPath) return await transformHTML(source, entryPath);
+      return ensureDocument(source);
+    }
+
+    async function renderPreview({ silent = true, force = false } = {}) {
+      clearTimeout(renderTimer);
+      const raw = editor.value || '';
+      if (!raw.trim()) {
+        if (!silent) showToast('目前沒有 HTML 內容');
+        return;
+      }
+      try {
+        updateSandbox();
+        const html = await buildPreviewHTML();
+        if (!force && html === lastHTML && hasPreview) return;
+        lastHTML = html;
+        clearPanels();
+        const analysis = analyzeHTML(html);
+        if (missingResources.length) {
+          analysis.hasProblems = true;
+          const uniq = [...new Set(missingResources)].slice(0, 12);
+          addCheck('bad', '部分相對資源找不到', `找不到：${uniq.join('、')}${missingResources.length > 12 ? '…' : ''}`);
+        }
+        updateFilesPanel();
+        addLog('tool.info', [`載入預覽${projectFiles.size ? ` · 專案檔案 ${projectFiles.size} 個` : ''}`]);
+
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        if (currentPreviewURL) setTimeout(() => URL.revokeObjectURL(currentPreviewURL), 1500);
+        currentPreviewURL = url;
+        frame.src = url;
+        emptyState.classList.add('hidden');
+        hasPreview = true;
+        refreshBtn.disabled = false;
+        fullscreenBtn.disabled = false;
+        popoutBtn.disabled = false;
+        const now = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        runInfo.textContent = `已預覽 · ${now}`;
+        previewInfo.textContent = `${entryPath ? '入口：' + entryPath : '單一 HTML'} · ${now}`;
+        if (analysis.hasProblems && !manualReportState) openReport(true);
+        else if (!manualReportState) closeReport();
+      } catch (err) {
+        addCheck('bad', '預覽建立失敗', err && err.message ? err.message : String(err));
+        addLog('tool.error', [err && err.stack ? err.stack : err]);
+        openReport(true);
+        showToast('預覽建立失敗，請查看診斷報告');
+      }
+    }
+
+    function schedulePreview(delay = 450) {
+      clearTimeout(renderTimer);
+      renderTimer = setTimeout(() => renderPreview({ silent: true }), delay);
+    }
+
+    function resetProject() {
+      projectFiles = new Map();
+      entryPath = '';
+      clearObjectURLs();
+      projectInfo.textContent = '可拖曳 HTML / 資料夾 / ZIP';
+    }
+
+    function setProjectFiles(records, preferredEntry = '') {
+      resetProject();
+      for (const record of records) {
+        const path = normalizePath(record.path || record.name || '');
+        if (!path) continue;
+        projectFiles.set(path, { ...record, path, type: record.type || mimeFromPath(path), size: record.size || (record.file && record.file.size) || 0 });
+      }
+      const htmlCandidates = [...projectFiles.keys()].filter(p => /\.html?$/i.test(p));
+      entryPath = preferredEntry && projectFiles.has(normalizePath(preferredEntry)) ? normalizePath(preferredEntry)
+        : htmlCandidates.find(p => /(^|\/)index\.html?$/i.test(p))
+        || htmlCandidates.sort((a,b) => a.split('/').length - b.split('/').length || a.localeCompare(b))[0]
+        || '';
+      if (!entryPath) throw new Error('找不到 index.html 或任何 .html 檔案');
+      return projectFiles.get(entryPath);
+    }
+
+    async function loadProjectRecords(records, label = '專案') {
+      const entry = setProjectFiles(records);
+      const html = await fileText(entry);
+      editor.value = html;
+      fileInfo.textContent = `${entryPath} · ${(entry.size/1024).toFixed(1)} KB`;
+      projectInfo.textContent = `${label} · ${projectFiles.size} 個檔案`;
+      saveDraft();
+      updateEditorVisuals();
+      await renderPreview({ silent: true, force: true });
+      showToast(`已載入 ${label}，入口：${entryPath}`);
+    }
+
+    async function loadSingleFile(file) {
+      if (!file) return;
+      if (/\.zip$/i.test(file.name)) return loadZipFile(file);
+      const ok = /\.html?|\.txt$/i.test(file.name) || /^text\/(html|plain)/i.test(file.type || '');
+      if (!ok) return showToast('請選擇 HTML / TXT / ZIP，或拖曳完整資料夾');
+      resetProject();
+      const text = await file.text();
+      editor.value = text;
+      fileInfo.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
+      projectInfo.textContent = '單一 HTML 模式';
+      saveDraft();
+      updateEditorVisuals();
+      await renderPreview({ silent: true, force: true });
+      showToast('已載入並自動預覽');
+    }
+
+    async function loadFolderFiles(files) {
+      const records = [...files].filter(f => f && f.name).map(file => ({
+        path: normalizePath(file.webkitRelativePath || file.name),
+        name: file.name,
+        file,
+        type: file.type || mimeFromPath(file.name),
+        size: file.size
+      }));
+      if (!records.length) return showToast('資料夾內沒有可讀取的檔案');
+      await loadProjectRecords(records, '資料夾專案');
+    }
+
+    async function ensureJSZip() {
+      if (window.JSZip) return window.JSZip;
+      throw new Error('JSZip 尚未載入，請確認網路可連線或稍後再試');
+    }
+
+    async function loadZipFile(file) {
+      try {
+        const JSZipCtor = await ensureJSZip();
+        const zip = await JSZipCtor.loadAsync(file);
+        const records = [];
+        for (const [path, item] of Object.entries(zip.files)) {
+          if (item.dir) continue;
+          const safePath = normalizePath(path);
+          records.push({
+            path: safePath,
+            name: safePath.split('/').pop(),
+            type: mimeFromPath(safePath),
+            size: 0,
+            getText: () => item.async('string'),
+            getBlob: () => item.async('blob')
+          });
+        }
+        await loadProjectRecords(records, `ZIP 專案：${file.name}`);
+      } catch (err) {
+        showToast('ZIP 讀取失敗');
+        addCheck('bad', 'ZIP 讀取失敗', err && err.message ? err.message : String(err));
+        openReport(true);
+      }
+    }
+
+    function readEntryFile(entry) {
+      return new Promise((resolve, reject) => entry.file(resolve, reject));
+    }
+
+    function readDirectoryEntries(reader) {
+      return new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+    }
+
+    async function traverseEntry(entry, prefix = '') {
+      const path = normalizePath(prefix ? prefix + '/' + entry.name : entry.name);
+      if (entry.isFile) {
+        const file = await readEntryFile(entry);
+        return [{ path, name: file.name, file, type: file.type || mimeFromPath(path), size: file.size }];
+      }
+      if (entry.isDirectory) {
+        const reader = entry.createReader();
+        let all = [];
+        while (true) {
+          const entries = await readDirectoryEntries(reader);
+          if (!entries.length) break;
+          for (const child of entries) all = all.concat(await traverseEntry(child, path));
+        }
+        return all;
+      }
+      return [];
+    }
+
+    function fileRecordFromFile(file, pathOverride = '') {
+      const path = normalizePath(pathOverride || file.webkitRelativePath || file.name);
+      return {
+        path,
+        name: file.name || path.split('/').pop(),
+        file,
+        type: file.type || mimeFromPath(path),
+        size: file.size || 0
+      };
+    }
+
+    function isZipFile(file) {
+      return !!file && (/\.zip$/i.test(file.name || '') || /zip/i.test(file.type || ''));
+    }
+
+    function isHTMLFile(file) {
+      return !!file && (/\.html?$/i.test(file.name || '') || /html/i.test(file.type || ''));
+    }
+
+    async function handleDrop(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+
+      const transfer = event.dataTransfer;
+      const items = [...(transfer && transfer.items ? transfer.items : [])];
+      const fileList = [...(transfer && transfer.files ? transfer.files : [])].filter(file => file && file.name);
+
+      try {
+        const entries = [];
+        for (const item of items) {
+          if (item.kind !== 'file') continue;
+          const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+          if (entry) entries.push(entry);
+        }
+
+        const hasDirectory = entries.some(entry => entry && entry.isDirectory);
+
+        // 一般單一 HTML / ZIP / 多檔案拖曳，優先使用 DataTransfer.files 取得 File 物件。
+        // 避免在本機 file:// 開啟工具時，FileSystemFileEntry.file() 對單一檔案偶發拋出
+        //「A URI supplied to the API was malformed / Data URL length limitations」錯誤。
+        if (!hasDirectory && fileList.length) {
+          if (fileList.length === 1) {
+            const file = fileList[0];
+            if (isZipFile(file)) return await loadZipFile(file);
+            return await loadSingleFile(file);
+          }
+          const records = fileList.map(file => fileRecordFromFile(file));
+          return await loadProjectRecords(records, '拖曳多檔案專案');
+        }
+
+        if (hasDirectory) {
+          let records = [];
+          for (const entry of entries) {
+            if (!entry) continue;
+            records = records.concat(await traverseEntry(entry));
+          }
+          if (records.length) {
+            const zipOnly = records.length === 1 && /\.zip$/i.test(records[0].name);
+            if (zipOnly) return await loadZipFile(records[0].file);
+            return await loadProjectRecords(records, '拖曳資料夾專案');
+          }
+        }
+
+        // 後備：部分瀏覽器沒有完整 files 清單時，改用 DataTransferItem.getAsFile()。
+        const fallbackFiles = items
+          .filter(item => item.kind === 'file' && typeof item.getAsFile === 'function')
+          .map(item => item.getAsFile())
+          .filter(file => file && file.name);
+
+        if (fallbackFiles.length === 1) {
+          const file = fallbackFiles[0];
+          if (isZipFile(file)) return await loadZipFile(file);
+          return await loadSingleFile(file);
+        }
+        if (fallbackFiles.length > 1) {
+          const records = fallbackFiles.map(file => fileRecordFromFile(file));
+          return await loadProjectRecords(records, '拖曳多檔案專案');
+        }
+
+        showToast('沒有讀取到可用的檔案');
+      } catch (err) {
+        showToast('拖曳讀取失敗');
+        addCheck('bad', '拖曳讀取失敗', err && err.message ? err.message : String(err));
+        openReport(true);
+      }
+    }
+
+    async function pasteFromClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text) return showToast('剪貼簿沒有文字內容');
+        resetProject();
+        editor.value = text;
+        fileInfo.textContent = '已從剪貼簿貼上';
+        projectInfo.textContent = '單一 HTML 模式';
+        saveDraft();
+        updateEditorVisuals();
+        await renderPreview({ silent: true, force: true });
+        showToast('已貼上並自動預覽');
+      } catch (_err) {
+        editor.focus();
+        showToast('瀏覽器未允許直接讀取剪貼簿，請手動 Ctrl/⌘ + V');
+      }
+    }
+
+    function clearAll() {
+      editor.value = '';
+      lastHTML = '';
+      hasPreview = false;
+      resetProject();
+      if (currentPreviewURL) URL.revokeObjectURL(currentPreviewURL);
+      currentPreviewURL = '';
+      frame.src = 'about:blank';
+      emptyState.classList.remove('hidden');
+      clearPanels();
+      closeReport();
+      fileInfo.textContent = '尚未載入檔案';
+      runInfo.textContent = '尚未預覽';
+      previewInfo.textContent = '等待 HTML 內容';
+      refreshBtn.disabled = true;
+      fullscreenBtn.disabled = true;
+      popoutBtn.disabled = true;
+      localStorage.removeItem(STORAGE_KEY);
+      updateEditorVisuals();
+      showToast('已清空');
+    }
+
+    function downloadCurrent() {
+      if (!editor.value.trim()) return showToast('目前沒有 HTML 內容');
+      const blob = new Blob([ensureDocument(editor.value || '')], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = entryPath ? entryPath.split('/').pop() : 'preview.html';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function openPopout() {
+      const now = Date.now();
+      if (now - lastPopoutAt < 900) return;
+      lastPopoutAt = now;
+      if (!editor.value.trim()) return showToast('目前沒有 HTML 內容');
+      try {
+        const html = await buildPreviewHTML();
+        if (currentPopoutURL) URL.revokeObjectURL(currentPopoutURL);
+        currentPopoutURL = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+        if (popoutWindow && !popoutWindow.closed) {
+          popoutWindow.location.href = currentPopoutURL;
+          popoutWindow.focus();
+        } else {
+          popoutWindow = window.open('about:blank', 'html_checker_single_popout');
+          if (!popoutWindow) return showToast('瀏覽器阻擋了新分頁，請允許彈出視窗');
+          popoutWindow.location.href = currentPopoutURL;
+          popoutWindow.focus();
+        }
+      } catch (err) {
+        showToast('無法開啟獨立預覽');
+      }
+    }
+
+    async function fullscreenPreview() {
+      try {
+        const target = $('previewStage');
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await target.requestFullscreen();
+      } catch (_err) {
+        showToast('瀏覽器未允許全螢幕，請確認是否由點擊觸發');
+      }
+    }
+
+    function applySplitWidth(percent) {
+      const clamped = Math.max(24, Math.min(74, percent));
+      document.documentElement.style.setProperty('--left-width', clamped + '%');
+      localStorage.setItem(SPLIT_KEY, String(clamped));
+    }
+
+    function startResize(event) {
+      if (window.matchMedia('(max-width: 900px)').matches) return;
+      event.preventDefault();
+      document.body.classList.add('resizing');
+      splitter.setPointerCapture?.(event.pointerId);
+      const move = (e) => {
+        const rect = workspace.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        applySplitWidth((x / rect.width) * 100);
+      };
+      const up = () => {
+        document.body.classList.remove('resizing');
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    }
+
+    $('pasteBtn').addEventListener('click', pasteFromClipboard);
+    $('pasteBtnMobile').addEventListener('click', pasteFromClipboard);
+    $('fileBtn').addEventListener('click', () => $('fileInput').click());
+    $('fileBtnMobile').addEventListener('click', () => $('fileInput').click());
+    $('folderBtn').addEventListener('click', () => $('folderInput').click());
+    $('clearBtn').addEventListener('click', clearAll);
+    $('clearBtnMobile').addEventListener('click', clearAll);
+    $('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (isZipFile(file)) await loadZipFile(file);
+      else await loadSingleFile(file);
+      e.target.value = '';
+    });
+    $('folderInput').addEventListener('change', (e) => {
+      loadFolderFiles(e.target.files || []);
+      e.target.value = '';
+    });
+    refreshBtn.addEventListener('click', () => renderPreview({ silent: false, force: true }));
+    popoutBtn.addEventListener('click', openPopout);
+    fullscreenBtn.addEventListener('click', fullscreenPreview);
+    $('downloadBtn').addEventListener('click', downloadCurrent);
+    $('toggleReportBtn').addEventListener('click', () => reportPanel.classList.contains('hidden') ? openReport(false) : closeReport());
+    $('closeReportBtn').addEventListener('click', closeReport);
+    splitter.addEventListener('pointerdown', startResize);
+
+    compatMode.addEventListener('change', () => {
+      localStorage.setItem(COMPAT_KEY, compatMode.checked ? '1' : '0');
+      if (hasPreview) renderPreview({ silent: true, force: true });
+    });
+
+    editor.addEventListener('input', () => {
+      saveDraft();
+      updateEditorVisuals();
+      if (projectFiles.size && entryPath && projectFiles.has(entryPath)) {
+        projectFiles.get(entryPath).text = editor.value;
+        projectFiles.get(entryPath).blob = new Blob([editor.value], { type: 'text/html' });
+      }
+      if (!editor.value.trim()) return;
+      schedulePreview();
+    });
+    editor.addEventListener('scroll', syncEditorScroll);
+    editor.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.slice(0, start) + '  ' + editor.value.slice(end);
+        editor.selectionStart = editor.selectionEnd = start + 2;
+        saveDraft();
+        updateEditorVisuals();
+        schedulePreview();
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        downloadCurrent();
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'enter') {
+        event.preventDefault();
+        renderPreview({ silent: false, force: true });
+      }
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.tab)));
+
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data || !data.__HTML_CHECKER__) return;
+      addLog(data.type, data.args || []);
+    });
+
+    ['dragenter', 'dragover'].forEach(type => {
+      window.addEventListener(type, (event) => {
+        if (!event.dataTransfer) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        if (type === 'dragenter') dragDepth++;
+        document.body.classList.add('dragging');
+      });
+    });
+    window.addEventListener('dragleave', (event) => {
+      event.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) document.body.classList.remove('dragging');
+    });
+    window.addEventListener('drop', handleDrop);
+
+    window.addEventListener('beforeunload', () => {
+      saveDraft();
+      if (currentPreviewURL) URL.revokeObjectURL(currentPreviewURL);
+      if (currentPopoutURL) URL.revokeObjectURL(currentPopoutURL);
+      clearObjectURLs();
+    });
+
+    const savedSplit = Number(localStorage.getItem(SPLIT_KEY));
+    if (Number.isFinite(savedSplit)) applySplitWidth(savedSplit);
+    const compatSaved = localStorage.getItem(COMPAT_KEY);
+    compatMode.checked = compatSaved === null ? true : compatSaved === '1';
+    const draft = localStorage.getItem(STORAGE_KEY) || '';
+    if (draft) {
+      editor.value = draft;
+      fileInfo.textContent = '已載入上次暫存';
+      projectInfo.textContent = '單一 HTML 模式';
+      updateEditorVisuals();
+      setTimeout(() => renderPreview({ silent: true, force: true }), 120);
+    } else {
+      updateEditorVisuals();
+      closeReport();
+    }
+    updateSandbox();
+  </script>
+</body>
+</html>
