@@ -345,7 +345,8 @@
   /* All direct children block pointer events so they don't bleed to the canvas */
   #ar-overlay > * { pointer-events: auto; }
   /* The AR instruction and coords are display-only — pass through */
-  #ar-instruction, #ar-coords { pointer-events: none; }
+  #ar-instruction { pointer-events: none; }
+  #ar-instruction.measure-active { pointer-events: auto; cursor: pointer; }
 
   .ar-hud-top {
     position: absolute;
@@ -1345,14 +1346,14 @@ const EXPERIENCES = [
     instruction: '後退讓全身入鏡<br>系統偵測骨骼姿態',
     hudLabel: '姿態',
     noXR: true,
-    tools: ['anatomy-capture', 'flip-cam']
+    tools: ['flip-cam', 'capture']
   },
   {
     id: 'colorscanner', num: '11', title: 'AR 色彩感測',
     desc: 'COLOR · 即時顏色辨識與採集',
     featured: false,
     tag: '相機',
-    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="10" fill="currentColor"/><circle cx="50" cy="50" r="22" fill="none" stroke-width="2" stroke-dasharray="4 3"/><rect x="20" y="75" width="14" height="14" rx="2" fill="#ff4444"/><rect x="37" y="75" width="14" height="14" rx="2" fill="#44aa44"/><rect x="54" y="75" width="14" height="14" rx="2" fill="#4444ff"/><rect x="71" y="75" width="14" height="14" rx="2" fill="#ff8c42"/></svg>`,
+    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="10" fill="currentColor"/><circle cx="50" cy="50" r="22" fill="none" stroke-width="2" stroke-dasharray="4 3"/><rect x="17" y="75" width="14" height="14" rx="2" fill="#ff4444"/><rect x="34" y="75" width="14" height="14" rx="2" fill="#44aa44"/><rect x="51" y="75" width="14" height="14" rx="2" fill="#4444ff"/><rect x="68" y="75" width="14" height="14" rx="2" fill="#ff8c42"/></svg>`,
     instruction: '將中心點對準任何顏色<br>點擊畫面採集',
     hudLabel: '採集',
     noXR: true,
@@ -1367,7 +1368,7 @@ const EXPERIENCES = [
     instruction: '將手機對準天空或螢幕<br>陀螺儀控制星圖視角',
     hudLabel: '星座',
     noXR: true,
-    tools: ['capture']
+    tools: ['starmap-cam', 'capture']
   },
   {
     id: 'shooter', num: '14', title: '空間射擊',
@@ -1826,13 +1827,23 @@ function initFallback() {
 
   // Drag vs click detection
   let pointerDownX = 0, pointerDownY = 0, dragging = false;
+  canvas.addEventListener('contextmenu', e => {
+    // Right-click in draw mode: allow view rotation without creating strokes
+    if (state.experience?.id === 'draw') e.preventDefault();
+  });
   canvas.addEventListener('pointerdown', (e) => {
     pointerDownX = e.clientX; pointerDownY = e.clientY;
     dragging = false;
     if (e.target !== canvas) return;
+    // Right-click (button=2): only orbit/pan, no drawing
+    if (e.button === 2) {
+      if (state.experience?.id === 'draw' && state.controls) {
+        state.controls.enabled = true; // let OrbitControls handle it
+      }
+      return;
+    }
     if (state.experience?.id === 'draw') {
-      if (state.drawMode === 'graffiti') startGraffitiStroke();
-      else onSelectStart();
+      onSelectStart();
     } else if (state.experience?.id === 'physics') {
       startPhysicsHold();
     } else {
@@ -1855,9 +1866,8 @@ function initFallback() {
     }
   });
   canvas.addEventListener('pointerup', (e) => {
-    if (state.experience?.id === 'draw' && state.drawMode === 'graffiti') {
-      endGraffitiStroke();
-    } else if (state.experience?.id === 'physics') {
+    if (e.button === 2) return; // right-click: no stroke action
+    if (state.experience?.id === 'physics') {
       releasePhysicsHold();
     } else {
       onSelectEnd();
@@ -2170,6 +2180,8 @@ function exitExperience() {
   const handCanvas = document.getElementById('hand-canvas');
   if (handCanvas) handCanvas.style.display = 'none';
   window._stopScanOverlay?.();
+  state._starmapCamMode = false;
+  const sc2 = $('#star-canvas'); if (sc2) sc2.style.background = '#000207';
 
   // Clean up shooter artefacts
   $('#shooter-intro')?.remove();
@@ -2414,6 +2426,44 @@ function buildToolbar(exp) {
         sqBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
         sqBtn.onclick = captureScreenshot;
         tb.appendChild(sqBtn);
+        return;
+      }
+      case 'starmap-cam': {
+        const camToggle = document.createElement('button');
+        camToggle.className = 'ar-tool';
+        camToggle.title = '切換相機底圖';
+        camToggle.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7l-4-4-4 4"/><circle cx="12" cy="14" r="3"/></svg>`;
+        camToggle.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        camToggle.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        camToggle.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 150));
+        camToggle.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 150));
+        camToggle.onclick = async () => {
+          state._starmapCamMode = !state._starmapCamMode;
+          camToggle.classList.toggle('selected', state._starmapCamMode);
+          const sc = $('#star-canvas');
+          if (state._starmapCamMode) {
+            // Start rear camera
+            try {
+              if (!_camStream) {
+                _camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+                _camVideo.srcObject = _camStream;
+                _camVideo.style.transform = 'none';
+                _camVideo.style.display = 'block';
+                await _camVideo.play();
+              }
+              // Make star canvas semi-transparent
+              sc.style.background = 'transparent';
+              toast('星空疊加相機畫面');
+            } catch(e) { toast('無法開啟相機'); state._starmapCamMode = false; camToggle.classList.remove('selected'); }
+          } else {
+            // Back to solid dark sky
+            if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
+            _camVideo.style.display = 'none';
+            sc.style.background = '#000207';
+            toast('深色天空模式');
+          }
+        };
+        tb.appendChild(camToggle);
         return;
       }
       case 'starmap-toggle':
@@ -3367,7 +3417,10 @@ function addMeasurePoint(pos) {
     state.measure.liveLine = liveLine;
     state.measure.liveDot = dot;
     state.scene.add(liveLine);
-    toast('第一點已標記，瞄準後點擊第二點');
+    toast('第一點已標記，移動瞄準後點擊第二點');
+    // Show tap-to-confirm hint in instruction text
+    $('#instruction-text').innerHTML = '移動手機瞄準終點<br>點擊畫面放置第二點';
+    $('#ar-instruction').classList.remove('hidden');
   } else if (state.measure.points.length === 2) {
     if (state.measure.liveLine) {
       state.scene.remove(state.measure.liveLine);
@@ -3418,6 +3471,7 @@ function addMeasurePoint(pos) {
 
     toast(`距離: ${(dist * 100).toFixed(1)} cm`);
     updateCounter();
+    $('#ar-instruction').classList.add('hidden');
   }
 }
 
@@ -3972,6 +4026,8 @@ function updatePhysics(dt) {
       b.userData.velocity.x *= rollingFriction;
       b.userData.velocity.z *= rollingFriction;
       b.userData.bounces++;
+      // Play bounce sound (scaled by impact velocity)
+      if (vy > 0.08) _sfx.bounce(vy);
 
       // Settle threshold — only rest when both vertical and horizontal are tiny
       const hSpeed = Math.sqrt(b.userData.velocity.x**2 + b.userData.velocity.z**2);
@@ -3980,6 +4036,8 @@ function updatePhysics(dt) {
         b.userData.resting = true;
       } else {
         b.userData.resting = false;
+        // Rolling sound — occasional soft thud when rolling slowly
+        if (vy < 0.15 && hSpeed > 0.05 && Math.random() < 0.04) _sfx.roll();
       }
     }
 
@@ -4279,6 +4337,7 @@ function fireShooterBullet() {
   bullet.userData = { velocity: forward.clone().multiplyScalar(18), life: 0, maxLife: 1.8 };
   state.scene.add(bullet);
   state.shooter.bullets.push(bullet);
+  _sfx.shoot();
 }
 
 function updateShooter(dt, t) {
@@ -4301,6 +4360,7 @@ function updateShooter(dt, t) {
     en.rotation.y += en.userData.rotSpeed * dt;
     if (en.position.distanceTo(playerPos) < 0.35) {
       state.scene.remove(en);
+      _sfx.playerHit();
       toast('💥 被擊中！');
       return false;
     }
@@ -4335,6 +4395,7 @@ function updateShooter(dt, t) {
         sh.score++;
         $('#hud-counter').textContent = sh.score;
         toast('🎯 擊中！ ' + sh.score);
+        _sfx.explode();
         state.scene.remove(b);
         return false;
       }
@@ -5108,24 +5169,42 @@ function captureScreenshot() {
     // For camera-mode (noXR) experiences, composite video + canvas overlay
     const isNoXR = state.experience?.noXR;
     if (isNoXR && _camVideo && _camVideo.readyState >= 2) {
+      const vw = _camVideo.videoWidth || window.innerWidth;
+      const vh = _camVideo.videoHeight || window.innerHeight;
       const out = document.createElement('canvas');
-      out.width = _camVideo.videoWidth || window.innerWidth;
-      out.height = _camVideo.videoHeight || window.innerHeight;
+      out.width = vw; out.height = vh;
       const outCtx = out.getContext('2d');
 
       // Draw video (mirror if front cam)
       if (_camVideo.style.transform.includes('scaleX(-1)')) {
-        outCtx.save();
-        outCtx.scale(-1, 1);
-        outCtx.drawImage(_camVideo, -out.width, 0, out.width, out.height);
+        outCtx.save(); outCtx.scale(-1, 1);
+        outCtx.drawImage(_camVideo, -vw, 0, vw, vh);
         outCtx.restore();
       } else {
-        outCtx.drawImage(_camVideo, 0, 0, out.width, out.height);
+        outCtx.drawImage(_camVideo, 0, 0, vw, vh);
       }
 
-      // Draw cam-canvas overlay (skeleton, color info, etc.) scaled to match
-      if (_camCanvas && _camCanvas.width > 0) {
-        outCtx.drawImage(_camCanvas, 0, 0, out.width, out.height);
+      // Redraw color overlay directly at video resolution (avoid stretching)
+      if (state.experience.id === 'colorscanner') {
+        // Re-sample center color at this moment and draw info panel at correct scale
+        const cx2 = Math.round(vw / 2), cy2 = Math.round(vh / 2);
+        const sr = 8;
+        const tmpC = document.createElement('canvas'); tmpC.width = sr*2; tmpC.height = sr*2;
+        const tmpX = tmpC.getContext('2d'); tmpX.drawImage(_camVideo, cx2-sr, cy2-sr, sr*2, sr*2, 0, 0, sr*2, sr*2);
+        const pix = tmpX.getImageData(sr, sr, 1, 1).data;
+        const hexS = `#${[pix[0],pix[1],pix[2]].map(v=>v.toString(16).padStart(2,'0')).join('')}`;
+        // Draw crosshair ring
+        outCtx.strokeStyle = hexS; outCtx.lineWidth = 3;
+        outCtx.beginPath(); outCtx.arc(vw/2, vh/2, 36*(vw/window.innerWidth), 0, Math.PI*2); outCtx.stroke();
+        // Colour swatch panel
+        const pw = 200*(vw/window.innerWidth), ph = 100*(vh/window.innerHeight);
+        outCtx.fillStyle = hexS; outCtx.fillRect(vw/2-pw/2, vh/2+50, pw, 40);
+        outCtx.fillStyle = 'rgba(10,10,11,0.88)'; outCtx.fillRect(vw/2-pw/2, vh/2+90, pw, ph-40);
+        outCtx.fillStyle = '#fff'; outCtx.font = `bold ${Math.round(14*vw/window.innerWidth)}px monospace`;
+        outCtx.textAlign = 'center'; outCtx.fillText(hexS.toUpperCase(), vw/2, vh/2+66);
+      } else if (_camCanvas && _camCanvas.width > 0) {
+        // Other noXR: draw canvas overlay scaled to video dimensions
+        outCtx.drawImage(_camCanvas, 0, 0, vw, vh);
       }
 
       const a = document.createElement('a');
@@ -5139,6 +5218,32 @@ function captureScreenshot() {
     // WebXR / 3D mode: render scene then grab canvas
     if (state.renderer) {
       state.renderer.render(state.scene, state.camera);
+    }
+
+    // Star map: capture the 2D star canvas (+ camera feed if overlay active)
+    if (state.experience?.id === 'starmap') {
+      const sc = $('#star-canvas');
+      if (!sc) { toast('截圖失敗', true); return; }
+      const out = document.createElement('canvas');
+      out.width = sc.width || window.innerWidth;
+      out.height = sc.height || window.innerHeight;
+      const outCtx = out.getContext('2d');
+      // If camera overlay active, draw camera first
+      if (state._starmapCamMode && _camVideo && _camVideo.readyState >= 2) {
+        outCtx.drawImage(_camVideo, 0, 0, out.width, out.height);
+      } else {
+        outCtx.fillStyle = '#000207'; outCtx.fillRect(0, 0, out.width, out.height);
+      }
+      outCtx.drawImage(sc, 0, 0, out.width, out.height);
+      const a = document.createElement('a');
+      a.download = `xr-lab-starmap-${Date.now()}.png`;
+      a.href = out.toDataURL('image/png');
+      a.click();
+      toast('截圖已儲存');
+      return;
+    }
+
+    if (state.renderer) {
       const a = document.createElement('a');
       a.download = `xr-lab-${state.experience.id}-${Date.now()}.png`;
       a.href = state.canvas.toDataURL('image/png');
@@ -5982,15 +6087,17 @@ function _renderStarMap() {
   const ctx = sc.getContext('2d');
   const w = sc.width, h = sc.height;
 
-  // Draw sky gradient
-  const grad = ctx.createRadialGradient(w/2,h/2,0, w/2,h/2,Math.max(w,h)*0.7);
-  grad.addColorStop(0, '#0c0f2a'); grad.addColorStop(1, '#000207');
-  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
-
-  // Milky way band (simplified)
-  const mwGrad = ctx.createLinearGradient(0,0,w,h);
-  mwGrad.addColorStop(0,'rgba(100,120,200,0)'); mwGrad.addColorStop(0.4,'rgba(100,120,200,0.06)'); mwGrad.addColorStop(0.6,'rgba(100,120,200,0.08)'); mwGrad.addColorStop(1,'rgba(100,120,200,0)');
-  ctx.fillStyle = mwGrad; ctx.fillRect(0,0,w,h);
+  // Draw sky gradient (skip if camera overlay active — camera feed shows through)
+  if (!state._starmapCamMode) {
+    const grad = ctx.createRadialGradient(w/2,h/2,0, w/2,h/2,Math.max(w,h)*0.7);
+    grad.addColorStop(0, '#0c0f2a'); grad.addColorStop(1, '#000207');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+    const mwGrad = ctx.createLinearGradient(0,0,w,h);
+    mwGrad.addColorStop(0,'rgba(100,120,200,0)'); mwGrad.addColorStop(0.4,'rgba(100,120,200,0.06)'); mwGrad.addColorStop(0.6,'rgba(100,120,200,0.08)'); mwGrad.addColorStop(1,'rgba(100,120,200,0)');
+    ctx.fillStyle = mwGrad; ctx.fillRect(0,0,w,h);
+  } else {
+    ctx.clearRect(0, 0, w, h);
+  }
 
   const fov = 90; // field of view in degrees
   const yaw = (state._starYaw || 0) * Math.PI / 180;
@@ -6682,7 +6789,101 @@ window.addEventListener('pageshow', (e) => {
   if (app && !state.inSession) { app.style.overflowY = 'auto'; }
 });
 
-// ─── Settings & Fullscreen buttons ───────────────────────
+// ─── Sound Effects (Web Audio API) ───────────────────────
+const _sfx = (() => {
+  let ctx = null;
+  const getCtx = () => {
+    if (!ctx) {
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    }
+    if (ctx?.state === 'suspended') ctx.resume();
+    return ctx;
+  };
+
+  const play = (fn) => { try { const c = getCtx(); if (c) fn(c); } catch(e) {} };
+
+  return {
+    // Physics: ball bounce
+    bounce(velocity = 1) {
+      play(c => {
+        const freq = 180 + Math.random() * 120;
+        const vol = Math.min(0.4, velocity * 0.12);
+        const o = c.createOscillator(), g = c.createGain();
+        o.connect(g); g.connect(c.destination);
+        o.type = 'sine'; o.frequency.setValueAtTime(freq, c.currentTime);
+        o.frequency.exponentialRampToValueAtTime(freq * 0.4, c.currentTime + 0.12);
+        g.gain.setValueAtTime(vol, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.18);
+        o.start(); o.stop(c.currentTime + 0.2);
+      });
+    },
+
+    // Physics: ball roll (soft thud)
+    roll() {
+      play(c => {
+        const buf = c.createBuffer(1, c.sampleRate * 0.08, c.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * (1 - i/data.length) * 0.15;
+        const src = c.createBufferSource(), g = c.createGain();
+        const filt = c.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 300;
+        src.buffer = buf; src.connect(filt); filt.connect(g); g.connect(c.destination);
+        g.gain.setValueAtTime(0.3, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.1);
+        src.start();
+      });
+    },
+
+    // Shooter: fire
+    shoot() {
+      play(c => {
+        const o = c.createOscillator(), g = c.createGain();
+        const dist = c.createWaveShaper();
+        const curve = new Float32Array(256);
+        for (let i = 0; i < 256; i++) { const x = i*2/256-1; curve[i] = (Math.PI+400)*x/(Math.PI+400*Math.abs(x)); }
+        dist.curve = curve;
+        o.connect(dist); dist.connect(g); g.connect(c.destination);
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(280, c.currentTime);
+        o.frequency.exponentialRampToValueAtTime(60, c.currentTime + 0.12);
+        g.gain.setValueAtTime(0.25, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15);
+        o.start(); o.stop(c.currentTime + 0.18);
+      });
+    },
+
+    // Shooter: enemy hit / explosion
+    explode() {
+      play(c => {
+        const buf = c.createBuffer(1, c.sampleRate * 0.25, c.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 1.5);
+        const src = c.createBufferSource(), g = c.createGain();
+        const filt = c.createBiquadFilter();
+        filt.type = 'bandpass'; filt.frequency.value = 180; filt.Q.value = 0.8;
+        src.buffer = buf; src.connect(filt); filt.connect(g); g.connect(c.destination);
+        g.gain.setValueAtTime(0.45, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.28);
+        src.start();
+      });
+    },
+
+    // Shooter: enemy miss (player hit)
+    playerHit() {
+      play(c => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.connect(g); g.connect(c.destination);
+        o.type = 'square'; o.frequency.setValueAtTime(120, c.currentTime);
+        o.frequency.setValueAtTime(80, c.currentTime + 0.06);
+        g.gain.setValueAtTime(0.3, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
+        o.start(); o.stop(c.currentTime + 0.22);
+      });
+    },
+  };
+})();
+
+// ─── Wire SFX into physics ────────────────────────────────
 (function() {
   // Settings
   const settingsBtn = $('#settings-btn');
