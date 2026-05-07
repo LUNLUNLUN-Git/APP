@@ -1036,6 +1036,15 @@
       <div class="status">
         <div class="status-row"><span id="status-text">偵測中...</span><span id="status-dot" class="status-dot"></span></div>
         <div style="margin-top: 4px;" id="status-detail">裝置掃描</div>
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+          <button id="settings-btn" title="設定" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.55);width:26px;height:26px;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
+          </button>
+          <button id="fullscreen-btn" title="全螢幕" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.55);width:26px;height:26px;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;">
+            <svg id="fs-icon-expand" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5"/></svg>
+            <svg id="fs-icon-compress" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M6 1v5H1M10 1v5h5M1 10h5v5M10 10h5v5"/></svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="hero">
@@ -1074,6 +1083,26 @@
     <div>XR.LAB // 2026.04</div>
     <div>WEBXR · THREE.JS</div>
   </footer>
+</div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" style="display:none;position:fixed;top:0;right:0;width:240px;background:rgba(16,16,18,0.97);border:1px solid rgba(255,255,255,0.12);border-top:none;border-right:none;z-index:700;padding:16px;font-family:var(--mono);font-size:10px;color:var(--text-dim);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <span style="color:var(--amber);letter-spacing:.08em;">// 設定</span>
+    <button id="settings-close" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0;">✕</button>
+  </div>
+  <div style="margin-bottom:10px;color:rgba(255,255,255,0.35);letter-spacing:.06em;">相機解析度</div>
+  <div style="display:flex;flex-direction:column;gap:6px;" id="res-options">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+      <input type="radio" name="cam-res" value="original" style="accent-color:var(--amber);" checked> 原始（自動）
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+      <input type="radio" name="cam-res" value="medium" style="accent-color:var(--amber);"> 中（1280×720）
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+      <input type="radio" name="cam-res" value="low" style="accent-color:var(--amber);"> 低（640×480）
+    </label>
+  </div>
 </div>
 
 <!-- ==================== AR OVERLAY ==================== -->
@@ -1140,7 +1169,7 @@
 </div>
 
 <!-- Camera-mode elements (no WebXR) -->
-<canvas id="scan-overlay" style="position:fixed;inset:0;width:100%;height:100%;z-index:99;pointer-events:none;display:none;"></canvas>
+<canvas id="scan-overlay" style="position:fixed;inset:0;width:100%;height:100%;z-index:150;pointer-events:none;display:none;"></canvas>
 <video id="cam-video" autoplay playsinline muted></video>
 <canvas id="cam-canvas"></canvas>
 <canvas id="star-canvas"></canvas>
@@ -1305,7 +1334,7 @@ const EXPERIENCES = [
     instruction: '將臉部對準攝影機<br>系統自動辨識臉部骨架',
     hudLabel: '偵測',
     noXR: true,
-    tools: ['face-upload', 'capture']
+    tools: ['face-upload', 'flip-cam', 'capture']
   },
   {
     id: 'anatomy', num: '10', title: 'AR 骨架辨識',
@@ -1316,7 +1345,7 @@ const EXPERIENCES = [
     instruction: '後退讓全身入鏡<br>系統偵測骨骼姿態',
     hudLabel: '姿態',
     noXR: true,
-    tools: ['anatomy-capture']
+    tools: ['anatomy-capture', 'flip-cam']
   },
   {
     id: 'colorscanner', num: '11', title: 'AR 色彩感測',
@@ -2072,7 +2101,7 @@ function renderLoop(timestamp, frame) {
 // --------- On select ---------
 function onSelect() {
   if (!state.experience) return;
-  if (state.uiBlocked) return;
+  if (state.uiBlocked || state._uploadInProgress) return;
 
   let pos = new THREE.Vector3();
   let quat = new THREE.Quaternion();
@@ -2343,6 +2372,36 @@ function buildToolbar(exp) {
           toast(state._anatomyMode === 'xray' ? 'X光模式' : '骨骼模式');
         };
         break;
+      case 'flip-cam': {
+        const flipBtn = document.createElement('button');
+        flipBtn.className = 'ar-tool';
+        flipBtn.title = '翻轉鏡頭';
+        flipBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>`;
+        flipBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        flipBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        flipBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 200));
+        flipBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 200));
+        flipBtn.onclick = async () => {
+          // Toggle front/back camera
+          if (!_camStream) return;
+          const currentTrack = _camStream.getVideoTracks()[0];
+          const currentFacing = currentTrack?.getSettings?.()?.facingMode || 'user';
+          const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+          if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
+          try {
+            _camStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: newFacing, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false
+            });
+            _camVideo.srcObject = _camStream;
+            const isDesktop2 = !('ontouchstart' in window) && window.innerWidth > 900;
+            _camVideo.style.transform = (newFacing === 'user' && !isDesktop2) ? 'scaleX(-1)' : 'none';
+            await _camVideo.play();
+            toast(newFacing === 'user' ? '前置鏡頭' : '後置鏡頭');
+          } catch(e) { toast('鏡頭切換失敗'); }
+        };
+        tb.appendChild(flipBtn);
+        return;
+      }
       case 'anatomy-capture':
       case 'starmap-capture': {
         // Large square shutter button — centered in bottom bar
@@ -2363,53 +2422,10 @@ function buildToolbar(exp) {
         btn.onclick = () => toast('轉動手機瀏覽星空 · 橘色標記：北');
         break;
       case 'draw-mode-toggle': {
-        const pair = document.createElement('div');
-        pair.className = 'toggle-pair';
-        pair.style.flexShrink = '0';
-
-        const btn3d = document.createElement('button');
-        btn3d.className = 'ar-tool ' + (state.drawMode === '3d' ? 'selected' : '');
-        btn3d.title = '3D 空中繪畫';
-        btn3d.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M3 18 Q8 8 12 12 T21 6"/></svg>`;
-
-        const btnGrf = document.createElement('button');
-        btnGrf.className = 'ar-tool ' + (state.drawMode === 'graffiti' ? 'selected' : '');
-        btnGrf.title = 'AR 塗鴉';
-        btnGrf.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M4 19 Q9 10 14 14 T21 5" stroke-width="2.5"/><path d="M3 21 h4" stroke-width="1.5"/></svg>`;
-
-        const switchMode = (mode, activeBtn, otherBtn) => {
-          state.drawMode = mode;
-          activeBtn.classList.add('selected');
-          otherBtn.classList.remove('selected');
-          const thickTool = $('[data-tool="thickness"]');
-          const brushTool = $('[data-tool="brush"]');
-          const text3dRow = $('#text3d-row');
-          if (mode === '3d') {
-            if (thickTool) thickTool.style.display = '';
-            if (brushTool) brushTool.style.display = 'none';
-            if (text3dRow) text3dRow.style.display = 'flex';
-            $('#instruction-text').innerHTML = '按住螢幕移動手機在空中繪製<br>鬆開完成一筆';
-          } else {
-            if (thickTool) thickTool.style.display = 'none';
-            if (brushTool) brushTool.style.display = '';
-            if (text3dRow) text3dRow.style.display = 'none';
-            $('#instruction-text').innerHTML = '按住畫面移動在AR平面塗鴉<br>鬆開結束筆畫';
-          }
-          toast(mode === '3d' ? '3D 空中繪畫模式' : 'AR 平面塗鴉模式');
-        };
-
-        [btn3d, btnGrf].forEach(b => {
-          b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-          b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        });
-        btn3d.onclick = () => switchMode('3d', btn3d, btnGrf);
-        btnGrf.onclick = () => switchMode('graffiti', btnGrf, btn3d);
-
-        pair.appendChild(btn3d);
-        pair.appendChild(btnGrf);
-        tb.appendChild(pair);
+        // Only 3D mode remains — no graffiti toggle button needed
+        state.drawMode = '3d';
+        const text3dRow = $('#text3d-row');
+        if (text3dRow) text3dRow.style.display = 'flex';
         return;
       }
         btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 00-4 0v5M14 10V4a2 2 0 00-4 0v6M10 10.5V6a2 2 0 00-4 0v8.5M6 14v-2M18 14a4 4 0 01-4 4H8a4 4 0 01-4-4v-2"/></svg>`;
@@ -2973,8 +2989,8 @@ let _modelFileInput = null;
 let _imageFileInput = null;
 
 function triggerModelUpload(expId) {
-  // Block AR canvas interaction before AND after file picker
   state.uiBlocked = true;
+  state._uploadInProgress = true; // extra flag to block XR select
 
   if (!_modelFileInput) {
     _modelFileInput = document.createElement('input');
@@ -2985,47 +3001,37 @@ function triggerModelUpload(expId) {
   }
 
   const oldInput = _modelFileInput;
+  const clearBlock = () => {
+    setTimeout(() => { state.uiBlocked = false; state._uploadInProgress = false; }, 1000);
+  };
+
   const newHandler = (e) => {
     oldInput.removeEventListener('change', newHandler);
     const file = e.target.files?.[0];
     oldInput.value = '';
-
-    // Keep uiBlocked true long enough to swallow the XR selectend that fires on return
-    setTimeout(() => { state.uiBlocked = false; }, 800);
-
+    clearBlock();
     if (!file) {
       state.uploadMode = 'shape';
       state.customModel = null;
-      const shapeToggle = $('[data-tool="shape"]');
-      if (shapeToggle) shapeToggle.classList.add('selected');
-      const modelToggle = $('[data-tool="upload"]');
-      if (modelToggle) modelToggle.classList.remove('selected');
+      $('[data-tool="shape"]')?.classList.add('selected');
+      $('[data-tool="upload"]')?.classList.remove('selected');
       buildShapeSubToolbar();
       return;
     }
-
     const isImage = /\.(jpe?g|png|webp)$/i.test(file.name);
-    if (isImage) {
-      _loadImageFile(file, expId);
-    } else {
-      _loadGLTFFile(file, expId);
-    }
+    if (isImage) _loadImageFile(file, expId);
+    else _loadGLTFFile(file, expId);
   };
-  _modelFileInput.addEventListener('change', newHandler);
+  oldInput.addEventListener('change', newHandler);
 
-  // Also handle cancel (focus returns to page without change event on some browsers)
+  // Handle cancel — when user returns without selecting
   const onFocus = () => {
     window.removeEventListener('focus', onFocus);
-    setTimeout(() => {
-      if (state.uiBlocked) setTimeout(() => { state.uiBlocked = false; }, 800);
-    }, 400);
+    setTimeout(clearBlock, 600);
   };
   window.addEventListener('focus', onFocus, { once: true });
 
-  // Slight delay ensures the touch event that opened the picker has fully resolved
-  setTimeout(() => {
-    _modelFileInput.click();
-  }, 50);
+  setTimeout(() => { _modelFileInput.click(); }, 50);
 }
 
 function _loadGLTFFile(file, expId) {
@@ -4261,14 +4267,16 @@ function spawnShooterEnemy() {
 
 function fireShooterBullet() {
   if (!state.shooter?.active || !state.shooter?.started) return;
-  const { quat: camQuat } = getCameraPose();
+  const { pos: camPos, quat: camQuat } = getCameraPose();
+  // Always fire from exact screen center (camera forward direction)
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+  const origin = camPos.clone().addScaledVector(forward, 0.3);
   const bullet = new THREE.Mesh(
     new THREE.SphereGeometry(0.04, 5, 3),
     new THREE.MeshBasicMaterial({ color: 0xffd080, toneMapped: false })
   );
-  bullet.position.addScaledVector(forward, 0.5);
-  bullet.userData = { velocity: forward.clone().multiplyScalar(16), life: 0, maxLife: 1.8 };
+  bullet.position.copy(origin);
+  bullet.userData = { velocity: forward.clone().multiplyScalar(18), life: 0, maxLife: 1.8 };
   state.scene.add(bullet);
   state.shooter.bullets.push(bullet);
 }
@@ -5093,20 +5101,50 @@ async function resetSpatialAnchor() {
   }
 }
 function captureScreenshot() {
-  if (!state.renderer) return;
   try {
     $('#flash').classList.add('active');
     setTimeout(() => $('#flash').classList.remove('active'), 400);
 
-    // Force render before toDataURL
-    state.renderer.render(state.scene, state.camera);
-    const dataURL = state.canvas.toDataURL('image/png');
+    // For camera-mode (noXR) experiences, composite video + canvas overlay
+    const isNoXR = state.experience?.noXR;
+    if (isNoXR && _camVideo && _camVideo.readyState >= 2) {
+      const out = document.createElement('canvas');
+      out.width = _camVideo.videoWidth || window.innerWidth;
+      out.height = _camVideo.videoHeight || window.innerHeight;
+      const outCtx = out.getContext('2d');
 
-    const a = document.createElement('a');
-    a.download = `xr-lab-${state.experience.id}-${Date.now()}.png`;
-    a.href = dataURL;
-    a.click();
-    toast('截圖已儲存');
+      // Draw video (mirror if front cam)
+      if (_camVideo.style.transform.includes('scaleX(-1)')) {
+        outCtx.save();
+        outCtx.scale(-1, 1);
+        outCtx.drawImage(_camVideo, -out.width, 0, out.width, out.height);
+        outCtx.restore();
+      } else {
+        outCtx.drawImage(_camVideo, 0, 0, out.width, out.height);
+      }
+
+      // Draw cam-canvas overlay (skeleton, color info, etc.) scaled to match
+      if (_camCanvas && _camCanvas.width > 0) {
+        outCtx.drawImage(_camCanvas, 0, 0, out.width, out.height);
+      }
+
+      const a = document.createElement('a');
+      a.download = `xr-lab-${state.experience.id}-${Date.now()}.png`;
+      a.href = out.toDataURL('image/png');
+      a.click();
+      toast('截圖已儲存');
+      return;
+    }
+
+    // WebXR / 3D mode: render scene then grab canvas
+    if (state.renderer) {
+      state.renderer.render(state.scene, state.camera);
+      const a = document.createElement('a');
+      a.download = `xr-lab-${state.experience.id}-${Date.now()}.png`;
+      a.href = state.canvas.toDataURL('image/png');
+      a.click();
+      toast('截圖已儲存');
+    }
   } catch (e) {
     toast('截圖失敗: ' + e.message, true);
   }
@@ -5224,11 +5262,14 @@ async function initCameraMode(exp) {
 
   const wantFront = (exp.id === 'emotion' || exp.id === 'anatomy' || exp.id === 'coach');
   const isDesktop = !('ontouchstart' in window) && window.innerWidth > 900;
+  const res = state._camResolution || 'original';
+  const resMap = { original: null, medium: { width: 1280, height: 720 }, low: { width: 640, height: 480 } };
+  const resConstraint = resMap[res];
 
   let constraints = {
     video: isDesktop
-      ? { width: { ideal: 1280 }, height: { ideal: 720 } }
-      : { facingMode: wantFront ? 'user' : 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      ? (resConstraint ? { width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } } : { width: { ideal: 1280 }, height: { ideal: 720 } })
+      : { facingMode: wantFront ? 'user' : 'environment', ...(resConstraint ? { width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } } : { width: { ideal: 640 }, height: { ideal: 480 } }) },
     audio: false
   };
 
@@ -5247,6 +5288,7 @@ async function initCameraMode(exp) {
   await _camVideo.play();
 
   _camCanvas.style.display = 'block';
+  // Set once, not every frame
   _camCanvas.width  = window.innerWidth;
   _camCanvas.height = window.innerHeight;
 }
@@ -5519,7 +5561,9 @@ function onFaceMeshResults(results) {
 
   const lm = results.multiFaceLandmarks[0];
   const w = _camCanvas.width, h = _camCanvas.height;
-  const px = i => lm[i].x * w;
+  // Mirror X to match video scaleX(-1) applied on mobile front camera
+  const isMirror = _camVideo.style.transform.includes('scaleX(-1)');
+  const px = i => isMirror ? (w - lm[i].x * w) : lm[i].x * w;
   const py = i => lm[i].y * h;
 
   // Draw skeleton lines
@@ -5611,7 +5655,10 @@ function initColorScanner() {
   function colorFrame() {
     if (state.experience?.id !== 'colorscanner') return;
     state._visionRAF = requestAnimationFrame(colorFrame);
-    _camCanvas.width = window.innerWidth; _camCanvas.height = window.innerHeight;
+    // Only resize if needed
+    if (_camCanvas.width !== window.innerWidth || _camCanvas.height !== window.innerHeight) {
+      _camCanvas.width = window.innerWidth; _camCanvas.height = window.innerHeight;
+    }
     _camCtx.clearRect(0, 0, _camCanvas.width, _camCanvas.height);
     const { r, g, b } = sampleCenter();
     const hex = rgbToHex(r, g, b);
@@ -5727,21 +5774,7 @@ function initColorScanner() {
     return '// 未知 UNKNOWN';
   }
   colorFrame();
-
-  // Tap to collect
-  const collectFn = () => {
-    if (state.experience?.id !== 'colorscanner' || state.uiBlocked) return;
-    const { r, g, b } = sampleCenter();
-    const hex = rgbToHex(r, g, b);
-    state._colorSwatches = (state._colorSwatches || []).slice(-7); // keep last 8
-    state._colorSwatches.push(hex);
-    renderSwatches();
-    $('#hud-counter').textContent = state._colorSwatches.length;
-    toast('已採集 ' + hex.toUpperCase());
-  };
-  $('#ar-overlay').addEventListener('touchend', collectFn, { passive: true });
-  state._colorCollectFn = collectFn;
-  toast('對準顏色，點擊採集');
+  toast('對準中心感測色彩，按拍照儲存');
 }
 
 function renderSwatches() {
@@ -5796,7 +5829,8 @@ function onPoseResults(results) {
   if (!results.poseLandmarks) return;
   const lm = results.poseLandmarks;
   const w = _camCanvas.width, h = _camCanvas.height;
-  const x = i => lm[i].x * w; // no mirror - match camera feed direction
+  const isMirrorP = _camVideo.style.transform.includes('scaleX(-1)');
+  const x = i => isMirrorP ? (w - lm[i].x * w) : lm[i].x * w;
   const y = i => lm[i].y * h;
   const z = i => lm[i].visibility || 0;
 
@@ -5919,19 +5953,24 @@ function initStarMap() {
 
 function _onStarOrientation(e) {
   if (e.beta === null || e.gamma === null) return;
-  // alpha = compass heading (0-360), beta = front-back tilt (-180..180), gamma = left-right tilt (-90..90)
   const alpha = (e.alpha || 0);
   const beta  = e.beta  || 0;
-  const gamma = e.gamma || 0;
 
-  // Yaw: use compass heading (alpha), converted so 0=North
-  state._starYaw = alpha;
+  // Yaw: smooth compass heading (handle 0/360 wraparound)
+  const rawYaw = alpha;
+  let prevYaw = state._starYaw || 0;
+  // Unwrap yaw to avoid 360→0 jumps
+  let diff = rawYaw - prevYaw;
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  state._starYaw = prevYaw + diff * 0.12; // low-pass smooth
 
-  // Pitch: when phone is held flat (beta≈0) we're looking straight up (pitch=90)
-  // when phone is upright (beta≈90) we're looking at horizon (pitch=0)
-  // beta 0 → pitch 90, beta 90 → pitch 0, beta 180 → pitch -90
-  const pitchDeg = 90 - beta;
-  state._starPitch = Math.max(-85, Math.min(85, pitchDeg));
+  // Pitch: beta 0°=flat/up, 90°=upright/horizon
+  const rawPitch = 90 - beta;
+  const prevPitch = state._starPitch || 70;
+  // Smooth pitch transitions to prevent jumping
+  state._starPitch = prevPitch + (rawPitch - prevPitch) * 0.1;
+  state._starPitch = Math.max(-85, Math.min(85, state._starPitch));
 }
 
 function _renderStarMap() {
@@ -6391,7 +6430,7 @@ async function writeText3D(text) {
   for (const tube of gen) {
     state.scene.add(tube);
     allTubes.push(tube);
-    await new Promise(r => setTimeout(r, 50)); // animate stroke-by-stroke
+    await new Promise(r => setTimeout(r, 100)); // slower animate stroke-by-stroke
   }
   allTubes.forEach(t => state.drawing.strokes.push(t));
   updateCounter();
@@ -6414,6 +6453,14 @@ function _initText3DRow() {
   });
   send.addEventListener('touchend', e => { e.stopPropagation(); });
   inp?.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+  inp?.addEventListener('focus', () => {
+    state.uiBlocked = true;
+    // On mobile: scroll the input row into view so keyboard doesn't cover it
+    setTimeout(() => {
+      const row = $('#text3d-row');
+      if (row) row.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
+    }, 350);
+  });
   inp?.addEventListener('blur', () => setTimeout(() => { state.uiBlocked = false; }, 200));
 }
 _initText3DRow();
@@ -6443,8 +6490,11 @@ _initText3DRow();
   function drawFrame() {
     if (canvas.style.display === 'none') { raf = null; return; }
     raf = requestAnimationFrame(drawFrame);
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // Only resize if window dimensions changed
+    if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
     const ctx2 = canvas.getContext('2d');
     ctx2.clearRect(0, 0, canvas.width, canvas.height);
     const t = Date.now() * 0.001;
@@ -6617,6 +6667,61 @@ _initText3DRow();
   window.addEventListener('resize', resize);
   resize();
   requestAnimationFrame(draw);
+})();
+
+// ─── Restore homepage scroll after tab switch ────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !state.inSession && !state.experience) {
+    const app = document.getElementById('app');
+    if (app) { app.style.overflowY = 'auto'; app.style.touchAction = ''; }
+  }
+});
+// Also restore on pageshow (iOS back/forward cache)
+window.addEventListener('pageshow', (e) => {
+  const app = document.getElementById('app');
+  if (app && !state.inSession) { app.style.overflowY = 'auto'; }
+});
+
+// ─── Settings & Fullscreen buttons ───────────────────────
+(function() {
+  // Settings
+  const settingsBtn = $('#settings-btn');
+  const modal = $('#settings-modal');
+  const closeBtn = $('#settings-close');
+  if (settingsBtn && modal) {
+    settingsBtn.addEventListener('click', () => {
+      modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
+    });
+    closeBtn?.addEventListener('click', () => { modal.style.display = 'none'; });
+    document.addEventListener('click', (e) => {
+      if (modal.style.display !== 'none' && !modal.contains(e.target) && e.target !== settingsBtn) {
+        modal.style.display = 'none';
+      }
+    });
+    // Camera resolution setting
+    document.querySelectorAll('input[name="cam-res"]').forEach(r => {
+      r.addEventListener('change', () => { state._camResolution = r.value; });
+    });
+  }
+
+  // Fullscreen
+  const fsBtn = $('#fullscreen-btn');
+  const fsExpand = $('#fs-icon-expand');
+  const fsCompress = $('#fs-icon-compress');
+  if (fsBtn) {
+    fsBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      const inFs = !!document.fullscreenElement;
+      if (fsExpand) fsExpand.style.display = inFs ? 'none' : '';
+      if (fsCompress) fsCompress.style.display = inFs ? '' : 'none';
+    });
+  }
 })();
 
 // --------- Boot ---------
