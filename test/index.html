@@ -6,7 +6,8 @@
 <meta name="theme-color" content="#0a0a0b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>AR.LAB // Spatial Playground</title>
+<title>XR.LAB // Spatial Playground</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230a0a0b'/%3E%3Cg stroke='%23ff8c42' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 24 L32 16 L44 24 L44 40 L32 48 L20 40 Z'/%3E%3Cpath d='M20 24 L20 40'/%3E%3Cpath d='M32 16 L32 32'/%3E%3Cpath d='M44 24 L44 40'/%3E%3Cpath d='M20 32 L44 32'/%3E%3Ccircle cx='32' cy='32' r='3' fill='%23ff8c42'/%3E%3C/g%3E%3Ctext x='32' y='58' font-family='monospace' font-size='8' fill='%235eead4' text-anchor='middle' letter-spacing='1'%3EXR%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -1029,7 +1030,7 @@
       <div class="logo">
         <div class="logo-mark">
           <span class="logo-dot"></span>
-          <span class="logo-text">AR.LAB</span>
+          <span class="logo-text">XR.LAB</span>
         </div>
       </div>
       <div class="status">
@@ -1044,7 +1045,7 @@
     </div>
 
     <!-- Interactive sidebar widget -->
-    <canvas id="sidebar-canvas" style="display:none;width:100%;aspect-ratio:1/1.1;max-width:290px;margin-top:48px;cursor:crosshair;background:transparent;"></canvas>
+    <canvas id="sidebar-canvas" style="display:none;width:100%;aspect-ratio:1/1;max-width:320px;margin-top:38px;cursor:crosshair;background:transparent;"></canvas>
   </header>
 
   <main>
@@ -1070,7 +1071,7 @@
   </main>
 
   <footer>
-    <div>AR.LAB // 2026.04</div>
+    <div>XR.LAB // 2026.04</div>
     <div>WEBXR · THREE.JS</div>
   </footer>
 </div>
@@ -1225,7 +1226,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /* ===========================================================
-   AR LAB — Spatial Playground
+   XR LAB — Spatial Playground
    WebXR + Three.js multi-experience AR system
    =========================================================== */
 
@@ -5102,7 +5103,7 @@ function captureScreenshot() {
     const dataURL = state.canvas.toDataURL('image/png');
 
     const a = document.createElement('a');
-    a.download = `ar-lab-${state.experience.id}-${Date.now()}.png`;
+    a.download = `xr-lab-${state.experience.id}-${Date.now()}.png`;
     a.href = dataURL;
     a.click();
     toast('截圖已儲存');
