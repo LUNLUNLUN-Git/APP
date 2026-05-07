@@ -1624,8 +1624,7 @@ async function launchExperience(exp) {
       if (lightBtn) lightBtn.style.display = 'none';
     } else if (state.xrSupported) {
       await initXR();
-      // Show scan overlay only if no plane found yet
-      if (!state.hadFirstHit) window._startScanOverlay?.();
+      // Scan overlay auto-shows when ar-instruction is visible (via MutationObserver)
     } else {
       state.pcMode = true;
       initFallback();
@@ -1901,6 +1900,11 @@ function onSessionEnd() {
   state.inSession = false;
   state.session = null;
   cleanupAR();
+  // If upload is in progress, keep experience state intact for re-launch
+  if (state._uploadInProgress) {
+    state._pendingRelaunch = state.experience;
+    return; // don't clear experience or hide overlay
+  }
   state.experience = null;
   state.hadFirstHit = false;
   state.inPortal = false;
@@ -3054,7 +3058,7 @@ let _imageFileInput = null;
 
 function triggerModelUpload(expId) {
   state.uiBlocked = true;
-  state._uploadInProgress = true; // extra flag to block XR select
+  state._uploadInProgress = true;
 
   if (!_modelFileInput) {
     _modelFileInput = document.createElement('input');
@@ -3065,21 +3069,31 @@ function triggerModelUpload(expId) {
   }
 
   const oldInput = _modelFileInput;
-  const clearBlock = () => {
-    setTimeout(() => { state.uiBlocked = false; state._uploadInProgress = false; }, 1000);
+  const finishUpload = () => {
+    setTimeout(() => {
+      state.uiBlocked = false;
+      state._uploadInProgress = false;
+      // Re-launch experience if XR session was killed during upload
+      if (state._pendingRelaunch) {
+        const exp = state._pendingRelaunch;
+        state._pendingRelaunch = null;
+        toast('恢復場景中...');
+        setTimeout(() => launchExperience(exp), 400);
+      }
+    }, 800);
   };
 
   const newHandler = (e) => {
     oldInput.removeEventListener('change', newHandler);
     const file = e.target.files?.[0];
     oldInput.value = '';
-    clearBlock();
+    finishUpload();
     if (!file) {
       state.uploadMode = 'shape';
       state.customModel = null;
       $('[data-tool="shape"]')?.classList.add('selected');
       $('[data-tool="upload"]')?.classList.remove('selected');
-      buildShapeSubToolbar();
+      if (typeof buildShapeSubToolbar === 'function') buildShapeSubToolbar();
       return;
     }
     const isImage = /\.(jpe?g|png|webp)$/i.test(file.name);
@@ -3091,11 +3105,12 @@ function triggerModelUpload(expId) {
   // Handle cancel — when user returns without selecting
   const onFocus = () => {
     window.removeEventListener('focus', onFocus);
-    setTimeout(clearBlock, 600);
+    setTimeout(finishUpload, 600);
   };
   window.addEventListener('focus', onFocus, { once: true });
 
-  setTimeout(() => { _modelFileInput.click(); }, 50);
+  // Trigger picker — use direct call (not setTimeout) for better mobile gesture chaining
+  oldInput.click();
 }
 
 function _loadGLTFFile(file, expId) {
@@ -4243,7 +4258,8 @@ function initShooter() {
     // Mobile: start immediately — no plane scan required
     state.shooter.active = true;
     state.shooter.started = true;
-    if (state.reticle) state.reticle.visible = false; // hide reticle entirely in shooter
+    state.uiBlocked = false; // ensure not stuck from previous interaction
+    if (state.reticle) state.reticle.visible = false;
 
     // Start gyroscope for aim control
     startGyroscope(state.camera);
@@ -4252,20 +4268,20 @@ function initShooter() {
     // Show crosshair
     $('#pc-crosshair').style.display = 'block';
 
-    // Mobile fire: tap on the AR overlay background area (not UI buttons)
+    // Mobile fire: tap on canvas/document body (overlay has pointer-events:none)
     const mobileFire = (e) => {
-      if (state.uiBlocked) return;
-      // Ensure the touch is NOT on a button or toolbar
+      if (state._uploadInProgress) return;
+      // Only fire if touch is NOT on a UI button
       const tgt = e.changedTouches?.[0] ? document.elementFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : e.target;
-      if (tgt && tgt.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom, #power-bar-wrap')) return;
+      if (tgt && tgt.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom, #power-bar-wrap, #ar-toolbar, button, input, label')) return;
       if (state.shooter?.active && state.shooter?.started) {
         fireShooterBullet();
       }
     };
-    const overlayEl = $('#ar-overlay');
-    overlayEl.addEventListener('touchend', mobileFire, { passive: true });
+    // Attach to document for reliable touch capture (canvas may be obscured by XR layer)
+    document.addEventListener('touchend', mobileFire, { passive: true });
     state.shooter._mobileFireHandler = mobileFire;
-    state.shooter._mobileFireTarget = overlayEl;
+    state.shooter._mobileFireTarget = document;
 
     toast('轉動手機瞄準，點擊畫面射擊');
   }
@@ -6693,7 +6709,7 @@ async function writeText3D(text) {
   for (const tube of gen) {
     state.scene.add(tube);
     allTubes.push(tube);
-    await new Promise(r => setTimeout(r, 100)); // slower animate stroke-by-stroke
+    await new Promise(r => setTimeout(r, 20)); // 5x faster stroke animation
   }
   allTubes.forEach(t => state.drawing.strokes.push(t));
   updateCounter();
@@ -6783,7 +6799,7 @@ _initText3DRow();
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const p = {};
       resetParticle(p);
-      p.life = Math.random() * p.maxLife; // stagger initial life
+      p.life = Math.random() * p.maxLife;
       particles.push(p);
     }
     if (!raf) drawFrame();
@@ -6792,6 +6808,21 @@ _initText3DRow();
     canvas.style.display = 'none';
     if (raf) { cancelAnimationFrame(raf); raf = null; }
   };
+
+  // Auto-link: scan particles appear whenever #ar-instruction is visible
+  const instr = document.getElementById('ar-instruction');
+  if (instr) {
+    const observer = new MutationObserver(() => {
+      const hidden = instr.classList.contains('hidden');
+      const overlayVisible = canvas.style.display === 'block';
+      if (!hidden && !overlayVisible) {
+        window._startScanOverlay();
+      } else if (hidden && overlayVisible) {
+        window._stopScanOverlay();
+      }
+    });
+    observer.observe(instr, { attributes: true, attributeFilter: ['class'] });
+  }
 })();
 
 // ============================================================
@@ -6938,17 +6969,30 @@ _initText3DRow();
 // ─── Restore homepage scroll after tab switch ────────────
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    // Reset uiBlocked on tab return ONLY if not mid-upload
+    // Reset uiBlocked unless mid-upload
     if (!state._uploadInProgress) {
       setTimeout(() => { state.uiBlocked = false; }, 300);
     }
-    // Restore homepage scroll
-    if (!state.inSession && !state.experience) {
-      const app = document.getElementById('app');
-      if (app) { app.style.overflowY = 'auto'; app.style.touchAction = ''; }
+    // Restore homepage scrolling and pointer events
+    const app = document.getElementById('app');
+    if (app) {
+      app.style.overflowY = 'auto';
+      app.style.touchAction = '';
+      app.style.pointerEvents = '';
+    }
+    // Restore body
+    document.body.style.touchAction = '';
+    document.body.style.pointerEvents = '';
+    // If experience ended unexpectedly during hide (and not upload), exit cleanly
+    if (state._wasInSession && !state.inSession && !state._uploadInProgress && !state._pendingRelaunch) {
+      state._wasInSession = false;
+      const ov = document.getElementById('ar-overlay');
+      if (ov) ov.classList.remove('active');
+      state.experience = null;
     }
   } else if (document.visibilityState === 'hidden') {
-    // Page hidden — if upload is in progress, keep uiBlocked
+    // Remember if we were in a session
+    state._wasInSession = state.inSession;
     if (state._uploadInProgress) {
       state.uiBlocked = true;
     }
