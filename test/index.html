@@ -1087,13 +1087,13 @@
 </div>
 
 <!-- Settings Modal -->
-<div id="settings-modal" style="display:none;position:fixed;top:0;right:0;width:240px;background:rgba(16,16,18,0.97);border:1px solid rgba(255,255,255,0.12);border-top:none;border-right:none;z-index:700;padding:16px;font-family:var(--mono);font-size:10px;color:var(--text-dim);">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+<div id="settings-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:260px;background:rgba(16,16,18,0.97);border:1px solid rgba(255,255,255,0.15);border-radius:4px;z-index:800;padding:20px;font-family:var(--mono);font-size:10px;color:var(--text-dim);box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <span style="color:var(--amber);letter-spacing:.08em;">// 設定</span>
-    <button id="settings-close" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0;">✕</button>
+    <button id="settings-close" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;padding:0;line-height:1;">✕</button>
   </div>
   <div style="margin-bottom:10px;color:rgba(255,255,255,0.35);letter-spacing:.06em;">相機解析度</div>
-  <div style="display:flex;flex-direction:column;gap:6px;" id="res-options">
+  <div style="display:flex;flex-direction:column;gap:8px;" id="res-options">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
       <input type="radio" name="cam-res" value="original" style="accent-color:var(--amber);" checked> 最高畫質（自動）
     </label>
@@ -1624,8 +1624,8 @@ async function launchExperience(exp) {
       if (lightBtn) lightBtn.style.display = 'none';
     } else if (state.xrSupported) {
       await initXR();
-      // Show scanning particle overlay until first hit
-      window._startScanOverlay?.();
+      // Show scan overlay only if no plane found yet
+      if (!state.hadFirstHit) window._startScanOverlay?.();
     } else {
       state.pcMode = true;
       initFallback();
@@ -2148,14 +2148,19 @@ function onSelect() {
 }
 
 function onSelectStart() {
+  if (state._uploadInProgress) return;
   if (state.experience?.id === 'draw') {
-    if (state.drawMode === 'graffiti') startGraffitiStroke();
-    else startDrawStroke();
+    onSelectStart_draw();
   }
   if (state.experience?.id === 'physics') startPhysicsHold();
 }
 
+function onSelectStart_draw() {
+  startDrawStroke();
+}
+
 function onSelectEnd() {
+  if (state._uploadInProgress) return;
   if (state.experience?.id === 'draw') {
     if (state.drawMode === 'graffiti') endGraffitiStroke();
     else endDrawStroke();
@@ -3430,6 +3435,8 @@ function addMeasurePoint(pos) {
     toast('第一點已標記，移動瞄準後點擊第二點');
     // Show tap-to-confirm hint (mobile only; PC already has persistent hint)
     if (!state.pcMode) {
+      const instrH3 = $('#ar-instruction h3');
+      if (instrH3) instrH3.textContent = '// 放置第二點';
       $('#instruction-text').innerHTML = '移動手機瞄準終點<br>點擊畫面放置第二點';
       $('#ar-instruction').classList.remove('hidden');
     }
@@ -3484,6 +3491,9 @@ function addMeasurePoint(pos) {
     toast(`距離: ${(dist * 100).toFixed(1)} cm`);
     updateCounter();
     $('#ar-instruction').classList.add('hidden');
+    // Restore h3 for next use
+    const instrH3b = $('#ar-instruction h3');
+    if (instrH3b) instrH3b.textContent = '// 請掃描平面';
   }
 }
 
@@ -4038,8 +4048,11 @@ function updatePhysics(dt) {
       b.userData.velocity.x *= rollingFriction;
       b.userData.velocity.z *= rollingFriction;
       b.userData.bounces++;
-      // Play bounce sound (scaled by impact velocity)
-      if (vy > 0.08) _sfx.bounce(vy);
+      // Play bounce sound only if real impact (not tiny residual bounce when resting)
+      if (vy > 0.08 && !b.userData.resting) {
+        const isNewest2 = b === state.physics.balls[state.physics.balls.length - 1];
+        _sfx.bounce(isNewest2 ? vy * 1.3 : vy); // newest ball slightly louder
+      }
 
       // Settle threshold — only rest when both vertical and horizontal are tiny
       const hSpeed = Math.sqrt(b.userData.velocity.x**2 + b.userData.velocity.z**2);
@@ -4048,9 +4061,11 @@ function updatePhysics(dt) {
         b.userData.resting = true;
       } else {
         b.userData.resting = false;
-        // Rolling sound — only when close to player and moving at medium speed
+        // Rolling sound — only when ball is actually moving and not resting
         const ballDist = state.camera ? b.position.distanceTo(state.camera.position) : 99;
-        if (vy < 0.15 && hSpeed > 0.05 && hSpeed < 0.8 && ballDist < 3 && Math.random() < 0.03) _sfx.roll();
+        const isNewest = b === state.physics.balls[state.physics.balls.length - 1];
+        const priority = isNewest ? 0.06 : 0.02; // newest ball gets 3x chance
+        if (!b.userData.resting && vy < 0.15 && hSpeed > 0.05 && hSpeed < 0.8 && ballDist < 3 && Math.random() < priority) _sfx.roll();
       }
     }
 
@@ -4776,10 +4791,7 @@ function updateParticles(dt) {
 // --------- 8. Virtual Pet ---------
 function placePet(pos) {
   if (state.customModel) {
-    // Remove all default pets (avoid conflict with custom model)
-    state.pet.pets.forEach(p => state.scene.remove(p));
-    state.pet.pets = [];
-
+    // Keep existing pets — just add a new one alongside them
     toast('正在放置模型...');
     const placePos = (state.pcMode && state.pcReticlePos) ? state.pcReticlePos.clone() : pos.clone();
 
@@ -6560,27 +6572,109 @@ function* _genTextStrokes(text, camPos, camQuat) {
   const right   = new THREE.Vector3(1, 0, 0).applyQuaternion(camQuat);
   const up      = new THREE.Vector3(0, 1, 0);
   const origin  = camPos.clone().add(forward);
-  origin.y -= 0.0; // eye level
 
-  const charW = 0.07; // metres per character width
-  const charH = 0.12;
-  const pad   = 0.01;
-  const totalW = text.length * (charW + pad);
-  const startX = -totalW / 2;
+  // Determine if text has any non-ASCII characters (e.g. Chinese)
+  const hasWide = /[^\x00-\x7F]/.test(text);
+
+  if (hasWide) {
+    // ── Canvas-raster path for Chinese/Unicode ──────────────
+    // Render each character to a small canvas, sample pixels, build tube strokes
+    const CELL = 32; // px per character cell
+    const THRESH = 80;
+
+    const charW = 0.09; const charH = 0.11; const pad = 0.012;
+    const totalW = text.length * (charW + pad);
+    const startX = -totalW / 2;
+
+    const tmpC = document.createElement('canvas');
+    tmpC.width = CELL; tmpC.height = CELL;
+    const tmpCtx = tmpC.getContext('2d');
+
+    for (let ci = 0; ci < text.length; ci++) {
+      const ch = text[ci];
+      if (ch === ' ') continue;
+
+      // Check stroke font first (fast path for ASCII)
+      if (STROKE_FONT[ch]) {
+        const strokes = STROKE_FONT[ch];
+        const charOffX = startX + ci * (charW + pad);
+        for (const stroke of strokes) {
+          if (stroke.length < 2) continue;
+          const pts = stroke.map(([nx, ny]) =>
+            origin.clone()
+              .addScaledVector(right, charOffX + nx * charW)
+              .addScaledVector(up,    (0.5 - ny) * charH)
+          );
+          const curve = new THREE.CatmullRomCurve3(pts.length > 2 ? pts : [pts[0], pts[0].clone().addScaledVector(right, 0.001), pts[pts.length-1]]);
+          const tGeom = new THREE.TubeGeometry(curve, Math.max(pts.length * 3, 8), 0.004, 5, false);
+          const tMat  = new THREE.MeshStandardMaterial({ color: new THREE.Color(state.color), emissive: new THREE.Color(state.color).multiplyScalar(0.4), emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.3 });
+          yield new THREE.Mesh(tGeom, tMat);
+        }
+        continue;
+      }
+
+      // Raster the character
+      tmpCtx.clearRect(0, 0, CELL, CELL);
+      tmpCtx.fillStyle = '#000';
+      tmpCtx.fillRect(0, 0, CELL, CELL);
+      tmpCtx.fillStyle = '#fff';
+      tmpCtx.font = `bold ${CELL * 0.85}px "DM Sans", sans-serif`;
+      tmpCtx.textAlign = 'center';
+      tmpCtx.textBaseline = 'middle';
+      tmpCtx.fillText(ch, CELL / 2, CELL / 2);
+
+      const imgData = tmpCtx.getImageData(0, 0, CELL, CELL).data;
+      const charOffX = startX + ci * (charW + pad);
+
+      // Horizontal scan lines → strokes
+      for (let row = 0; row < CELL; row++) {
+        let inStroke = false;
+        let strokeStart = 0;
+        for (let col = 0; col <= CELL; col++) {
+          const bright = col < CELL ? imgData[(row * CELL + col) * 4] > THRESH : false;
+          if (bright && !inStroke) { inStroke = true; strokeStart = col; }
+          if (!bright && inStroke) {
+            inStroke = false;
+            const nx0 = strokeStart / CELL;
+            const nx1 = col / CELL;
+            const ny  = row / CELL;
+            if (nx1 - nx0 < 0.05) continue; // skip tiny
+            const p0 = origin.clone()
+              .addScaledVector(right, charOffX + nx0 * charW)
+              .addScaledVector(up,    (0.5 - ny) * charH);
+            const p1 = origin.clone()
+              .addScaledVector(right, charOffX + nx1 * charW)
+              .addScaledVector(up,    (0.5 - ny) * charH);
+            const mid = p0.clone().lerp(p1, 0.5);
+            const curve = new THREE.CatmullRomCurve3([p0, mid, p1]);
+            const tGeom = new THREE.TubeGeometry(curve, 4, 0.0035, 4, false);
+            const tMat  = new THREE.MeshStandardMaterial({ color: new THREE.Color(state.color), emissive: new THREE.Color(state.color).multiplyScalar(0.4), emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.3 });
+            const tube  = new THREE.Mesh(tGeom, tMat);
+            tube.frustumCulled = false;
+            yield tube;
+          }
+        }
+      }
+    }
+    return;
+  }
+
+  // ── Original ASCII stroke-font path ────────────────────
+  const charW = 0.07; const charH = 0.12; const pad = 0.01;
+  const totalW2 = text.length * (charW + pad);
+  const startX2 = -totalW2 / 2;
 
   for (let ci = 0; ci < text.length; ci++) {
     const ch = text[ci];
     const strokes = STROKE_FONT[ch] || STROKE_FONT['?'] || [];
-    const charOffX = startX + ci * (charW + pad);
-
+    const charOffX = startX2 + ci * (charW + pad);
     for (const stroke of strokes) {
       if (stroke.length < 2) continue;
-      const pts = stroke.map(([nx, ny]) => {
-        return origin.clone()
+      const pts = stroke.map(([nx, ny]) =>
+        origin.clone()
           .addScaledVector(right, charOffX + nx * charW)
-          .addScaledVector(up,    (0.5 - ny) * charH);
-      });
-      // Build tube from stroke points
+          .addScaledVector(up,    (0.5 - ny) * charH)
+      );
       const curve = new THREE.CatmullRomCurve3(pts.length > 2 ? pts : [pts[0], pts[0].clone().addScaledVector(right, 0.001), pts[pts.length-1]]);
       const tGeom = new THREE.TubeGeometry(curve, Math.max(pts.length * 3, 8), 0.004, 5, false);
       const tMat  = new THREE.MeshStandardMaterial({ color: new THREE.Color(state.color), emissive: new THREE.Color(state.color).multiplyScalar(0.4), emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.3 });
@@ -6844,11 +6938,19 @@ _initText3DRow();
 // ─── Restore homepage scroll after tab switch ────────────
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    // Always reset uiBlocked when tab returns — prevents stuck state
-    setTimeout(() => { state.uiBlocked = false; state._uploadInProgress = false; }, 300);
+    // Reset uiBlocked on tab return ONLY if not mid-upload
+    if (!state._uploadInProgress) {
+      setTimeout(() => { state.uiBlocked = false; }, 300);
+    }
+    // Restore homepage scroll
     if (!state.inSession && !state.experience) {
       const app = document.getElementById('app');
       if (app) { app.style.overflowY = 'auto'; app.style.touchAction = ''; }
+    }
+  } else if (document.visibilityState === 'hidden') {
+    // Page hidden — if upload is in progress, keep uiBlocked
+    if (state._uploadInProgress) {
+      state.uiBlocked = true;
     }
   }
 });
@@ -6967,14 +7069,14 @@ const _sfx = (() => {
   const modal = $('#settings-modal');
   const closeBtn = $('#settings-close');
   if (settingsBtn && modal) {
-    settingsBtn.addEventListener('click', () => {
+    settingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
     });
-    closeBtn?.addEventListener('click', () => { modal.style.display = 'none'; });
-    document.addEventListener('click', (e) => {
-      if (modal.style.display !== 'none' && !modal.contains(e.target) && e.target !== settingsBtn) {
-        modal.style.display = 'none';
-      }
+    closeBtn?.addEventListener('click', (e) => { e.stopPropagation(); modal.style.display = 'none'; });
+    modal.addEventListener('click', (e) => e.stopPropagation()); // prevent modal clicks from closing
+    document.addEventListener('click', () => {
+      if (modal.style.display !== 'none') modal.style.display = 'none';
     });
     // Camera resolution setting
     document.querySelectorAll('input[name="cam-res"]').forEach(r => {
