@@ -1095,7 +1095,7 @@
   <div style="margin-bottom:10px;color:rgba(255,255,255,0.35);letter-spacing:.06em;">相機解析度</div>
   <div style="display:flex;flex-direction:column;gap:6px;" id="res-options">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-      <input type="radio" name="cam-res" value="original" style="accent-color:var(--amber);" checked> 原始（自動）
+      <input type="radio" name="cam-res" value="original" style="accent-color:var(--amber);" checked> 最高畫質（自動）
     </label>
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
       <input type="radio" name="cam-res" value="medium" style="accent-color:var(--amber);"> 中（1280×720）
@@ -1113,6 +1113,9 @@
       <button class="ar-btn" id="ar-back">
         <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>退出</span>
+      </button>
+      <button class="ar-btn icon" id="ar-grid-toggle" title="平面網格開關">
+        <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>
       </button>
       <button class="ar-btn icon" id="ar-light-btn" title="場景燈光切換">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -1141,9 +1144,9 @@
   <div class="ar-hud-bottom">
     <!-- Text-to-3D row (shown only in draw experience 3D mode) -->
     <div id="text3d-row" style="display:none;align-items:center;gap:8px;background:rgba(10,10,11,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line-strong);border-radius:4px;padding:6px 10px;width:calc(100% - 32px);max-width:380px;pointer-events:auto;">
-      <input id="text3d-input" type="text" value="Hello！" maxlength="24"
+      <input id="text3d-input" type="text" value="Hello！" maxlength="32"
         style="flex:1;background:transparent;border:none;outline:none;font-family:var(--mono);font-size:12px;color:var(--text);letter-spacing:.05em;"
-        placeholder="輸入文字...">
+        placeholder="輸入文字（支援中文）...">
       <button id="text3d-send" style="background:var(--amber);color:#000;border:none;border-radius:2px;padding:5px 12px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;cursor:pointer;flex-shrink:0;white-space:nowrap;">寫出</button>
     </div>
     <div class="slider-row" id="scale-row" style="display:none; width: calc(100% - 32px); max-width: 320px;">
@@ -1283,7 +1286,7 @@ const EXPERIENCES = [
   },
   {
     id: 'draw', num: '03', title: 'AR 繪畫',
-    desc: 'DRAW · 3D 空中繪畫 ＋ AR 塗鴉',
+    desc: 'DRAW · 3D 空間繪畫',
     tag: 'WebXR',
     icon: `<svg viewBox="0 0 100 100"><path d="M15 70 Q30 30, 50 50 T85 40" stroke-linecap="round"/><circle cx="85" cy="40" r="3" fill="currentColor"/></svg>`,
     instruction: '選擇模式，按住畫面開始繪製',
@@ -1877,7 +1880,8 @@ function initFallback() {
 
   // Remove scan instruction entirely on PC
   $('#ar-instruction').classList.add('hidden');
-  $('#instruction-text').innerHTML = '3D 模式 · WASD 移動 · 拖曳旋轉 · 點擊放置';
+  $('#instruction-text').innerHTML = state.experience?.id === 'measure'
+    ? '點擊畫面放置第一點' : '3D 模式 · WASD 移動 · 拖曳旋轉 · 點擊放置';
   // Show PC controls hint
   const pcHint = $('#pc-controls-hint');
   if (pcHint) pcHint.style.display = 'block';
@@ -1956,9 +1960,10 @@ function renderLoop(timestamp, frame) {
       const pose = hits[0].getPose(state.referenceSpace);
       const isDrawMode = state.experience?.id === 'draw';
       const isGraffiti = isDrawMode && state.drawMode === 'graffiti';
+      const isShooter = state.experience?.id === 'shooter';
       // Keep reticle VISIBLE in graffiti mode so hit-test matrix stays current, but hide ring mesh visually
-      state.reticle.visible = !isDrawMode || isGraffiti;
-      if (isGraffiti) state.reticle.material.opacity = 0; // invisible but matrix updated
+      state.reticle.visible = !isDrawMode && !isShooter || isGraffiti;
+      if (isGraffiti) state.reticle.material.opacity = 0;
       else state.reticle.material.opacity = 0.9;
       state.reticle.matrix.fromArray(pose.transform.matrix);
 
@@ -2963,6 +2968,10 @@ function redoAction() {
   if (type === 'graffiti' && state.graffiti) {
     state.scene.add(obj);
     state.graffiti.strokes.push(obj);
+  } else if (type === 'measure' && state.measure) {
+    obj.children.forEach(c => state.scene.add(c));
+    state.scene.add(obj);
+    state.measure.lines.push(obj);
   } else {
     state.scene.add(obj);
     state.drawing.strokes.push(obj);
@@ -3240,6 +3249,7 @@ function undoAction() {
     line.children.forEach(c => state.scene.remove(c));
     state.scene.remove(line);
     state.measure.points = [];
+    _redoStack.push({ type: 'measure', obj: line });
   }
   updateCounter();
   updateRedoBtn();
@@ -3418,9 +3428,11 @@ function addMeasurePoint(pos) {
     state.measure.liveDot = dot;
     state.scene.add(liveLine);
     toast('第一點已標記，移動瞄準後點擊第二點');
-    // Show tap-to-confirm hint in instruction text
-    $('#instruction-text').innerHTML = '移動手機瞄準終點<br>點擊畫面放置第二點';
-    $('#ar-instruction').classList.remove('hidden');
+    // Show tap-to-confirm hint (mobile only; PC already has persistent hint)
+    if (!state.pcMode) {
+      $('#instruction-text').innerHTML = '移動手機瞄準終點<br>點擊畫面放置第二點';
+      $('#ar-instruction').classList.remove('hidden');
+    }
   } else if (state.measure.points.length === 2) {
     if (state.measure.liveLine) {
       state.scene.remove(state.measure.liveLine);
@@ -4036,8 +4048,9 @@ function updatePhysics(dt) {
         b.userData.resting = true;
       } else {
         b.userData.resting = false;
-        // Rolling sound — occasional soft thud when rolling slowly
-        if (vy < 0.15 && hSpeed > 0.05 && Math.random() < 0.04) _sfx.roll();
+        // Rolling sound — only when close to player and moving at medium speed
+        const ballDist = state.camera ? b.position.distanceTo(state.camera.position) : 99;
+        if (vy < 0.15 && hSpeed > 0.05 && hSpeed < 0.8 && ballDist < 3 && Math.random() < 0.03) _sfx.roll();
       }
     }
 
@@ -4215,6 +4228,7 @@ function initShooter() {
     // Mobile: start immediately — no plane scan required
     state.shooter.active = true;
     state.shooter.started = true;
+    if (state.reticle) state.reticle.visible = false; // hide reticle entirely in shooter
 
     // Start gyroscope for aim control
     startGyroscope(state.camera);
@@ -4274,23 +4288,45 @@ function _updateShooterIndicators() {
   cont.innerHTML = '';
 
   state.shooter.enemies.forEach(en => {
-    const screenPos = en.position.clone().project(state.camera);
-    // Inside screen — no indicator needed
-    if (Math.abs(screenPos.x) < 0.75 && Math.abs(screenPos.y) < 0.75 && screenPos.z < 1) return;
+    // Get vector from camera to enemy in world space
+    const toEnemy = en.position.clone().sub(state.camera.position);
+    // Transform to camera/view space
+    const camMat = new THREE.Matrix4().extractRotation(state.camera.matrixWorld);
+    const camInv = camMat.clone().invert();
+    const viewDir = toEnemy.clone().applyMatrix4(camInv).normalize();
 
-    // Project to screen pixel coords then clamp to edge
+    // Check if enemy is in front of camera (z < 0 in view space = in front)
+    if (viewDir.z < -0.4) {
+      // Project to screen using THREE
+      const screenPos = en.position.clone().project(state.camera);
+      if (Math.abs(screenPos.x) <= 0.85 && Math.abs(screenPos.y) <= 0.85) return; // on-screen
+    }
+
+    // Calculate 2D angle from screen center to projected position
+    const screenPos = en.position.clone().project(state.camera);
     const rawX = (screenPos.x * 0.5 + 0.5) * w;
     const rawY = (1 - (screenPos.y * 0.5 + 0.5)) * h;
     const cx = w / 2, cy = h / 2;
-    const angle = Math.atan2(rawY - cy, rawX - cx);
+
+    // If enemy is behind camera, flip the screen position
+    const isBehind = screenPos.z > 1;
+    const dirX = isBehind ? cx - rawX : rawX - cx;
+    const dirY = isBehind ? cy - rawY : rawY - cy;
+    const angle = Math.atan2(dirY, dirX);
+
     const margin = 44;
-    const edgeX = Math.max(margin, Math.min(w - margin, cx + Math.cos(angle) * (cx - margin)));
-    const edgeY = Math.max(margin, Math.min(h - margin, cy + Math.sin(angle) * (cy - margin)));
+    const edgeX = cx + Math.cos(angle) * (cx - margin);
+    const edgeY = cy + Math.sin(angle) * (cy - margin);
+    const clampedX = Math.max(margin, Math.min(w - margin, edgeX));
+    const clampedY = Math.max(margin, Math.min(h - margin, edgeY));
     const rot = angle * 180 / Math.PI + 90;
 
+    const dist = en.position.distanceTo(state.camera.position);
+    const urgency = dist < 2 ? '#ff4444' : dist < 3.5 ? '#ff8844' : '#f87171';
+
     const el = document.createElement('div');
-    el.style.cssText = `position:absolute;left:${edgeX.toFixed(0)}px;top:${edgeY.toFixed(0)}px;transform:translate(-50%,-50%) rotate(${rot.toFixed(0)}deg);width:28px;height:28px;pointer-events:none;filter:drop-shadow(0 0 5px #f87171);`;
-    el.innerHTML = `<svg viewBox="0 0 28 28"><polygon points="14,3 25,25 14,19 3,25" fill="#f87171"/></svg>`;
+    el.style.cssText = `position:absolute;left:${clampedX.toFixed(0)}px;top:${clampedY.toFixed(0)}px;transform:translate(-50%,-50%) rotate(${rot.toFixed(0)}deg);width:28px;height:28px;pointer-events:none;filter:drop-shadow(0 0 5px ${urgency});`;
+    el.innerHTML = `<svg viewBox="0 0 28 28"><polygon points="14,3 25,25 14,19 3,25" fill="${urgency}"/></svg>`;
     cont.appendChild(el);
   });
 }
@@ -5186,22 +5222,8 @@ function captureScreenshot() {
 
       // Redraw color overlay directly at video resolution (avoid stretching)
       if (state.experience.id === 'colorscanner') {
-        // Re-sample center color at this moment and draw info panel at correct scale
-        const cx2 = Math.round(vw / 2), cy2 = Math.round(vh / 2);
-        const sr = 8;
-        const tmpC = document.createElement('canvas'); tmpC.width = sr*2; tmpC.height = sr*2;
-        const tmpX = tmpC.getContext('2d'); tmpX.drawImage(_camVideo, cx2-sr, cy2-sr, sr*2, sr*2, 0, 0, sr*2, sr*2);
-        const pix = tmpX.getImageData(sr, sr, 1, 1).data;
-        const hexS = `#${[pix[0],pix[1],pix[2]].map(v=>v.toString(16).padStart(2,'0')).join('')}`;
-        // Draw crosshair ring
-        outCtx.strokeStyle = hexS; outCtx.lineWidth = 3;
-        outCtx.beginPath(); outCtx.arc(vw/2, vh/2, 36*(vw/window.innerWidth), 0, Math.PI*2); outCtx.stroke();
-        // Colour swatch panel
-        const pw = 200*(vw/window.innerWidth), ph = 100*(vh/window.innerHeight);
-        outCtx.fillStyle = hexS; outCtx.fillRect(vw/2-pw/2, vh/2+50, pw, 40);
-        outCtx.fillStyle = 'rgba(10,10,11,0.88)'; outCtx.fillRect(vw/2-pw/2, vh/2+90, pw, ph-40);
-        outCtx.fillStyle = '#fff'; outCtx.font = `bold ${Math.round(14*vw/window.innerWidth)}px monospace`;
-        outCtx.textAlign = 'center'; outCtx.fillText(hexS.toUpperCase(), vw/2, vh/2+66);
+        // Draw color overlay at screen resolution (no stretch)
+        outCtx.drawImage(_camCanvas, 0, 0, vw, vh);
       } else if (_camCanvas && _camCanvas.width > 0) {
         // Other noXR: draw canvas overlay scaled to video dimensions
         outCtx.drawImage(_camCanvas, 0, 0, vw, vh);
@@ -5222,13 +5244,31 @@ function captureScreenshot() {
 
     // Star map: capture the 2D star canvas (+ camera feed if overlay active)
     if (state.experience?.id === 'starmap') {
+      // Pause the rAF loop temporarily, do one final synchronous draw, then capture
+      const oldRAF = state._visionRAF;
+      if (oldRAF) cancelAnimationFrame(oldRAF);
+      state._visionRAF = null;
+
       const sc = $('#star-canvas');
-      if (!sc) { toast('截圖失敗', true); return; }
+      // Force one synchronous render to ensure canvas has current frame
+      sc.width = window.innerWidth; sc.height = window.innerHeight;
+      const scCtx = sc.getContext('2d');
+      // Draw background
+      if (!state._starmapCamMode) {
+        const g = scCtx.createRadialGradient(sc.width/2,sc.height/2,0,sc.width/2,sc.height/2,Math.max(sc.width,sc.height)*0.7);
+        g.addColorStop(0,'#0c0f2a'); g.addColorStop(1,'#000207');
+        scCtx.fillStyle=g; scCtx.fillRect(0,0,sc.width,sc.height);
+      } else if (_camVideo && _camVideo.readyState >= 2) {
+        scCtx.drawImage(_camVideo,0,0,sc.width,sc.height);
+      } else {
+        scCtx.fillStyle='#000207'; scCtx.fillRect(0,0,sc.width,sc.height);
+      }
+      // Re-call the star rendering logic synchronously
+      _renderStarMapFrame(scCtx, sc.width, sc.height);
+
       const out = document.createElement('canvas');
-      out.width = sc.width || window.innerWidth;
-      out.height = sc.height || window.innerHeight;
+      out.width = sc.width; out.height = sc.height;
       const outCtx = out.getContext('2d');
-      // If camera overlay active, draw camera first
       if (state._starmapCamMode && _camVideo && _camVideo.readyState >= 2) {
         outCtx.drawImage(_camVideo, 0, 0, out.width, out.height);
       } else {
@@ -5240,6 +5280,8 @@ function captureScreenshot() {
       a.href = out.toDataURL('image/png');
       a.click();
       toast('截圖已儲存');
+      // Resume animation
+      if (state.experience?.id === 'starmap') _renderStarMap();
       return;
     }
 
@@ -5286,6 +5328,7 @@ window.addEventListener('resize', () => {
 
 // --------- Event wiring ---------
 $('#ar-back').addEventListener('click', e => { e.stopPropagation(); exitExperience(); });
+$('#ar-grid-toggle')?.addEventListener('click', e => { e.stopPropagation(); toggleGrid(); });
 $('#ar-light-btn').addEventListener('click', e => { e.stopPropagation(); toggleLight(); });
 
 // --------- Desktop Detection & QR Code ---------
@@ -5368,13 +5411,13 @@ async function initCameraMode(exp) {
   const wantFront = (exp.id === 'emotion' || exp.id === 'anatomy' || exp.id === 'coach');
   const isDesktop = !('ontouchstart' in window) && window.innerWidth > 900;
   const res = state._camResolution || 'original';
-  const resMap = { original: null, medium: { width: 1280, height: 720 }, low: { width: 640, height: 480 } };
+  const resMap = { original: { width: 4096, height: 2160 }, medium: { width: 1280, height: 720 }, low: { width: 640, height: 480 } };
   const resConstraint = resMap[res];
 
   let constraints = {
     video: isDesktop
-      ? (resConstraint ? { width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } } : { width: { ideal: 1280 }, height: { ideal: 720 } })
-      : { facingMode: wantFront ? 'user' : 'environment', ...(resConstraint ? { width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } } : { width: { ideal: 640 }, height: { ideal: 480 } }) },
+      ? { width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } }
+      : { facingMode: wantFront ? 'user' : 'environment', width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } },
     audio: false
   };
 
@@ -6060,21 +6103,34 @@ function _onStarOrientation(e) {
   if (e.beta === null || e.gamma === null) return;
   const alpha = (e.alpha || 0);
   const beta  = e.beta  || 0;
+  const gamma = e.gamma || 0;
 
   // Yaw: smooth compass heading (handle 0/360 wraparound)
   const rawYaw = alpha;
   let prevYaw = state._starYaw || 0;
-  // Unwrap yaw to avoid 360→0 jumps
   let diff = rawYaw - prevYaw;
   if (diff > 180) diff -= 360;
   if (diff < -180) diff += 360;
-  state._starYaw = prevYaw + diff * 0.12; // low-pass smooth
+  state._starYaw = prevYaw + diff * 0.15;
 
   // Pitch: beta 0°=flat/up, 90°=upright/horizon
-  const rawPitch = 90 - beta;
+  // Use gamma when phone is more upright (abs(beta) > 45) for smoother side-viewing
+  let rawPitch;
+  const absBeta = Math.abs(beta);
+  if (absBeta < 45) {
+    // Phone mostly flat — beta controls pitch well
+    rawPitch = 90 - beta;
+  } else {
+    // Phone more upright — blend based on tilt angle
+    const t = Math.min(1, (absBeta - 45) / 45);
+    rawPitch = (90 - beta) * (1 - t) + (beta > 0 ? 10 : -10) * t;
+  }
+
   const prevPitch = state._starPitch || 70;
-  // Smooth pitch transitions to prevent jumping
-  state._starPitch = prevPitch + (rawPitch - prevPitch) * 0.1;
+  const pitchDelta = Math.abs(rawPitch - prevPitch);
+  // Faster smoothing for small changes (steady hold), slower for big jumps (deliberate tilt)
+  const smoothFactor = pitchDelta > 20 ? 0.08 : 0.12;
+  state._starPitch = prevPitch + (rawPitch - prevPitch) * smoothFactor;
   state._starPitch = Math.max(-85, Math.min(85, state._starPitch));
 }
 
@@ -6083,7 +6139,9 @@ function _renderStarMap() {
   state._visionRAF = requestAnimationFrame(_renderStarMap);
 
   const sc = $('#star-canvas');
-  sc.width = window.innerWidth; sc.height = window.innerHeight;
+  if (sc.width !== window.innerWidth || sc.height !== window.innerHeight) {
+    sc.width = window.innerWidth; sc.height = window.innerHeight;
+  }
   const ctx = sc.getContext('2d');
   const w = sc.width, h = sc.height;
 
@@ -6099,9 +6157,13 @@ function _renderStarMap() {
     ctx.clearRect(0, 0, w, h);
   }
 
-  const fov = 90; // field of view in degrees
+  _renderStarMapFrame(ctx, w, h);
+}
+
+function _renderStarMapFrame(ctx, w, h) {
+  const fov = 90;
   const yaw = (state._starYaw || 0) * Math.PI / 180;
-  const pitch = (state._starPitch || 30) * Math.PI / 180;
+  const pitch = (state._starPitch || 70) * Math.PI / 180;
 
   // Project spherical coords to screen
   const project = (raDeg, deDeg) => {
@@ -6560,15 +6622,18 @@ function _initText3DRow() {
   });
   send.addEventListener('touchend', e => { e.stopPropagation(); });
   inp?.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+  inp?.addEventListener('keydown', e => { e.stopPropagation(); }); // prevent WASD from moving camera
+  let _composing = false;
+  inp?.addEventListener('compositionstart', () => { _composing = true; state.uiBlocked = true; });
+  inp?.addEventListener('compositionend', () => { _composing = false; });
   inp?.addEventListener('focus', () => {
     state.uiBlocked = true;
-    // On mobile: scroll the input row into view so keyboard doesn't cover it
     setTimeout(() => {
-      const row = $('#text3d-row');
-      if (row) row.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
+      const row2 = $('#text3d-row');
+      if (row2) row2.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
     }, 350);
   });
-  inp?.addEventListener('blur', () => setTimeout(() => { state.uiBlocked = false; }, 200));
+  inp?.addEventListener('blur', () => setTimeout(() => { if (!_composing) state.uiBlocked = false; }, 200));
 }
 _initText3DRow();
 
@@ -6778,9 +6843,13 @@ _initText3DRow();
 
 // ─── Restore homepage scroll after tab switch ────────────
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && !state.inSession && !state.experience) {
-    const app = document.getElementById('app');
-    if (app) { app.style.overflowY = 'auto'; app.style.touchAction = ''; }
+  if (document.visibilityState === 'visible') {
+    // Always reset uiBlocked when tab returns — prevents stuck state
+    setTimeout(() => { state.uiBlocked = false; state._uploadInProgress = false; }, 300);
+    if (!state.inSession && !state.experience) {
+      const app = document.getElementById('app');
+      if (app) { app.style.overflowY = 'auto'; app.style.touchAction = ''; }
+    }
   }
 });
 // Also restore on pageshow (iOS back/forward cache)
@@ -6792,6 +6861,8 @@ window.addEventListener('pageshow', (e) => {
 // ─── Sound Effects (Web Audio API) ───────────────────────
 const _sfx = (() => {
   let ctx = null;
+  let _activeSounds = 0;
+  const MAX_SOUNDS = 4;
   const getCtx = () => {
     if (!ctx) {
       try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
@@ -6800,12 +6871,17 @@ const _sfx = (() => {
     return ctx;
   };
 
-  const play = (fn) => { try { const c = getCtx(); if (c) fn(c); } catch(e) {} };
+  const play = (fn) => {
+    if (_activeSounds >= MAX_SOUNDS) return;
+    try {
+      const c = getCtx();
+      if (c) { _activeSounds++; fn(c, () => { _activeSounds = Math.max(0, _activeSounds - 1); }); }
+    } catch(e) {}
+  };
 
   return {
-    // Physics: ball bounce
     bounce(velocity = 1) {
-      play(c => {
+      play((c, done) => {
         const freq = 180 + Math.random() * 120;
         const vol = Math.min(0.4, velocity * 0.12);
         const o = c.createOscillator(), g = c.createGain();
@@ -6815,12 +6891,12 @@ const _sfx = (() => {
         g.gain.setValueAtTime(vol, c.currentTime);
         g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.18);
         o.start(); o.stop(c.currentTime + 0.2);
+        o.onended = done;
       });
     },
 
-    // Physics: ball roll (soft thud)
     roll() {
-      play(c => {
+      play((c, done) => {
         const buf = c.createBuffer(1, c.sampleRate * 0.08, c.sampleRate);
         const data = buf.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * (1 - i/data.length) * 0.15;
@@ -6831,12 +6907,12 @@ const _sfx = (() => {
         g.gain.setValueAtTime(0.3, c.currentTime);
         g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.1);
         src.start();
+        src.onended = done;
       });
     },
 
-    // Shooter: fire
     shoot() {
-      play(c => {
+      play((c, done) => {
         const o = c.createOscillator(), g = c.createGain();
         const dist = c.createWaveShaper();
         const curve = new Float32Array(256);
@@ -6849,12 +6925,12 @@ const _sfx = (() => {
         g.gain.setValueAtTime(0.25, c.currentTime);
         g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15);
         o.start(); o.stop(c.currentTime + 0.18);
+        o.onended = done;
       });
     },
 
-    // Shooter: enemy hit / explosion
     explode() {
-      play(c => {
+      play((c, done) => {
         const buf = c.createBuffer(1, c.sampleRate * 0.25, c.sampleRate);
         const d = buf.getChannelData(0);
         for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 1.5);
@@ -6865,12 +6941,12 @@ const _sfx = (() => {
         g.gain.setValueAtTime(0.45, c.currentTime);
         g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.28);
         src.start();
+        src.onended = done;
       });
     },
 
-    // Shooter: enemy miss (player hit)
     playerHit() {
-      play(c => {
+      play((c, done) => {
         const o = c.createOscillator(), g = c.createGain();
         o.connect(g); g.connect(c.destination);
         o.type = 'square'; o.frequency.setValueAtTime(120, c.currentTime);
@@ -6878,6 +6954,7 @@ const _sfx = (() => {
         g.gain.setValueAtTime(0.3, c.currentTime);
         g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
         o.start(); o.stop(c.currentTime + 0.22);
+        o.onended = done;
       });
     },
   };
