@@ -1592,6 +1592,10 @@ async function launchExperience(exp) {
   $('#hud-counter').textContent = '0';
   $('#instruction-text').innerHTML = exp.instruction;
   $('#ar-overlay').classList.add('active');
+  // Reset instruction h3 text and show it
+  const _instrH3 = $('#ar-instruction h3');
+  if (_instrH3) _instrH3.textContent = '// 請掃描平面';
+  if (!exp.noXR) $('#ar-instruction').classList.remove('hidden');
   $('#ar-sub-toolbar').innerHTML = '';
   $('#ar-sub-toolbar').classList.remove('visible');
   $('#pc-crosshair').style.display = 'none';
@@ -1909,7 +1913,8 @@ function onSessionEnd() {
   state.hadFirstHit = false;
   state.inPortal = false;
   $('#ar-overlay').classList.remove('active');
-  $('#ar-instruction').classList.remove('hidden');
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
   $('#scale-row').style.display = 'none';
   // Restore mobile-only buttons
   const gridBtn = $('#ar-grid-toggle');
@@ -2222,7 +2227,9 @@ function exitExperience() {
   state.inPortal = false;
   if (state.arGrid) state.arGrid.visible = false;
   $('#ar-overlay').classList.remove('active');
-  $('#ar-instruction').classList.remove('hidden');
+  // Keep instruction hidden on home page (will be re-shown next time experience starts)
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
   $('#scale-row').style.display = 'none';
   const gridBtn = $('#ar-grid-toggle');
   if (gridBtn) gridBtn.style.display = '';
@@ -3056,6 +3063,46 @@ function removeScalePreview() {
 let _modelFileInput = null;
 let _imageFileInput = null;
 
+function showResumePrompt(exp) {
+  // Clear any existing prompt
+  $('#resume-prompt')?.remove();
+  // Make sure we're on home page
+  $('#ar-overlay').classList.remove('active');
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
+
+  const div = document.createElement('div');
+  div.id = 'resume-prompt';
+  div.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(16,16,18,0.97);border:1px solid var(--amber);border-radius:6px;padding:24px 28px;z-index:900;font-family:var(--mono);text-align:center;box-shadow:0 8px 40px rgba(255,140,66,0.2);max-width:320px;';
+
+  const hasModel = !!state.customModel;
+  div.innerHTML = `
+    <div style="color:var(--amber);font-size:11px;letter-spacing:.1em;margin-bottom:10px;">// ${hasModel ? '模型已載入' : '檔案處理完成'}</div>
+    <div style="color:var(--text);font-size:14px;margin-bottom:6px;">準備返回 ${exp.title}</div>
+    <div style="color:var(--text-dim);font-size:11px;margin-bottom:18px;line-height:1.5;">瀏覽器需要您的點擊<br>才能重新啟動 AR 場景</div>
+    <button id="resume-btn" style="background:var(--amber);color:#000;border:none;border-radius:3px;padding:12px 28px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.1em;cursor:pointer;width:100%;">
+      點擊繼續 →
+    </button>
+    <button id="resume-cancel" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:10px;margin-top:12px;cursor:pointer;letter-spacing:.05em;">
+      取消
+    </button>
+  `;
+  document.body.appendChild(div);
+
+  const resumeBtn = div.querySelector('#resume-btn');
+  const cancelBtn = div.querySelector('#resume-cancel');
+
+  // CRITICAL: this click is the user activation that allows requestSession to succeed
+  resumeBtn.addEventListener('click', () => {
+    div.remove();
+    launchExperience(exp); // user activation chain → requestSession will succeed
+  });
+  cancelBtn.addEventListener('click', () => {
+    div.remove();
+    state.customModel = null;
+  });
+}
+
 function triggerModelUpload(expId) {
   state.uiBlocked = true;
   state._uploadInProgress = true;
@@ -3073,12 +3120,12 @@ function triggerModelUpload(expId) {
     setTimeout(() => {
       state.uiBlocked = false;
       state._uploadInProgress = false;
-      // Re-launch experience if XR session was killed during upload
+      // If XR session was killed, show a "tap to resume" prompt
+      // (browser requires user activation for requestSession — can't auto-relaunch)
       if (state._pendingRelaunch) {
         const exp = state._pendingRelaunch;
         state._pendingRelaunch = null;
-        toast('恢復場景中...');
-        setTimeout(() => launchExperience(exp), 400);
+        showResumePrompt(exp);
       }
     }, 800);
   };
@@ -6732,18 +6779,61 @@ function _initText3DRow() {
   });
   send.addEventListener('touchend', e => { e.stopPropagation(); });
   inp?.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-  inp?.addEventListener('keydown', e => { e.stopPropagation(); }); // prevent WASD from moving camera
+  inp?.addEventListener('keydown', e => { e.stopPropagation(); });
   let _composing = false;
   inp?.addEventListener('compositionstart', () => { _composing = true; state.uiBlocked = true; });
   inp?.addEventListener('compositionend', () => { _composing = false; });
+
+  // Use visualViewport API to track keyboard height properly
+  const vv = window.visualViewport;
+  const updateKeyboardOffset = () => {
+    if (!vv) return;
+    const row = $('#text3d-row');
+    if (!row || row.style.display === 'none') return;
+    // Distance from bottom of layout viewport to bottom of visual viewport (= keyboard height)
+    const kbHeight = window.innerHeight - vv.height - vv.offsetTop;
+    if (kbHeight > 50) {
+      // Keyboard is open — pin row above it
+      row.style.position = 'fixed';
+      row.style.bottom = `${kbHeight + 12}px`;
+      row.style.left = '50%';
+      row.style.transform = 'translateX(-50%)';
+      row.style.zIndex = '500';
+    } else {
+      // Keyboard closed — restore default position
+      row.style.position = '';
+      row.style.bottom = '';
+      row.style.left = '';
+      row.style.transform = '';
+      row.style.zIndex = '';
+    }
+  };
+
   inp?.addEventListener('focus', () => {
     state.uiBlocked = true;
-    setTimeout(() => {
-      const row2 = $('#text3d-row');
-      if (row2) row2.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
-    }, 350);
+    if (vv) {
+      vv.addEventListener('resize', updateKeyboardOffset);
+      vv.addEventListener('scroll', updateKeyboardOffset);
+      // First update after keyboard slides up
+      setTimeout(updateKeyboardOffset, 350);
+    }
   });
-  inp?.addEventListener('blur', () => setTimeout(() => { if (!_composing) state.uiBlocked = false; }, 200));
+  inp?.addEventListener('blur', () => {
+    setTimeout(() => { if (!_composing) state.uiBlocked = false; }, 200);
+    if (vv) {
+      vv.removeEventListener('resize', updateKeyboardOffset);
+      vv.removeEventListener('scroll', updateKeyboardOffset);
+      // Restore position
+      const row = $('#text3d-row');
+      if (row) {
+        row.style.position = '';
+        row.style.bottom = '';
+        row.style.left = '';
+        row.style.transform = '';
+        row.style.zIndex = '';
+      }
+    }
+  });
 }
 _initText3DRow();
 
