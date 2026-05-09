@@ -2,11 +2,12 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#0a0a0b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>AR.LAB // Spatial Playground</title>
+<title>XR.LAB // Spatial Playground</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230a0a0b'/%3E%3Cg stroke='%23ff8c42' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 24 L32 16 L44 24 L44 40 L32 48 L20 40 Z'/%3E%3Cpath d='M20 24 L20 40'/%3E%3Cpath d='M32 16 L32 32'/%3E%3Cpath d='M44 24 L44 40'/%3E%3Cpath d='M20 32 L44 32'/%3E%3Ccircle cx='32' cy='32' r='3' fill='%23ff8c42'/%3E%3C/g%3E%3Ctext x='32' y='58' font-family='monospace' font-size='8' fill='%235eead4' text-anchor='middle' letter-spacing='1'%3EXR%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -138,6 +139,7 @@
     line-height: 1.15;
     letter-spacing: -0.02em;
     margin-bottom: 14px;
+    white-space: nowrap;
   }
   .hero h1 .accent { color: var(--amber); }
   .hero h1 .slash { color: var(--text-faint); margin: 0 0.1em; }
@@ -343,7 +345,8 @@
   /* All direct children block pointer events so they don't bleed to the canvas */
   #ar-overlay > * { pointer-events: auto; }
   /* The AR instruction and coords are display-only — pass through */
-  #ar-instruction, #ar-coords { pointer-events: none; }
+  #ar-instruction { pointer-events: none; }
+  #ar-instruction.measure-active { pointer-events: auto; cursor: pointer; }
 
   .ar-hud-top {
     position: absolute;
@@ -419,6 +422,7 @@
     max-width: 80%;
     pointer-events: none;
     animation: fadeIn 0.3s ease;
+    z-index: 5;
   }
   @keyframes fadeIn {
     from { opacity: 0; transform: translateX(-50%) translateY(10px); }
@@ -509,9 +513,29 @@
   }
   .ar-primary-btn:active { background: var(--mint); }
 
+  /* Square capture button (anatomy / starmap) */
+  .ar-capture-square {
+    pointer-events: auto;
+    width: 64px; height: 64px;
+    background: rgba(255,255,255,0.12);
+    border: 3px solid rgba(255,255,255,0.8);
+    border-radius: 6px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .ar-capture-square::after {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 3px;
+  }
+  .ar-capture-square:active { background: rgba(255,255,255,0.3); border-color: #fff; }
+
   .ar-coords {
     position: absolute;
-    bottom: calc(env(safe-area-inset-bottom) + 175px);
+    bottom: calc(env(safe-area-inset-bottom) + 16px);
     left: 14px;
     font-size: 9px;
     color: rgba(255,255,255,0.45);
@@ -904,11 +928,11 @@
     white-space: nowrap;
     pointer-events: none;
   }
-  .tech-tag.tag-webxr    { background: rgba(255,140,66,.22); color: #ff8c42; }
-  .tech-tag.tag-camera   { background: rgba(94,234,212,.18); color: #5eead4; }
-  .tech-tag.tag-skeleton { background: rgba(248,113,113,.20); color: #fca5a5; }
-  .tech-tag.tag-face     { background: rgba(251,191,36,.18);  color: #fcd34d; }
-  .tech-tag.tag-gyro     { background: rgba(96,165,250,.18);  color: #93c5fd; }
+  .tech-tag.tag-webxr    { background: rgba(255,140,66,.18); color: #ff8c42; }
+  .tech-tag.tag-camera   { background: rgba(94,234,212,.14); color: #5eead4; }
+  .tech-tag.tag-skeleton { background: rgba(248,113,113,.15); color: #fca5a5; }
+  .tech-tag.tag-face     { background: rgba(251,191,36,.15);  color: #fcd34d; }
+  .tech-tag.tag-gyro     { background: rgba(96,165,250,.15);  color: #93c5fd; }
 
   #water-canvas { position:fixed;inset:0;width:100%;height:100%;z-index:49;display:none;pointer-events:auto; }
 
@@ -1008,12 +1032,21 @@
       <div class="logo">
         <div class="logo-mark">
           <span class="logo-dot"></span>
-          <span class="logo-text">AR.LAB</span>
+          <span class="logo-text">XR.LAB</span>
         </div>
       </div>
       <div class="status">
         <div class="status-row"><span id="status-text">偵測中...</span><span id="status-dot" class="status-dot"></span></div>
         <div style="margin-top: 4px;" id="status-detail">裝置掃描</div>
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+          <button id="settings-btn" title="設定" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.55);width:26px;height:26px;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
+          </button>
+          <button id="fullscreen-btn" title="全螢幕" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.55);width:26px;height:26px;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;">
+            <svg id="fs-icon-expand" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5"/></svg>
+            <svg id="fs-icon-compress" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M6 1v5H1M10 1v5h5M1 10h5v5M10 10h5v5"/></svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="hero">
@@ -1021,6 +1054,9 @@
       <h1>空間<span class="slash">／</span><span class="accent">遊樂場</span></h1>
       <p>基於 WebXR 的空間計算實驗室。在真實世界中繪畫、測量、放置物件、發射粒子的多種沉浸式體驗。</p>
     </div>
+
+    <!-- Interactive sidebar widget -->
+    <canvas id="sidebar-canvas" style="display:none;width:100%;aspect-ratio:1/1;max-width:320px;margin-top:38px;cursor:crosshair;background:transparent;"></canvas>
   </header>
 
   <main>
@@ -1046,13 +1082,45 @@
   </main>
 
   <footer>
-    <div>AR.LAB // 2026.04</div>
+    <div>XR.LAB // 2026.04</div>
     <div>WEBXR · THREE.JS</div>
   </footer>
 </div>
 
-<!-- Scanning particle effect canvas (behind instruction modal) -->
-<canvas id="scan-particles" style="position:fixed;inset:0;width:100%;height:100%;z-index:97;pointer-events:none;display:none;"></canvas>
+<!-- Settings Modal -->
+<div id="settings-modal" style="display:none;position:fixed;top:0;right:0;width:300px;background:rgba(14,14,16,0.98);border:1px solid rgba(255,255,255,0.18);border-radius:6px;z-index:800;padding:24px 22px 20px;font-family:var(--mono);font-size:12px;color:var(--text-dim);box-shadow:0 12px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,140,66,0.08);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <span style="color:var(--amber);letter-spacing:.12em;font-size:11px;font-weight:700;">// 設定</span>
+    <button id="settings-close" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:18px;padding:0;line-height:1;opacity:.7;">✕</button>
+  </div>
+  <div style="margin-bottom:14px;color:rgba(255,255,255,0.4);letter-spacing:.08em;font-size:10px;text-transform:uppercase;">相機 / 渲染解析度</div>
+  <div style="display:flex;flex-direction:column;gap:12px;" id="res-options">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:4px;transition:border-color .15s;" id="res-label-original">
+      <input type="radio" name="cam-res" value="original" style="accent-color:var(--amber);width:16px;height:16px;" checked>
+      <span>
+        <span style="color:var(--text);display:block;margin-bottom:2px;">最高畫質（自動）</span>
+        <span style="font-size:9px;color:var(--text-faint);">完整解析度・耗電較高</span>
+      </span>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:4px;transition:border-color .15s;" id="res-label-medium">
+      <input type="radio" name="cam-res" value="medium" style="accent-color:var(--amber);width:16px;height:16px;">
+      <span>
+        <span style="color:var(--text);display:block;margin-bottom:2px;">中畫質（1280×720）</span>
+        <span style="font-size:9px;color:var(--text-faint);">平衡畫質與效能</span>
+      </span>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:4px;transition:border-color .15s;" id="res-label-low">
+      <input type="radio" name="cam-res" value="low" style="accent-color:var(--amber);width:16px;height:16px;">
+      <span>
+        <span style="color:var(--text);display:block;margin-bottom:2px;">低畫質（640×480）</span>
+        <span style="font-size:9px;color:var(--text-faint);">最省電・低階裝置適用</span>
+      </span>
+    </label>
+  </div>
+  <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);font-size:9px;color:var(--text-faint);line-height:1.7;">
+    WebXR 場景：影響 3D 渲染品質<br>相機場景：影響影像串流解析度
+  </div>
+</div>
 
 <!-- ==================== AR OVERLAY ==================== -->
 <div id="ar-overlay">
@@ -1087,17 +1155,14 @@
     X: 0.00<br>Y: 0.00<br>Z: 0.00<br>FPS: --
   </div>
 
-  <!-- PC controls hint -->
-  <div id="pc-controls-hint" style="position:absolute;bottom:calc(env(safe-area-inset-bottom)+110px);left:16px;font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.35);line-height:1.8;pointer-events:none;display:none;">
-    W/S 前進後退 · A/D 左右平移<br>Q 上升 · E 下降 · Shift 加速<br>拖曳 旋轉
-  </div>
+  <!-- PC controls hint moved outside overlay -->
 
   <div class="ar-hud-bottom">
     <!-- Text-to-3D row (shown only in draw experience 3D mode) -->
     <div id="text3d-row" style="display:none;align-items:center;gap:8px;background:rgba(10,10,11,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line-strong);border-radius:4px;padding:6px 10px;width:calc(100% - 32px);max-width:380px;pointer-events:auto;">
-      <input id="text3d-input" type="text" value="Hello！" maxlength="24"
+      <input id="text3d-input" type="text" value="Hello！" maxlength="32"
         style="flex:1;background:transparent;border:none;outline:none;font-family:var(--mono);font-size:12px;color:var(--text);letter-spacing:.05em;"
-        placeholder="輸入文字...">
+        placeholder="輸入文字（支援中文）...">
       <button id="text3d-send" style="background:var(--amber);color:#000;border:none;border-radius:2px;padding:5px 12px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;cursor:pointer;flex-shrink:0;white-space:nowrap;">寫出</button>
     </div>
     <div class="slider-row" id="scale-row" style="display:none; width: calc(100% - 32px); max-width: 320px;">
@@ -1112,10 +1177,17 @@
     </div>
     <!-- Sub toolbar (shapes, model preview, color) -->
     <div class="ar-sub-toolbar" id="ar-sub-toolbar"></div>
+    <!-- Scan particles overlay (inside ar-overlay so it renders in WebXR DOM-overlay layer) -->
+    <canvas id="scan-overlay" style="position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;display:none;"></canvas>
     <div class="ar-toolbar" id="ar-toolbar">
       <!-- Populated by JS per experience -->
     </div>
   </div>
+</div>
+
+<!-- PC controls hint — body level so position:fixed is always relative to viewport -->
+<div id="pc-controls-hint" style="position:fixed;bottom:20px;right:20px;font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.35);line-height:1.8;pointer-events:none;display:none;text-align:right;z-index:9999;">
+  W/S 前進後退 · A/D 左右平移<br>Q 上升 · E 下降 · Shift 加速<br>拖曳 旋轉
 </div>
 
 <!-- Camera-mode elements (no WebXR) -->
@@ -1204,7 +1276,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /* ===========================================================
-   AR LAB — Spatial Playground
+   XR LAB — Spatial Playground
    WebXR + Three.js multi-experience AR system
    =========================================================== */
 
@@ -1231,7 +1303,7 @@ const EXPERIENCES = [
   },
   {
     id: 'draw', num: '03', title: 'AR 繪畫',
-    desc: 'DRAW · 3D 空中繪畫 ＋ AR 塗鴉',
+    desc: 'DRAW · 3D 空間繪畫',
     tag: 'WebXR',
     icon: `<svg viewBox="0 0 100 100"><path d="M15 70 Q30 30, 50 50 T85 40" stroke-linecap="round"/><circle cx="85" cy="40" r="3" fill="currentColor"/></svg>`,
     instruction: '選擇模式，按住畫面開始繪製',
@@ -1276,28 +1348,17 @@ const EXPERIENCES = [
   },
   {
     id: 'emotion', num: '08', title: 'AR 臉部辨識',
-    desc: 'FACE · 臉部骨架辨識與虛擬寵物',
+    desc: 'FACE · 即時臉部骨架與頭頂虛擬寵物',
     featured: false,
     tag: '臉部辨識',
     icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="48" r="28" fill="none" stroke-width="2.5"/><circle cx="40" cy="42" r="4" fill="currentColor"/><circle cx="60" cy="42" r="4" fill="currentColor"/><path id="mouth" d="M35 58 Q50 70 65 58" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M28 35 Q35 28 42 34" stroke-width="1.5" fill="none"/><path d="M58 34 Q65 28 72 35" stroke-width="1.5" fill="none"/></svg>`,
-    instruction: '將臉部對準攝影機<br>系統自動辨識情緒',
+    instruction: '將臉部對準攝影機<br>系統自動辨識臉部骨架',
     hudLabel: '偵測',
     noXR: true,
-    tools: ['capture']
+    tools: ['face-upload', 'flip-cam', 'capture']
   },
   {
-    id: 'colorscanner', num: '09', title: 'AR 色彩感測',
-    desc: 'COLOR · 即時顏色辨識與採集',
-    featured: false,
-    tag: '相機',
-    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="10" fill="currentColor"/><circle cx="50" cy="50" r="22" fill="none" stroke-width="2" stroke-dasharray="4 3"/><rect x="20" y="75" width="14" height="14" rx="2" fill="#ff4444"/><rect x="37" y="75" width="14" height="14" rx="2" fill="#44aa44"/><rect x="54" y="75" width="14" height="14" rx="2" fill="#4444ff"/><rect x="71" y="75" width="14" height="14" rx="2" fill="#ff8c42"/></svg>`,
-    instruction: '將中心點對準任何顏色<br>點擊畫面採集',
-    hudLabel: '採集',
-    noXR: true,
-    tools: ['clear', 'capture']
-  },
-  {
-    id: 'anatomy', num: '10', title: 'AR 人體解剖',
+    id: 'anatomy', num: '10', title: 'AR 骨架辨識',
     desc: 'POSE · 人體骨骼姿態辨識',
     featured: false,
     tag: '骨架辨識',
@@ -1305,10 +1366,21 @@ const EXPERIENCES = [
     instruction: '後退讓全身入鏡<br>系統偵測骨骼姿態',
     hudLabel: '姿態',
     noXR: true,
-    tools: ['anatomy-mode', 'capture']
+    tools: ['flip-cam', 'capture']
   },
   {
-    id: 'starmap', num: '11', title: 'AR 星座圖',
+    id: 'colorscanner', num: '11', title: 'AR 色彩感測',
+    desc: 'COLOR · 即時顏色辨識與採集',
+    featured: false,
+    tag: '相機',
+    icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="10" fill="currentColor"/><circle cx="50" cy="50" r="22" fill="none" stroke-width="2" stroke-dasharray="4 3"/><rect x="17" y="75" width="14" height="14" rx="2" fill="#ff4444"/><rect x="34" y="75" width="14" height="14" rx="2" fill="#44aa44"/><rect x="51" y="75" width="14" height="14" rx="2" fill="#4444ff"/><rect x="68" y="75" width="14" height="14" rx="2" fill="#ff8c42"/></svg>`,
+    instruction: '將中心點對準任何顏色<br>點擊畫面採集',
+    hudLabel: '採集',
+    noXR: true,
+    tools: ['capture']
+  },
+  {
+    id: 'starmap', num: '12', title: 'AR 星座圖',
     desc: 'SKY · 陀螺儀星空導航',
     featured: false,
     tag: '陀螺儀',
@@ -1316,16 +1388,16 @@ const EXPERIENCES = [
     instruction: '將手機對準天空或螢幕<br>陀螺儀控制星圖視角',
     hudLabel: '星座',
     noXR: true,
-    tools: ['starmap-toggle', 'capture']
+    tools: ['starmap-cam', 'capture']
   },
   {
-    id: 'shooter', num: '12', title: '空間射擊',
+    id: 'shooter', num: '14', title: '空間射擊',
     desc: 'FPS · 陀螺儀視角射擊',
     tag: '陀螺儀',
     icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="6" fill="none" stroke-width="2"/><line x1="50" y1="10" x2="50" y2="38" stroke-width="2"/><line x1="50" y1="62" x2="50" y2="90" stroke-width="2"/><line x1="10" y1="50" x2="38" y2="50" stroke-width="2"/><line x1="62" y1="50" x2="90" y2="50" stroke-width="2"/><circle cx="50" cy="20" r="4" fill="currentColor" opacity="0.7"/><circle cx="80" cy="30" r="5" fill="currentColor" opacity="0.6"/></svg>`,
     instruction: '轉動手機瞄準敵人<br>點擊畫面射擊',
     hudLabel: '擊殺',
-    tools: ['capture']
+    tools: []
   }
 ];
 
@@ -1537,28 +1609,31 @@ async function launchExperience(exp) {
   $('#hud-counter').textContent = '0';
   $('#instruction-text').innerHTML = exp.instruction;
   $('#ar-overlay').classList.add('active');
+  // Reset instruction h3 text and show it
+  const _instrH3 = $('#ar-instruction h3');
+  if (_instrH3) _instrH3.textContent = '// 請掃描平面';
+  if (!exp.noXR) $('#ar-instruction').classList.remove('hidden');
   $('#ar-sub-toolbar').innerHTML = '';
   $('#ar-sub-toolbar').classList.remove('visible');
   $('#pc-crosshair').style.display = 'none';
 
-  // Hide instruction and light button for noXR (camera/gyro) experiences
-  const lightBtn = $('#ar-light-btn');
-  if (exp.noXR) {
-    $('#ar-instruction').classList.add('hidden');
-    if (lightBtn) lightBtn.style.display = 'none';
-    stopScanParticles();
-  } else {
-    $('#ar-instruction').classList.remove('hidden');
-    if (lightBtn) lightBtn.style.display = '';
-    startScanParticles();
-  }
-
   buildToolbar(exp);
 
+  // Hide light button for experiences where it's not relevant
+  const NO_LIGHT_EXP = ['portal', 'measure', 'particles', 'shooter'];
+  const lightBtnEl = $('#ar-light-btn');
+  if (lightBtnEl) lightBtnEl.style.display = NO_LIGHT_EXP.includes(exp.id) ? 'none' : '';
+
+  // Hide grid toggle button for camera-only experiences and shooter
+  const NO_GRID_EXP = ['emotion', 'anatomy', 'colorscanner', 'starmap', 'shooter'];
+  const gridToggleBtn = $('#ar-grid-toggle');
+  if (gridToggleBtn) gridToggleBtn.style.display = NO_GRID_EXP.includes(exp.id) ? 'none' : '';
+
   // Prevent ALL touches on AR overlay UI from reaching the XR canvas
+  // Also set uiBlocked so XR select events are suppressed
   $('#ar-overlay').querySelectorAll('button, input, .ar-sub-toolbar').forEach(el => {
-    el.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: false, capture: true });
-    el.addEventListener('touchend',   e => { e.stopPropagation(); }, { passive: false, capture: true });
+    el.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: false, capture: true });
+    el.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: false, capture: true });
   });
 
   // Init touch gesture handlers for object selection/manipulation
@@ -1569,8 +1644,14 @@ async function launchExperience(exp) {
     if (exp.noXR) {
       // Camera-only experiences: use getUserMedia directly, no Three.js/WebXR
       await initCameraMode(exp);
+      // Hide scan instruction for camera/skeleton/face/gyro experiences
+      $('#ar-instruction').classList.add('hidden');
+      // Hide light toggle (irrelevant for camera-only modes)
+      const lightBtn = $('#ar-light-btn');
+      if (lightBtn) lightBtn.style.display = 'none';
     } else if (state.xrSupported) {
       await initXR();
+      // Scan overlay auto-shows when ar-instruction is visible (via MutationObserver)
     } else {
       state.pcMode = true;
       initFallback();
@@ -1617,7 +1698,8 @@ async function initXR() {
 
   const context = canvas.getContext('webgl2', { xrCompatible: true, antialias: false, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
   state.renderer = new THREE.WebGLRenderer({ canvas, context, antialias: false, alpha: true, preserveDrawingBuffer: true });
-  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
+  const _prMap = { original: Math.min(window.devicePixelRatio, 2.5), medium: Math.min(window.devicePixelRatio, 1.5), low: 1.0 };
+  state.renderer.setPixelRatio(_prMap[state._camResolution || 'original'] ?? Math.min(window.devicePixelRatio, 2.5));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.xr.enabled = true;
   state.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1639,14 +1721,15 @@ async function initXR() {
   const ringGeom = new THREE.RingGeometry(0.09, 0.1, 32).rotateX(-Math.PI / 2);
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false });
   state.reticle = new THREE.Mesh(ringGeom, ringMat);
+  state.reticle.renderOrder = 999;
   state.reticle.matrixAutoUpdate = false;
   state.reticle.visible = false;
-  state.reticle.renderOrder = 999;
 
   // Inner dot for ring reticle
   const dotGeom = new THREE.CircleGeometry(0.012, 16).rotateX(-Math.PI / 2);
-  const dotMat = new THREE.MeshBasicMaterial({ color: 0xff8c42 });
+  const dotMat = new THREE.MeshBasicMaterial({ color: 0xff8c42, depthTest: false, depthWrite: false });
   const dot = new THREE.Mesh(dotGeom, dotMat);
+  dot.renderOrder = 999;
   state.reticle.add(dot);
   state.scene.add(state.reticle);
 
@@ -1706,7 +1789,8 @@ function initFallback() {
   state.canvas = canvas;
 
   state.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const _prMapFb = { original: Math.min(window.devicePixelRatio, 2), medium: Math.min(window.devicePixelRatio, 1.5), low: 1.0 };
+  state.renderer.setPixelRatio(_prMapFb[state._camResolution || 'original'] ?? Math.min(window.devicePixelRatio, 2));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.outputColorSpace = THREE.SRGBColorSpace;
   state.renderer.autoClear = false;
@@ -1716,10 +1800,11 @@ function initFallback() {
   gridHelper.position.y = -1;
   state.scene.add(gridHelper);
 
-  // 45° isometric-style starting angle
+  // 45° isometric-style view: camera elevated, looking down at origin
   state.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
-  state.camera.position.set(0, 1.4, 1.4);  // elevated 45°
-  state.camera.lookAt(0, 0, -1);
+  const camDist = 1.25; // closer — half the original distance
+  state.camera.position.set(camDist, camDist, camDist);
+  state.camera.lookAt(0, -1, 0);
 
   state.sceneLights = [];
   const ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
@@ -1757,7 +1842,7 @@ function initFallback() {
   state.controls = new OrbitControls(state.camera, canvas);
   state.controls.enableDamping = true;
   state.controls.dampingFactor = 0.1;
-  state.controls.target.set(0, 0, -1);
+  state.controls.target.set(0, -1, 0); // orbit around origin (grid level)
 
   state.pcMode = true;
   state.pcKeys = state.pcKeys || {};
@@ -1773,13 +1858,23 @@ function initFallback() {
 
   // Drag vs click detection
   let pointerDownX = 0, pointerDownY = 0, dragging = false;
+  canvas.addEventListener('contextmenu', e => {
+    // Right-click in draw mode: allow view rotation without creating strokes
+    if (state.experience?.id === 'draw') e.preventDefault();
+  });
   canvas.addEventListener('pointerdown', (e) => {
     pointerDownX = e.clientX; pointerDownY = e.clientY;
     dragging = false;
     if (e.target !== canvas) return;
+    // Right-click (button=2): only orbit/pan, no drawing
+    if (e.button === 2) {
+      if (state.experience?.id === 'draw' && state.controls) {
+        state.controls.enabled = true; // let OrbitControls handle it
+      }
+      return;
+    }
     if (state.experience?.id === 'draw') {
-      if (state.drawMode === 'graffiti') startGraffitiStroke();
-      else onSelectStart();
+      onSelectStart();
     } else if (state.experience?.id === 'physics') {
       startPhysicsHold();
     } else {
@@ -1792,15 +1887,18 @@ function initFallback() {
       const dx = e.clientX - pointerDownX, dy = e.clientY - pointerDownY;
       if (Math.sqrt(dx*dx + dy*dy) > 8) dragging = true;
     }
+    // Drive graffiti strokes continuously on move
+    if (e.buttons > 0 && state.experience?.id === 'draw' && state.drawMode === 'graffiti') {
+      updateGraffiti();
+    }
     if (document.pointerLockElement === canvas && state.experience?.id === 'shooter') {
       state.shooter.yaw   = (state.shooter.yaw   || 0) - e.movementX * 0.002;
       state.shooter.pitch = Math.max(-1.2, Math.min(1.2, (state.shooter.pitch || 0) - e.movementY * 0.002));
     }
   });
   canvas.addEventListener('pointerup', (e) => {
-    if (state.experience?.id === 'draw' && state.drawMode === 'graffiti') {
-      endGraffitiStroke();
-    } else if (state.experience?.id === 'physics') {
+    if (e.button === 2) return; // right-click: no stroke action
+    if (state.experience?.id === 'physics') {
       releasePhysicsHold();
     } else {
       onSelectEnd();
@@ -1810,7 +1908,8 @@ function initFallback() {
 
   // Remove scan instruction entirely on PC
   $('#ar-instruction').classList.add('hidden');
-  $('#instruction-text').innerHTML = '3D 模式 · WASD 移動 · 拖曳旋轉 · 點擊放置';
+  $('#instruction-text').innerHTML = state.experience?.id === 'measure'
+    ? '點擊畫面放置第一點' : '3D 模式 · WASD 移動 · 拖曳旋轉 · 點擊放置';
   // Show PC controls hint
   const pcHint = $('#pc-controls-hint');
   if (pcHint) pcHint.style.display = 'block';
@@ -1830,11 +1929,17 @@ function onSessionEnd() {
   state.inSession = false;
   state.session = null;
   cleanupAR();
+  // If upload is in progress, keep experience state intact for re-launch
+  if (state._uploadInProgress) {
+    state._pendingRelaunch = state.experience;
+    return; // don't clear experience or hide overlay
+  }
   state.experience = null;
   state.hadFirstHit = false;
   state.inPortal = false;
   $('#ar-overlay').classList.remove('active');
-  $('#ar-instruction').classList.remove('hidden');
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
   $('#scale-row').style.display = 'none';
   // Restore mobile-only buttons
   const gridBtn = $('#ar-grid-toggle');
@@ -1888,7 +1993,12 @@ function renderLoop(timestamp, frame) {
     if (hits.length > 0) {
       const pose = hits[0].getPose(state.referenceSpace);
       const isDrawMode = state.experience?.id === 'draw';
-      state.reticle.visible = !isDrawMode && (state.experience?.id !== 'draw' || !state.drawing.isDrawing);
+      const isGraffiti = isDrawMode && state.drawMode === 'graffiti';
+      const isShooter = state.experience?.id === 'shooter';
+      // Keep reticle VISIBLE in graffiti mode so hit-test matrix stays current, but hide ring mesh visually
+      state.reticle.visible = !isDrawMode && !isShooter || isGraffiti;
+      if (isGraffiti) state.reticle.material.opacity = 0;
+      else state.reticle.material.opacity = 0.9;
       state.reticle.matrix.fromArray(pose.transform.matrix);
 
       // Update grid position to follow detected plane
@@ -1933,8 +2043,10 @@ function renderLoop(timestamp, frame) {
       // Hide instruction on first hit
       if (!state.hadFirstHit) {
         state.hadFirstHit = true;
-        stopScanParticles();
-        setTimeout(() => $('#ar-instruction').classList.add('hidden'), 500);
+        setTimeout(() => {
+          $('#ar-instruction').classList.add('hidden');
+          window._stopScanOverlay?.();
+        }, 500);
       }
     } else {
       state.reticle.visible = false;
@@ -2038,7 +2150,7 @@ function renderLoop(timestamp, frame) {
 // --------- On select ---------
 function onSelect() {
   if (!state.experience) return;
-  if (state.uiBlocked) return;
+  if (state.uiBlocked || state._uploadInProgress) return;
 
   let pos = new THREE.Vector3();
   let quat = new THREE.Quaternion();
@@ -2070,14 +2182,19 @@ function onSelect() {
 }
 
 function onSelectStart() {
+  if (state._uploadInProgress) return;
   if (state.experience?.id === 'draw') {
-    if (state.drawMode === 'graffiti') startGraffitiStroke();
-    else startDrawStroke();
+    onSelectStart_draw();
   }
   if (state.experience?.id === 'physics') startPhysicsHold();
 }
 
+function onSelectStart_draw() {
+  startDrawStroke();
+}
+
 function onSelectEnd() {
+  if (state._uploadInProgress) return;
   if (state.experience?.id === 'draw') {
     if (state.drawMode === 'graffiti') endGraffitiStroke();
     else endDrawStroke();
@@ -2092,29 +2209,45 @@ function exitExperience() {
   // Clean up camera-mode (noXR) experiences
   if (state.experience?.noXR) {
     stopCameraMode();
-    if (state._colorCollectFn) { $('#ar-overlay').removeEventListener('touchend', state._colorCollectFn); state._colorCollectFn = null; }
-    if (state._starGyroActive) { window.removeEventListener('deviceorientation', _onStarOrientation, true); state._starGyroActive = false; }
+    if (state._colorCollectFn) {
+      $('#ar-overlay').removeEventListener('touchend', state._colorCollectFn);
+      state._colorCollectFn = null;
+    }
+    if (state._starGyroActive) {
+      window.removeEventListener('deviceorientation', _onStarOrientation, true);
+      state._starGyroActive = false;
+    }
     $('#ar-overlay').style.zIndex = '';
-    const lightBtn = $('#ar-light-btn');
-    if (lightBtn) lightBtn.style.display = '';
   }
-  stopScanParticles();
 
   // Clean up hand tracking canvas
   const handCanvas = document.getElementById('hand-canvas');
   if (handCanvas) handCanvas.style.display = 'none';
+  window._stopScanOverlay?.();
+  state._starmapCamMode = false;
+  const sc2 = $('#star-canvas'); if (sc2) sc2.style.background = '#000207';
 
   // Clean up shooter artefacts
   $('#shooter-intro')?.remove();
   $('#shooter-indicators')?.remove();
+  $('#shooter-mobile-intro')?.remove();
+  $('#shooter-mobile-bullet')?.remove();
+  $('#shooter-mobile-hint')?.remove();
   $('#pc-crosshair').style.display = 'none';
   document.removeEventListener('keydown', _shooterEscHandler);
   document.exitPointerLock?.();
+  // Remove mobile fire touchend handler to prevent bullets in other scenes
+  if (state.shooter?._mobileFireHandler && state.shooter?._mobileFireTarget) {
+    state.shooter._mobileFireTarget.removeEventListener('touchend', state.shooter._mobileFireHandler);
+    state.shooter._mobileFireHandler = null;
+  }
 
   // Reset light state so each experience starts with lights on
   state.lightOn = true;
   if (state.sceneLights) state.sceneLights.forEach(l => { l.visible = true; });
   $('#ar-light-btn')?.classList.remove('active');
+  const lightBtn = $('#ar-light-btn');
+  if (lightBtn) lightBtn.style.display = '';
 
   if (state.session && state.inSession) {
     state.inSession = false;
@@ -2127,12 +2260,13 @@ function exitExperience() {
   state.inPortal = false;
   if (state.arGrid) state.arGrid.visible = false;
   $('#ar-overlay').classList.remove('active');
-  $('#ar-instruction').classList.remove('hidden');
+  // Keep instruction hidden on home page (will be re-shown next time experience starts)
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
   $('#scale-row').style.display = 'none';
   const gridBtn = $('#ar-grid-toggle');
   if (gridBtn) gridBtn.style.display = '';
   const modeBtn = $('#ar-3d-mode');
-  if (modeBtn) { modeBtn.style.opacity = ''; modeBtn.style.pointerEvents = ''; modeBtn.style.display = ''; }
 }
 
 // --------- Toolbar construction ---------
@@ -2164,52 +2298,28 @@ function buildToolbar(exp) {
     btn.dataset.tool = tool;
     btn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
     btn.addEventListener('touchstart',  e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-    btn.addEventListener('pointerup',   () => setTimeout(() => { state.uiBlocked = false; }, 120));
-    btn.addEventListener('touchend',    () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    btn.addEventListener('pointerup',   () => setTimeout(() => { state.uiBlocked = false; }, 400));
+    btn.addEventListener('touchend',    e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
 
     switch (tool) {
       case 'shape': {
-        // Shape/Model toggle pair
-        const pair = document.createElement('div');
-        pair.className = 'toggle-pair';
+        // Shape-only button (no upload toggle)
         const shapeBtn = document.createElement('button');
         shapeBtn.className = 'ar-tool selected';
         shapeBtn.dataset.tool = 'shape';
+        shapeBtn.dataset.shape = state.currentShape || 'cube';
         shapeBtn.title = '形狀';
-        shapeBtn.innerHTML = SHAPE_ICONS['cube'];
-        const modelBtn = document.createElement('button');
-        modelBtn.className = 'ar-tool';
-        modelBtn.dataset.tool = 'upload';
-        modelBtn.title = '3D 模型';
-        modelBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
-
-        const showShapeSub = () => {
-          shapeBtn.classList.add('selected');
-          modelBtn.classList.remove('selected');
+        shapeBtn.innerHTML = SHAPE_ICONS[state.currentShape || 'cube'];
+        shapeBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        shapeBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        shapeBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        shapeBtn.addEventListener('touchend', e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
+        shapeBtn.onclick = () => {
           state.uploadMode = 'shape';
           state.customModel = null;
           buildShapeSubToolbar();
         };
-        const showModelSub = () => {
-          modelBtn.classList.add('selected');
-          shapeBtn.classList.remove('selected');
-          state.uploadMode = 'model';
-          // Hide shape/color sub-toolbar while in model mode
-          const sub = $('#ar-sub-toolbar');
-          if (sub) { sub.innerHTML = ''; sub.classList.remove('visible'); }
-          triggerModelUpload(exp.id);
-        };
-        shapeBtn.onclick = showShapeSub;
-        modelBtn.onclick = showModelSub;
-        [shapeBtn, modelBtn].forEach(b => {
-          b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-          b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        });
-        pair.appendChild(shapeBtn);
-        pair.appendChild(modelBtn);
-        tb.appendChild(pair);
+        tb.appendChild(shapeBtn);
         // Show shape sub-toolbar by default
         setTimeout(() => buildShapeSubToolbar(), 50);
         return;
@@ -2303,58 +2413,98 @@ function buildToolbar(exp) {
           toast(state._anatomyMode === 'xray' ? 'X光模式' : '骨骼模式');
         };
         break;
+      case 'flip-cam': {
+        const flipBtn = document.createElement('button');
+        flipBtn.className = 'ar-tool';
+        flipBtn.title = '翻轉鏡頭';
+        flipBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>`;
+        flipBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        flipBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        flipBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 200));
+        flipBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 200));
+        flipBtn.onclick = async () => {
+          // Toggle front/back camera
+          if (!_camStream) return;
+          const currentTrack = _camStream.getVideoTracks()[0];
+          const currentFacing = currentTrack?.getSettings?.()?.facingMode || 'user';
+          const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+          if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
+          try {
+            _camStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: newFacing, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false
+            });
+            _camVideo.srcObject = _camStream;
+            const isDesktop2 = !('ontouchstart' in window) && window.innerWidth > 900;
+            _camVideo.style.transform = (newFacing === 'user' && !isDesktop2) ? 'scaleX(-1)' : 'none';
+            await _camVideo.play();
+            toast(newFacing === 'user' ? '前置鏡頭' : '後置鏡頭');
+          } catch(e) { toast('鏡頭切換失敗'); }
+        };
+        tb.appendChild(flipBtn);
+        return;
+      }
+      case 'anatomy-capture':
+      case 'starmap-capture': {
+        // Large square shutter button — centered in bottom bar
+        const sqBtn = document.createElement('button');
+        sqBtn.className = 'ar-capture-square';
+        sqBtn.title = '拍攝截圖';
+        sqBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        sqBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        sqBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        sqBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        sqBtn.onclick = captureScreenshot;
+        tb.appendChild(sqBtn);
+        return;
+      }
+      case 'starmap-cam': {
+        const camToggle = document.createElement('button');
+        camToggle.className = 'ar-tool';
+        camToggle.title = '切換相機底圖';
+        camToggle.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7l-4-4-4 4"/><circle cx="12" cy="14" r="3"/></svg>`;
+        camToggle.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        camToggle.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        camToggle.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 150));
+        camToggle.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 150));
+        camToggle.onclick = async () => {
+          state._starmapCamMode = !state._starmapCamMode;
+          camToggle.classList.toggle('selected', state._starmapCamMode);
+          const sc = $('#star-canvas');
+          if (state._starmapCamMode) {
+            // Start rear camera
+            try {
+              if (!_camStream) {
+                _camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+                _camVideo.srcObject = _camStream;
+                _camVideo.style.transform = 'none';
+                _camVideo.style.display = 'block';
+                await _camVideo.play();
+              }
+              // Make star canvas semi-transparent
+              sc.style.background = 'transparent';
+              toast('星空疊加相機畫面');
+            } catch(e) { toast('無法開啟相機'); state._starmapCamMode = false; camToggle.classList.remove('selected'); }
+          } else {
+            // Back to solid dark sky
+            if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
+            _camVideo.style.display = 'none';
+            sc.style.background = '#000207';
+            toast('深色天空模式');
+          }
+        };
+        tb.appendChild(camToggle);
+        return;
+      }
       case 'starmap-toggle':
         btn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>`;
         btn.title = '星圖資訊';
         btn.onclick = () => toast('轉動手機瀏覽星空 · 橘色標記：北');
         break;
       case 'draw-mode-toggle': {
-        pair.className = 'toggle-pair';
-        pair.style.flexShrink = '0';
-
-        const btn3d = document.createElement('button');
-        btn3d.className = 'ar-tool ' + (state.drawMode === '3d' ? 'selected' : '');
-        btn3d.title = '3D 空中繪畫';
-        btn3d.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M3 18 Q8 8 12 12 T21 6"/></svg>`;
-
-        const btnGrf = document.createElement('button');
-        btnGrf.className = 'ar-tool ' + (state.drawMode === 'graffiti' ? 'selected' : '');
-        btnGrf.title = 'AR 塗鴉';
-        btnGrf.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M4 19 Q9 10 14 14 T21 5" stroke-width="2.5"/><path d="M3 21 h4" stroke-width="1.5"/></svg>`;
-
-        const switchMode = (mode, activeBtn, otherBtn) => {
-          state.drawMode = mode;
-          activeBtn.classList.add('selected');
-          otherBtn.classList.remove('selected');
-          const thickTool = $('[data-tool="thickness"]');
-          const brushTool = $('[data-tool="brush"]');
-          const text3dRow = $('#text3d-row');
-          if (mode === '3d') {
-            if (thickTool) thickTool.style.display = '';
-            if (brushTool) brushTool.style.display = 'none';
-            if (text3dRow) text3dRow.style.display = 'flex';
-            $('#instruction-text').innerHTML = '按住螢幕移動手機在空中繪製<br>鬆開完成一筆';
-          } else {
-            if (thickTool) thickTool.style.display = 'none';
-            if (brushTool) brushTool.style.display = '';
-            if (text3dRow) text3dRow.style.display = 'none';
-            $('#instruction-text').innerHTML = '按住畫面移動在AR平面塗鴉<br>鬆開結束筆畫';
-          }
-          toast(mode === '3d' ? '3D 空中繪畫模式' : 'AR 平面塗鴉模式');
-        };
-
-        [btn3d, btnGrf].forEach(b => {
-          b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-          b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        });
-        btn3d.onclick = () => switchMode('3d', btn3d, btnGrf);
-        btnGrf.onclick = () => switchMode('graffiti', btnGrf, btn3d);
-
-        pair.appendChild(btn3d);
-        pair.appendChild(btnGrf);
-        tb.appendChild(pair);
+        // Only 3D mode remains — no graffiti toggle button needed
+        state.drawMode = '3d';
+        const text3dRow = $('#text3d-row');
+        if (text3dRow) text3dRow.style.display = 'flex';
         return;
       }
         btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 00-4 0v5M14 10V4a2 2 0 00-4 0v6M10 10.5V6a2 2 0 00-4 0v8.5M6 14v-2M18 14a4 4 0 01-4 4H8a4 4 0 01-4-4v-2"/></svg>`;
@@ -2382,46 +2532,80 @@ function buildToolbar(exp) {
         };
         break;
       case 'pet-toggle': {
-        const pair = document.createElement('div');
-        pair.className = 'toggle-pair';
+        // Pet-only button (no upload toggle)
         const petBtn = document.createElement('button');
         petBtn.className = 'ar-tool selected';
         petBtn.title = '預設寵物';
         petBtn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5"/><circle cx="9" cy="8" r="1.5" fill="currentColor"/><circle cx="15" cy="8" r="1.5" fill="currentColor"/><path d="M9 12 Q12 14 15 12" stroke-linecap="round"/><path d="M8 14 Q7 18 8 20M16 14 Q17 18 16 20"/></svg>`;
-        const modelBtn2 = document.createElement('button');
-        modelBtn2.className = 'ar-tool';
-        modelBtn2.title = '3D 模型';
-        modelBtn2.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
-
-        const showPetSub = () => {
-          petBtn.classList.add('selected');
-          modelBtn2.classList.remove('selected');
+        petBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        petBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        petBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        petBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        tb.appendChild(petBtn);
+        setTimeout(() => {
           state.customModel = null;
           state.uploadMode = 'shape';
-          // Show color sub-toolbar for pet
           const sub = $('#ar-sub-toolbar');
           if (sub) { sub.innerHTML = ''; sub.classList.add('visible'); buildPetColorSub(sub); }
+        }, 50);
+        return;
+      }
+      case 'face-upload': {
+        // Style cycle button (5 built-in 3D styles)
+        const FACE_STYLES = ['🐱 貓咪', '👾 外星', '🐼 熊貓', '🦊 狐狸', '🤖 機器人'];
+        if (!state._faceHatStyleIdx) state._faceHatStyleIdx = 4; // default: robot
+        const styleBtn = document.createElement('button');
+        styleBtn.className = 'ar-tool selected';
+        styleBtn.title = '切換造型';
+        styleBtn.style.cssText = 'font-size:9px;font-family:var(--mono);letter-spacing:.03em;padding:4px 6px;width:auto;min-width:52px;';
+        styleBtn.textContent = FACE_STYLES[state._faceHatStyleIdx].split(' ')[0];
+        styleBtn.onclick = () => {
+          state._faceHatModel = null;
+          state._faceHatImage = null;
+          state._faceHatStyleIdx = ((state._faceHatStyleIdx || 0) + 1) % FACE_STYLES.length;
+          styleBtn.textContent = FACE_STYLES[state._faceHatStyleIdx].split(' ')[0];
+          toast('造型: ' + FACE_STYLES[state._faceHatStyleIdx]);
         };
-        const showPetModelSub = () => {
-          modelBtn2.classList.add('selected');
-          petBtn.classList.remove('selected');
-          state.uploadMode = 'model';
-          $('#ar-sub-toolbar').innerHTML = '';
-          $('#ar-sub-toolbar').classList.remove('visible');
-          triggerModelUpload('pet');
+
+        // Upload button (image or GLB)
+        const uploadBtn = document.createElement('button');
+        uploadBtn.className = 'ar-tool';
+        uploadBtn.title = '上傳圖片 / GLB';
+        uploadBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+        uploadBtn.onclick = () => {
+          const inp = document.createElement('input');
+          inp.type = 'file';
+          inp.accept = 'image/*,.glb,.gltf';
+          inp.onchange = async (ev) => {
+            const file = ev.target.files?.[0];
+            if (!file) return;
+            uploadBtn.classList.add('selected');
+            styleBtn.classList.remove('selected');
+            if (file.name.match(/\.(glb|gltf)$/i)) {
+              const url = URL.createObjectURL(file);
+              const loader = new GLTFLoader();
+              loader.load(url, (gltf) => {
+                state._faceHatModel = gltf.scene;
+                state._faceHatImage = null;
+                toast('✓ 3D 模型已載入');
+              }, undefined, () => toast('GLB 載入失敗'));
+            } else {
+              const img = new Image();
+              img.onload = () => { state._faceHatImage = img; state._faceHatModel = null; toast('✓ 圖片已載入'); };
+              img.src = URL.createObjectURL(file);
+            }
+          };
+          inp.click();
         };
-        petBtn.onclick = showPetSub;
-        modelBtn2.onclick = showPetModelSub;
-        [petBtn, modelBtn2].forEach(b => {
+
+        [styleBtn, uploadBtn].forEach(b => {
           b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
           b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 400));
         });
-        pair.appendChild(petBtn);
-        pair.appendChild(modelBtn2);
-        tb.appendChild(pair);
-        setTimeout(() => showPetSub(), 50);
+        tb.appendChild(styleBtn);
+        tb.appendChild(uploadBtn);
         return;
       }
       case 'shoot':
@@ -2431,6 +2615,10 @@ function buildToolbar(exp) {
         break;
       case 'trick':
         btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>`;
+        btn.id = 'pet-trick-btn';
+        btn.style.opacity = '0.35';
+        btn.style.pointerEvents = 'none';
+        btn.title = '表演 (需先放置寵物)';
         btn.onclick = petTrick;
         break;
     }
@@ -2483,12 +2671,14 @@ function cyclePortalScene(btn) {
   const i = scenes.indexOf(state.portalSceneType);
   state.portalSceneType = scenes[(i + 1) % scenes.length];
 
-  // If portal already placed, re-place it to update colors
+  // Re-place portal preserving the original ground position (not the elevated centre)
   if (state.objects.length > 0) {
     const oldPortal = state.objects[0];
-    const oldPos = oldPortal.position.clone();
-    const oldQuat = oldPortal.quaternion.clone();
-    placePortal(oldPos, oldQuat);
+    const portalHalfH = 0.45;
+    // oldPortal.position.y is the ring centre (groundY + portalHalfH), recover groundY
+    const groundY = oldPortal.position.y - portalHalfH;
+    const groundPos = new THREE.Vector3(oldPortal.position.x, groundY, oldPortal.position.z);
+    placePortal(groundPos, oldPortal.quaternion.clone());
   }
   toast('場景: ' + state.portalSceneType.toUpperCase());
 }
@@ -2629,6 +2819,12 @@ function initTouchGestureHandlers() {
   }, { passive: true });
 
   overlay.addEventListener('touchmove', (e) => {
+    // Drive graffiti stroke on touch drag (XR mobile mode)
+    if (state.experience?.id === 'draw' && state.drawMode === 'graffiti' && state.graffiti?.isDrawing) {
+      updateGraffiti();
+      return;
+    }
+
     if (!state.selectedObject) return;
     if (state.experience?.id !== 'placement' && state.experience?.id !== 'pet') return;
 
@@ -2698,7 +2894,8 @@ function buildShapeSubToolbar() {
     b.title = shape;
     b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
     b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    b.addEventListener('pointerup',  () => setTimeout(() => { state.uiBlocked = false; }, 400));
+    b.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
     b.onclick = () => {
       state.currentShape = shape;
       buildShapeSubToolbar();
@@ -2722,7 +2919,8 @@ function buildShapeSubToolbar() {
   colorBtn.innerHTML = `<svg viewBox="0 0 16 16" style="width:12px;height:12px;position:absolute;bottom:1px;right:1px;opacity:.7;"><path d="M4 6l4 4 4-4" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
   colorBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
   colorBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-  colorBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+  colorBtn.addEventListener('pointerup',  () => setTimeout(() => { state.uiBlocked = false; }, 400));
+  colorBtn.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
   colorBtn.onclick = () => {
     const i = COLORS.indexOf(state.color);
     state.color = COLORS[(i + 1) % COLORS.length];
@@ -2750,7 +2948,7 @@ function showModelSubToolbar(modelName) {
   reuploadBtn.title = '更換模型';
   reuploadBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
   reuploadBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-  reuploadBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+  reuploadBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
   reuploadBtn.onclick = () => triggerModelUpload(state.experience?.id);
   sub.appendChild(reuploadBtn);
 }
@@ -2772,6 +2970,10 @@ function redoAction() {
   if (type === 'graffiti' && state.graffiti) {
     state.scene.add(obj);
     state.graffiti.strokes.push(obj);
+  } else if (type === 'measure' && state.measure) {
+    obj.children.forEach(c => state.scene.add(c));
+    state.scene.add(obj);
+    state.measure.lines.push(obj);
   } else {
     state.scene.add(obj);
     state.drawing.strokes.push(obj);
@@ -2793,7 +2995,8 @@ function buildPetColorSub(container) {
     b.style.cssText = `background:${c};width:28px;height:28px;border-radius:50%;border:2px solid ${c === state.color ? 'white' : 'transparent'};flex-shrink:0;`;
     b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
     b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    b.addEventListener('pointerup',  () => setTimeout(() => { state.uiBlocked = false; }, 400));
+    b.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
     b.onclick = () => { state.color = c; buildPetColorSub(container); };
     container.appendChild(b);
   });
@@ -2847,53 +3050,141 @@ function removeScalePreview() {
 let _modelFileInput = null;
 let _imageFileInput = null;
 
-function triggerModelUpload(expId) {
-  // Always block uiBlocked immediately before file picker to prevent AR canvas from reacting
-  state.uiBlocked = true;
+function showResumePrompt(exp) {
+  // Clear any existing prompt
+  $('#resume-prompt')?.remove();
+  $('#resume-backdrop')?.remove();
+  // Make sure we're on home page
+  $('#ar-overlay').classList.remove('active');
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
 
-  // Reuse or create inputs
+  // Backdrop — semi-transparent dark layer that blocks underlying clicks
+  const backdrop = document.createElement('div');
+  backdrop.id = 'resume-backdrop';
+  backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:898;pointer-events:auto;';
+  document.body.appendChild(backdrop);
+
+  const div = document.createElement('div');
+  div.id = 'resume-prompt';
+  div.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(16,16,18,0.97);border:2px solid var(--amber);border-radius:8px;padding:36px 32px;z-index:900;font-family:var(--mono);text-align:center;box-shadow:0 12px 60px rgba(255,140,66,0.35);width:calc(100% - 40px);max-width:400px;pointer-events:auto;';
+
+  const hasModel = !!state.customModel;
+  div.innerHTML = `
+    <div style="color:var(--amber);font-size:13px;letter-spacing:.12em;margin-bottom:16px;">// ${hasModel ? '✓ 模型已載入' : '檔案處理完成'}</div>
+    <div style="color:var(--text);font-size:18px;margin-bottom:10px;font-weight:700;">準備返回 ${exp.title}</div>
+    <div style="color:var(--text-dim);font-size:13px;margin-bottom:28px;line-height:1.6;">瀏覽器需要您的點擊<br>才能重新啟動 AR 場景</div>
+    <button id="resume-btn" type="button" style="background:var(--amber);color:#000;border:none;border-radius:4px;padding:18px 32px;font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.12em;cursor:pointer;width:100%;touch-action:manipulation;pointer-events:auto;">
+      點擊繼續 →
+    </button>
+    <button id="resume-cancel" type="button" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:12px;margin-top:18px;padding:10px;cursor:pointer;letter-spacing:.06em;width:100%;touch-action:manipulation;pointer-events:auto;">
+      取消
+    </button>
+  `;
+  document.body.appendChild(div);
+
+  const resumeBtn = div.querySelector('#resume-btn');
+  const cancelBtn = div.querySelector('#resume-cancel');
+
+  const cleanup = () => {
+    div.remove();
+    backdrop.remove();
+  };
+
+  const doResume = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    state.uiBlocked = false;
+    state._uploadInProgress = false;
+    state._pendingRelaunch = null;
+    cleanup();
+    launchExperience(exp).catch(err => {
+      console.error('Resume launch failed:', err);
+      toast('啟動失敗，請從首頁重新進入', true);
+    });
+  };
+
+  resumeBtn.addEventListener('click', doResume);
+  resumeBtn.addEventListener('touchend', (e) => {
+    if (e.cancelable) e.preventDefault();
+    doResume(e);
+  });
+
+  const doCancel = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    cleanup();
+    state.customModel = null;
+    state._pendingRelaunch = null;
+    state.uiBlocked = false;
+    state._uploadInProgress = false;
+  };
+  cancelBtn.addEventListener('click', doCancel);
+  cancelBtn.addEventListener('touchend', (e) => {
+    if (e.cancelable) e.preventDefault();
+    doCancel(e);
+  });
+}
+
+function triggerModelUpload(expId) {
+  state.uiBlocked = true;
+  state._uploadInProgress = true;
+  // Immediately hide AR instruction and scan particles
+  // (when XR session ends due to file picker, home page should look clean)
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
+
   if (!_modelFileInput) {
     _modelFileInput = document.createElement('input');
     _modelFileInput.type = 'file';
     _modelFileInput.accept = '.glb,.gltf,.jpg,.jpeg,.png,.webp';
-    _modelFileInput.style.cssText = 'position:fixed;top:-9999px;opacity:0;pointer-events:none;';
+    _modelFileInput.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;overflow:hidden;';
     document.body.appendChild(_modelFileInput);
   }
 
-  // Detach previous handler before attaching new one
   const oldInput = _modelFileInput;
+  const finishUpload = () => {
+    setTimeout(() => {
+      state.uiBlocked = false;
+      state._uploadInProgress = false;
+      // If XR session was killed, show a "tap to resume" prompt
+      // (browser requires user activation for requestSession — can't auto-relaunch)
+      if (state._pendingRelaunch) {
+        const exp = state._pendingRelaunch;
+        state._pendingRelaunch = null;
+        showResumePrompt(exp);
+      }
+    }, 800);
+  };
+
   const newHandler = (e) => {
     oldInput.removeEventListener('change', newHandler);
     const file = e.target.files?.[0];
     oldInput.value = '';
-
-    setTimeout(() => { state.uiBlocked = false; }, 300);
-
+    finishUpload();
     if (!file) {
-      // User cancelled — revert to shape mode
       state.uploadMode = 'shape';
       state.customModel = null;
-      const shapeToggle = $('[data-tool="shape"]');
-      if (shapeToggle) shapeToggle.classList.add('selected');
-      const modelToggle = $('[data-tool="upload"]');
-      if (modelToggle) modelToggle.classList.remove('selected');
-      buildShapeSubToolbar();
+      $('[data-tool="shape"]')?.classList.add('selected');
+      $('[data-tool="upload"]')?.classList.remove('selected');
+      if (typeof buildShapeSubToolbar === 'function') buildShapeSubToolbar();
       return;
     }
-
     const isImage = /\.(jpe?g|png|webp)$/i.test(file.name);
-    if (isImage) {
-      _loadImageFile(file, expId);
-    } else {
-      _loadGLTFFile(file, expId);
-    }
+    if (isImage) _loadImageFile(file, expId);
+    else _loadGLTFFile(file, expId);
   };
-  _modelFileInput.addEventListener('change', newHandler);
+  oldInput.addEventListener('change', newHandler);
 
-  // Use rAF to delay click — prevents iOS from treating this as a navigation gesture
-  requestAnimationFrame(() => {
-    _modelFileInput.click();
-  });
+  // Handle cancel — when user returns without selecting
+  const onFocus = () => {
+    window.removeEventListener('focus', onFocus);
+    setTimeout(finishUpload, 600);
+  };
+  window.addEventListener('focus', onFocus, { once: true });
+
+  // Trigger picker — use direct call (not setTimeout) for better mobile gesture chaining
+  oldInput.click();
 }
 
 function _loadGLTFFile(file, expId) {
@@ -3052,6 +3343,7 @@ function undoAction() {
     line.children.forEach(c => state.scene.remove(c));
     state.scene.remove(line);
     state.measure.points = [];
+    _redoStack.push({ type: 'measure', obj: line });
   }
   updateCounter();
   updateRedoBtn();
@@ -3103,6 +3395,9 @@ function clearAll() {
       // Clean up intro and indicators
       $('#shooter-intro')?.remove();
       $('#shooter-indicators')?.remove();
+      $('#shooter-mobile-intro')?.remove();
+      $('#shooter-mobile-bullet')?.remove();
+      $('#shooter-mobile-hint')?.remove();
       $('#pc-crosshair').style.display = 'none';
       document.removeEventListener('keydown', _shooterEscHandler);
       document.exitPointerLock?.();
@@ -3221,7 +3516,6 @@ function addMeasurePoint(pos) {
       color: 0xff8c42,
       linewidth: 3,
       resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-      dashed: false,
     });
     const liveLine = new Line2(liveGeom, liveMat);
     liveLine.frustumCulled = false;
@@ -3230,7 +3524,14 @@ function addMeasurePoint(pos) {
     state.measure.liveLine = liveLine;
     state.measure.liveDot = dot;
     state.scene.add(liveLine);
-    toast('第一點已標記，瞄準後點擊第二點');
+    toast('第一點已標記，移動瞄準後點擊第二點');
+    // Show tap-to-confirm hint (mobile only; PC already has persistent hint)
+    if (!state.pcMode) {
+      const instrH3 = $('#ar-instruction h3');
+      if (instrH3) instrH3.textContent = '// 放置第二點';
+      $('#instruction-text').innerHTML = '移動手機瞄準終點<br>點擊畫面放置第二點';
+      $('#ar-instruction').classList.remove('hidden');
+    }
   } else if (state.measure.points.length === 2) {
     if (state.measure.liveLine) {
       state.scene.remove(state.measure.liveLine);
@@ -3240,7 +3541,7 @@ function addMeasurePoint(pos) {
     const [a, b] = state.measure.points;
     const dist = a.distanceTo(b);
 
-    // Final line — same Line2 thickness as rubber-band (3px)
+    // Final line — thicker than rubber-band
     const finalGeom = new LineGeometry();
     finalGeom.setPositions([a.x, a.y, a.z, b.x, b.y, b.z]);
     const finalMat = new LineMaterial({
@@ -3281,6 +3582,10 @@ function addMeasurePoint(pos) {
 
     toast(`距離: ${(dist * 100).toFixed(1)} cm`);
     updateCounter();
+    $('#ar-instruction').classList.add('hidden');
+    // Restore h3 for next use
+    const instrH3b = $('#ar-instruction h3');
+    if (instrH3b) instrH3b.textContent = '// 請掃描平面';
   }
 }
 
@@ -3647,19 +3952,16 @@ function placePortal(pos, quat) {
   const group = new THREE.Group();
   const { pos: camPos, quat: camQuat } = getCameraPose();
 
-  // Smart placement: ensure portal is visible in front of camera
+  // Use hit-test y directly as ground reference; portal centre raised by half its height
+  const portalHalfH = 0.45; // ring radius
+  const groundY = pos.y; // reticle y = actual floor level
   const camForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
   const distFromCam = pos.distanceTo(camPos);
-  if (distFromCam < 0.6 || distFromCam > 4) {
-    const fallback = camPos.clone().addScaledVector(camForward, 1.5);
-    group.position.set(fallback.x, camPos.y - 0.1, fallback.z);
+  if (distFromCam < 0.6 || distFromCam > 5) {
+    const fallback = camPos.clone().addScaledVector(camForward, 1.8);
+    group.position.set(fallback.x, groundY + portalHalfH, fallback.z);
   } else {
-    group.position.copy(pos);
-    if (pos.y < camPos.y - 0.5) {
-      group.position.y = camPos.y - 0.2;
-    } else {
-      group.position.y += 0.1;
-    }
+    group.position.set(pos.x, groundY + portalHalfH, pos.z);
   }
 
   // Face the camera (upright)
@@ -3691,8 +3993,8 @@ function placePortal(pos, quat) {
   const ring2Mat = new THREE.MeshBasicMaterial({ color: secondaryHex, transparent: true, opacity: 0.7, toneMapped: false });
   group.add(new THREE.Mesh(ring2Geom, ring2Mat));
 
-  // Portal disc — animated shader fills the full opening
-  const portalGeom = new THREE.CircleGeometry(0.435, 64);
+  // Portal disc — animated shader for swirl effect (no RenderTarget needed)
+  const portalGeom = new THREE.CircleGeometry(0.45, 48);
   const portalMat = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
@@ -3722,7 +4024,7 @@ function placePortal(pos, quat) {
         // Center glow
         float glow = smoothstep(0.5, 0.0, r);
         // Edge fade
-        float edge = smoothstep(0.5, 0.4, r);
+        float edge = smoothstep(0.52, 0.42, r);
         vec3 col = mix(uPrimary * 0.3, uSecondary, swirl * rings);
         col += uSecondary * glow * 0.6;
         gl_FragColor = vec4(col * edge, edge);
@@ -3807,9 +4109,9 @@ function shootBall(power) {
 function updatePhysics(dt) {
   if (!state.physics.floorSet) return;
   const g = 9.8;
-  const restitution = 0.68;
-  const friction    = 0.98;   // lower friction = balls roll further
-  const airDrag     = 0.998;  // per-frame velocity multiplier in air
+  const restitution = 0.68;   // bounciness
+  const friction    = 0.95;   // horizontal damping on bounce
+  const airDrag     = 0.9985; // per-frame velocity multiplier in air
 
   state.physics.balls.forEach(b => {
     // Gravity
@@ -3833,16 +4135,21 @@ function updatePhysics(dt) {
       b.position.y = floorContact;
       const vy = Math.abs(b.userData.velocity.y);
       b.userData.velocity.y = vy * restitution;
-      b.userData.velocity.x *= friction;
-      b.userData.velocity.z *= friction;
+      // Apply rolling friction only when nearly resting (not on big bounces)
+      const rollingFriction = vy < 0.3 ? 0.992 : friction;
+      b.userData.velocity.x *= rollingFriction;
+      b.userData.velocity.z *= rollingFriction;
       b.userData.bounces++;
+      // Bounce sound disabled — physics scene now silent
 
-      // Settle threshold
-      if (vy < 0.06 && b.userData.bounces > 2) {
+      // Settle threshold — only rest when both vertical and horizontal are tiny
+      const hSpeed = Math.sqrt(b.userData.velocity.x**2 + b.userData.velocity.z**2);
+      if (vy < 0.04 && hSpeed < 0.015 && b.userData.bounces > 3) {
         b.userData.velocity.set(0, 0, 0);
         b.userData.resting = true;
       } else {
         b.userData.resting = false;
+        // Rolling sound disabled — physics scene now silent
       }
     }
 
@@ -3971,8 +4278,9 @@ function initShooter() {
   if (!indContainer) {
     indContainer = document.createElement('div');
     indContainer.id = 'shooter-indicators';
-    indContainer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;';
-    document.body.appendChild(indContainer);
+    indContainer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:180;overflow:hidden;';
+    // Append inside ar-overlay so it renders in WebXR DOM-overlay layer
+    ($('#ar-overlay') || document.body).appendChild(indContainer);
   }
   state.shooter.indContainer = indContainer;
 
@@ -3998,35 +4306,115 @@ function initShooter() {
       $('#pc-crosshair').style.display = 'block';
       state.canvas.requestPointerLock?.();
       document.addEventListener('keydown', _shooterEscHandler);
+
+      // Right-click = pause, Left-click = resume (when paused)
+      state.canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (state.experience?.id !== 'shooter') return;
+        if (state.shooter?.active) {
+          document.exitPointerLock?.();
+          state.shooter.active = false;
+          toast('射擊暫停 — 左鍵繼續');
+        }
+      });
+      state.canvas.addEventListener('click', (e) => {
+        if (state.experience?.id !== 'shooter' || state.shooter?.active) return;
+        state.shooter.active = true;
+        state.canvas.requestPointerLock?.();
+        toast('射擊繼續！');
+      });
     };
   } else {
-    // Mobile: start immediately — no plane scan required
-    state.shooter.active = true;
-    state.shooter.started = true;
+    // Mobile: show intro panel first, then start on dismiss
+    state.shooter.active = false;
+    state.shooter.started = false;
+    state.uiBlocked = false;
+    if (state.reticle) state.reticle.visible = false;
 
-    // Start gyroscope for aim control
-    startGyroscope(state.camera);
-    if (state.camera) { state.camera.position.set(0, 0, 0); }
+    // Hide instruction panel (we'll show our own intro)
+    $('#ar-instruction').classList.add('hidden');
+    window._stopScanOverlay?.();
 
-    // Show crosshair
-    $('#pc-crosshair').style.display = 'block';
+    // Build mobile intro panel inside ar-overlay (visible in WebXR DOM-overlay)
+    $('#shooter-mobile-intro')?.remove();
+    const intro = document.createElement('div');
+    intro.id = 'shooter-mobile-intro';
+    intro.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(10,10,11,0.94);border:2px solid var(--amber);border-radius:8px;padding:28px 24px;z-index:300;font-family:var(--mono);text-align:center;width:calc(100% - 40px);max-width:340px;pointer-events:auto;box-shadow:0 12px 40px rgba(255,140,66,0.25);';
+    intro.innerHTML = `
+      <div style="font-size:11px;color:var(--amber);letter-spacing:.15em;margin-bottom:10px;">// 空間射擊</div>
+      <h3 style="font-size:18px;color:var(--text);margin:0 0 18px 0;font-weight:700;">準備好了嗎？</h3>
+      <div style="font-size:13px;color:var(--text-dim);line-height:1.9;margin-bottom:20px;text-align:left;padding:0 8px;">
+        <div style="margin-bottom:6px;"><span style="color:var(--amber);">①</span> 轉動手機觀察四周敵人</div>
+        <div style="margin-bottom:6px;"><span style="color:var(--amber);">②</span> 邊緣箭頭指引敵人方位</div>
+        <div><span style="color:var(--amber);">③</span> 點擊畫面射出子彈消滅敵人</div>
+      </div>
+      <button id="shooter-mobile-start" style="background:var(--amber);color:#000;border:none;border-radius:4px;padding:14px 24px;font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.12em;cursor:pointer;width:100%;touch-action:manipulation;">
+        點擊開始 →
+      </button>
+    `;
+    $('#ar-overlay').appendChild(intro);
 
-    // Mobile fire: tap on the AR overlay background area (not UI buttons)
-    const mobileFire = (e) => {
-      if (state.uiBlocked) return;
-      // Ensure the touch is NOT on a button or toolbar
-      const tgt = e.changedTouches?.[0] ? document.elementFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : e.target;
-      if (tgt && tgt.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom, #power-bar-wrap')) return;
-      if (state.shooter?.active && state.shooter?.started) {
-        fireShooterBullet();
-      }
+    const startBtn = intro.querySelector('#shooter-mobile-start');
+    const startGame = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      intro.remove();
+      state.shooter.active = true;
+      state.shooter.started = true;
+      // Start gyroscope for aim control
+      startGyroscope(state.camera);
+      if (state.camera) { state.camera.position.set(0, 0, 0); }
+      // Hide standard crosshair (we'll show the floating bullet instead)
+      $('#pc-crosshair').style.display = 'none';
+
+      // Floating rotating bullet at screen center (visual aim guide)
+      $('#shooter-mobile-bullet')?.remove();
+      const bullet = document.createElement('div');
+      bullet.id = 'shooter-mobile-bullet';
+      bullet.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:42px;height:42px;pointer-events:none;z-index:50;';
+      bullet.innerHTML = `
+        <svg viewBox="0 0 42 42" style="width:100%;height:100%;filter:drop-shadow(0 0 8px #ffd080) drop-shadow(0 0 3px rgba(255,208,128,0.8));">
+          <defs>
+            <radialGradient id="bulletGrad" cx="40%" cy="35%" r="55%">
+              <stop offset="0%" stop-color="#fff8e0"/>
+              <stop offset="35%" stop-color="#ffd080"/>
+              <stop offset="100%" stop-color="#ffd080"/>
+            </radialGradient>
+          </defs>
+          <circle cx="21" cy="21" r="9" fill="#ffd080"/>
+          <circle cx="17.5" cy="17.5" r="3" fill="rgba(255,255,255,0.5)"/>
+        </svg>
+        <style>@keyframes bulletFloat{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-5px)}}</style>
+      `;
+      bullet.style.animation = 'bulletFloat 2.4s ease-in-out infinite';
+      $('#ar-overlay').appendChild(bullet);
+
+      // Persistent bottom hint
+      $('#shooter-mobile-hint')?.remove();
+      const hint = document.createElement('div');
+      hint.id = 'shooter-mobile-hint';
+      hint.style.cssText = 'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:rgba(10,10,11,0.75);border:1px solid var(--amber);border-radius:20px;padding:8px 18px;font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.1em;pointer-events:none;z-index:55;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);';
+      hint.textContent = '// 點擊畫面射出子彈';
+      $('#ar-overlay').appendChild(hint);
+
+      // Mobile fire: tap on canvas/document body (overlay has pointer-events:none)
+      const mobileFire = (ev) => {
+        if (state._uploadInProgress) return;
+        const tgt = ev.changedTouches?.[0] ? document.elementFromPoint(ev.changedTouches[0].clientX, ev.changedTouches[0].clientY) : ev.target;
+        if (tgt && tgt.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom, #power-bar-wrap, #ar-toolbar, button, input, label')) return;
+        if (state.shooter?.active && state.shooter?.started) {
+          fireShooterBullet();
+          // Brief pulse on the floating bullet
+          const b = $('#shooter-mobile-bullet');
+          if (b) { b.style.transform = 'translate(-50%,-50%) scale(0.7)'; setTimeout(() => { b.style.transform = ''; }, 120); }
+        }
+      };
+      document.addEventListener('touchend', mobileFire, { passive: true });
+      state.shooter._mobileFireHandler = mobileFire;
+      state.shooter._mobileFireTarget = document;
     };
-    const overlayEl = $('#ar-overlay');
-    overlayEl.addEventListener('touchend', mobileFire, { passive: true });
-    state.shooter._mobileFireHandler = mobileFire;
-    state.shooter._mobileFireTarget = overlayEl;
-
-    toast('轉動手機瞄準，點擊畫面射擊');
+    startBtn.addEventListener('click', startGame);
+    startBtn.addEventListener('touchend', startGame);
   }
 }
 
@@ -4050,8 +4438,8 @@ function _updateShooterIndicators() {
     if (!cont) {
       cont = document.createElement('div');
       cont.id = 'shooter-indicators';
-      cont.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;overflow:hidden;';
-      document.body.appendChild(cont);
+      cont.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:180;overflow:hidden;';
+      ($('#ar-overlay') || document.body).appendChild(cont);
     }
     state.shooter.indContainer = cont;
   }
@@ -4062,23 +4450,45 @@ function _updateShooterIndicators() {
   cont.innerHTML = '';
 
   state.shooter.enemies.forEach(en => {
-    const screenPos = en.position.clone().project(state.camera);
-    // Inside screen — no indicator needed
-    if (Math.abs(screenPos.x) < 0.75 && Math.abs(screenPos.y) < 0.75 && screenPos.z < 1) return;
+    // Get vector from camera to enemy in world space
+    const toEnemy = en.position.clone().sub(state.camera.position);
+    // Transform to camera/view space
+    const camMat = new THREE.Matrix4().extractRotation(state.camera.matrixWorld);
+    const camInv = camMat.clone().invert();
+    const viewDir = toEnemy.clone().applyMatrix4(camInv).normalize();
 
-    // Project to screen pixel coords then clamp to edge
+    // Check if enemy is in front of camera (z < 0 in view space = in front)
+    if (viewDir.z < -0.4) {
+      // Project to screen using THREE
+      const screenPos = en.position.clone().project(state.camera);
+      if (Math.abs(screenPos.x) <= 0.85 && Math.abs(screenPos.y) <= 0.85) return; // on-screen
+    }
+
+    // Calculate 2D angle from screen center to projected position
+    const screenPos = en.position.clone().project(state.camera);
     const rawX = (screenPos.x * 0.5 + 0.5) * w;
     const rawY = (1 - (screenPos.y * 0.5 + 0.5)) * h;
     const cx = w / 2, cy = h / 2;
-    const angle = Math.atan2(rawY - cy, rawX - cx);
+
+    // If enemy is behind camera, flip the screen position
+    const isBehind = screenPos.z > 1;
+    const dirX = isBehind ? cx - rawX : rawX - cx;
+    const dirY = isBehind ? cy - rawY : rawY - cy;
+    const angle = Math.atan2(dirY, dirX);
+
     const margin = 44;
-    const edgeX = Math.max(margin, Math.min(w - margin, cx + Math.cos(angle) * (cx - margin)));
-    const edgeY = Math.max(margin, Math.min(h - margin, cy + Math.sin(angle) * (cy - margin)));
+    const edgeX = cx + Math.cos(angle) * (cx - margin);
+    const edgeY = cy + Math.sin(angle) * (cy - margin);
+    const clampedX = Math.max(margin, Math.min(w - margin, edgeX));
+    const clampedY = Math.max(margin, Math.min(h - margin, edgeY));
     const rot = angle * 180 / Math.PI + 90;
 
+    const dist = en.position.distanceTo(state.camera.position);
+    const urgency = dist < 2 ? '#ff4444' : dist < 3.5 ? '#ff8844' : '#f87171';
+
     const el = document.createElement('div');
-    el.style.cssText = `position:absolute;left:${edgeX.toFixed(0)}px;top:${edgeY.toFixed(0)}px;transform:translate(-50%,-50%) rotate(${rot.toFixed(0)}deg);width:28px;height:28px;pointer-events:none;filter:drop-shadow(0 0 5px #f87171);`;
-    el.innerHTML = `<svg viewBox="0 0 28 28"><polygon points="14,3 25,25 14,19 3,25" fill="#f87171"/></svg>`;
+    el.style.cssText = `position:absolute;left:${clampedX.toFixed(0)}px;top:${clampedY.toFixed(0)}px;transform:translate(-50%,-50%) rotate(${rot.toFixed(0)}deg);width:28px;height:28px;pointer-events:none;filter:drop-shadow(0 0 5px ${urgency});`;
+    el.innerHTML = `<svg viewBox="0 0 28 28"><polygon points="14,3 25,25 14,19 3,25" fill="${urgency}"/></svg>`;
     cont.appendChild(el);
   });
 }
@@ -4113,16 +4523,19 @@ function spawnShooterEnemy() {
 
 function fireShooterBullet() {
   if (!state.shooter?.active || !state.shooter?.started) return;
-  const { quat: camQuat } = getCameraPose();
+  const { pos: camPos, quat: camQuat } = getCameraPose();
+  // Always fire from exact screen center (camera forward direction)
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+  const origin = camPos.clone().addScaledVector(forward, 0.3);
   const bullet = new THREE.Mesh(
     new THREE.SphereGeometry(0.04, 5, 3),
     new THREE.MeshBasicMaterial({ color: 0xffd080, toneMapped: false })
   );
-  bullet.position.addScaledVector(forward, 0.5);
-  bullet.userData = { velocity: forward.clone().multiplyScalar(16), life: 0, maxLife: 1.8 };
+  bullet.position.copy(origin);
+  bullet.userData = { velocity: forward.clone().multiplyScalar(18), life: 0, maxLife: 1.8 };
   state.scene.add(bullet);
   state.shooter.bullets.push(bullet);
+  _sfx.shoot();
 }
 
 function updateShooter(dt, t) {
@@ -4145,6 +4558,7 @@ function updateShooter(dt, t) {
     en.rotation.y += en.userData.rotSpeed * dt;
     if (en.position.distanceTo(playerPos) < 0.35) {
       state.scene.remove(en);
+      _sfx.playerHit();
       toast('💥 被擊中！');
       return false;
     }
@@ -4166,19 +4580,13 @@ function updateShooter(dt, t) {
     for (let i = sh.enemies.length - 1; i >= 0; i--) {
       if (b.position.distanceTo(sh.enemies[i].position) < 0.22) {
         const en = sh.enemies[i];
-        // Debris
-        for (let p = 0; p < 5; p++) {
-          const d = new THREE.Mesh(new THREE.SphereGeometry(0.025, 4, 3), new THREE.MeshBasicMaterial({ color: en.userData.color }));
-          d.position.copy(en.position);
-          d.userData = { v: new THREE.Vector3((Math.random()-.5)*5, Math.random()*3, (Math.random()-.5)*5), life: 0, maxLife: 0.8 };
-          state.scene.add(d);
-          sh.bullets.push(d);
-        }
+        // No debris/drops — clean kill
         state.scene.remove(en);
         sh.enemies.splice(i, 1);
         sh.score++;
         $('#hud-counter').textContent = sh.score;
         toast('🎯 擊中！ ' + sh.score);
+        _sfx.explode();
         state.scene.remove(b);
         return false;
       }
@@ -4200,17 +4608,23 @@ function updateGraffiti() {
   if (!state.graffiti?.isDrawing) return;
 
   let drawPos;
-  if (state.reticle?.visible) {
+  if (state.inSession && state.reticle?.matrix) {
+    // XR mode — always paint on the AR-detected surface plane
     const m = new THREE.Matrix4().fromArray(state.reticle.matrix.elements);
     drawPos = new THREE.Vector3().setFromMatrixPosition(m);
+  } else if (state.pcMode && state.pcReticlePos) {
+    // PC fallback — use raycasted grid position
+    drawPos = state.pcReticlePos.clone();
   } else {
+    // Last resort: fixed distance in front of camera
     const { pos: camPos, quat: camQuat } = getCameraPose();
-    const fwd = new THREE.Vector3(0, 0, -0.4).applyQuaternion(camQuat);
-    drawPos = camPos.clone().add(fwd);
+    drawPos = camPos.clone().add(new THREE.Vector3(0, 0, -0.4).applyQuaternion(camQuat));
   }
 
   const pts = state.graffiti.currentPoints;
-  if (!pts.length || pts[pts.length-1].distanceTo(drawPos) > 0.004) {
+  // Dense threshold for smooth strokes on surface
+  const minDist = 0.003;
+  if (!pts.length || pts[pts.length - 1].distanceTo(drawPos) > minDist) {
     pts.push(drawPos.clone());
   }
 
@@ -4251,8 +4665,16 @@ function endGraffitiStroke() {
   state.graffiti.isDrawing = false;
   const pts = state.graffiti.currentPoints;
   const line = state.graffiti.currentLine;
-  if (pts.length > 1) {
-    // Line2 is already in scene and fully drawn — keep it as final stroke
+  if (pts.length >= 1) {
+    // If only 1 point, duplicate it so Line2 renders a visible dot-segment
+    if (pts.length === 1) {
+      const dup = pts[0].clone().addScalar(0.001);
+      pts.push(dup);
+      if (line) {
+        line.geometry.setPositions([pts[0].x, pts[0].y, pts[0].z, dup.x, dup.y, dup.z]);
+        line.computeLineDistances();
+      }
+    }
     state.graffiti.strokes.push(line);
     updateCounter();
   } else if (line) {
@@ -4509,10 +4931,7 @@ function updateParticles(dt) {
 // --------- 8. Virtual Pet ---------
 function placePet(pos) {
   if (state.customModel) {
-    // Remove all default pets (avoid conflict with custom model)
-    state.pet.pets.forEach(p => state.scene.remove(p));
-    state.pet.pets = [];
-
+    // Keep existing pets — just add a new one alongside them
     toast('正在放置模型...');
     const placePos = (state.pcMode && state.pcReticlePos) ? state.pcReticlePos.clone() : pos.clone();
 
@@ -4541,14 +4960,18 @@ function placePet(pos) {
           });
           clone.userData.wander = {
             target: placePos.clone(),
+            homePos: placePos.clone(),
             speed: 0.2 + Math.random() * 0.15,
-            timer: 0,
+            timer: 2 + Math.random() * 3, // start with a delay before first wander
             trickTimer: 0,
             trickPhase: 0
           };
           state.scene.add(clone);
           state.pet.pets.push(clone);
           updateCounter();
+          // Enable trick button now that a pet exists
+          const trickBtn = $('#pet-trick-btn');
+          if (trickBtn) { trickBtn.style.opacity = ''; trickBtn.style.pointerEvents = ''; }
 
           // Re-enable controls after async work
           if (state.controls && state.experience?.id !== 'shooter') {
@@ -4626,6 +5049,9 @@ function placePet(pos) {
   state.scene.add(group);
   state.pet.pets.push(group);
   updateCounter();
+  // Enable trick button
+  const trickBtn2 = $('#pet-trick-btn');
+  if (trickBtn2) { trickBtn2.style.opacity = ''; trickBtn2.style.pointerEvents = ''; }
 }
 
 function updatePets(dt, t) {
@@ -4642,9 +5068,12 @@ function updatePets(dt, t) {
       if (ud.wander.timer <= 0) {
         const angle = Math.random() * Math.PI * 2;
         const dist = 0.3 + Math.random() * 0.5;
-        ud.wander.target = ud.wander.target.clone();
-        ud.wander.target.x = pet.position.x + Math.cos(angle) * dist;
-        ud.wander.target.z = pet.position.z + Math.sin(angle) * dist;
+        const home = ud.wander.homePos || pet.position;
+        ud.wander.target = new THREE.Vector3(
+          home.x + Math.cos(angle) * dist,
+          home.y,
+          home.z + Math.sin(angle) * dist
+        );
         ud.wander.timer = 2 + Math.random() * 3;
       }
       const diff = ud.wander.target.clone().sub(pet.position);
@@ -4921,20 +5350,103 @@ async function resetSpatialAnchor() {
   }
 }
 function captureScreenshot() {
-  if (!state.renderer) return;
   try {
     $('#flash').classList.add('active');
     setTimeout(() => $('#flash').classList.remove('active'), 400);
 
-    // Force render before toDataURL
-    state.renderer.render(state.scene, state.camera);
-    const dataURL = state.canvas.toDataURL('image/png');
+    // For camera-mode (noXR) experiences, composite video + canvas overlay
+    const isNoXR = state.experience?.noXR;
+    if (isNoXR && _camVideo && _camVideo.readyState >= 2) {
+      const vw = _camVideo.videoWidth || window.innerWidth;
+      const vh = _camVideo.videoHeight || window.innerHeight;
+      const out = document.createElement('canvas');
+      out.width = vw; out.height = vh;
+      const outCtx = out.getContext('2d');
 
-    const a = document.createElement('a');
-    a.download = `ar-lab-${state.experience.id}-${Date.now()}.png`;
-    a.href = dataURL;
-    a.click();
-    toast('截圖已儲存');
+      // Draw video (mirror if front cam)
+      if (_camVideo.style.transform.includes('scaleX(-1)')) {
+        outCtx.save(); outCtx.scale(-1, 1);
+        outCtx.drawImage(_camVideo, -vw, 0, vw, vh);
+        outCtx.restore();
+      } else {
+        outCtx.drawImage(_camVideo, 0, 0, vw, vh);
+      }
+
+      // Redraw color overlay directly at video resolution (avoid stretching)
+      if (state.experience.id === 'colorscanner') {
+        // Draw color overlay at screen resolution (no stretch)
+        outCtx.drawImage(_camCanvas, 0, 0, vw, vh);
+      } else if (_camCanvas && _camCanvas.width > 0) {
+        // Other noXR: draw canvas overlay scaled to video dimensions
+        outCtx.drawImage(_camCanvas, 0, 0, vw, vh);
+      }
+
+      const a = document.createElement('a');
+      a.download = `xr-lab-${state.experience.id}-${Date.now()}.png`;
+      a.href = out.toDataURL('image/png');
+      a.click();
+      toast('截圖已儲存');
+      return;
+    }
+
+    // WebXR / 3D mode: render scene then grab canvas
+    if (state.renderer) {
+      state.renderer.render(state.scene, state.camera);
+    }
+
+    // Star map: capture the star canvas with current frame
+    if (state.experience?.id === 'starmap') {
+      // Cancel rAF temporarily to ensure synchronous capture
+      if (state._visionRAF) cancelAnimationFrame(state._visionRAF);
+      state._visionRAF = null;
+
+      const sc = $('#star-canvas');
+      const w = window.innerWidth, h = window.innerHeight;
+      sc.width = w; sc.height = h;
+      const scCtx = sc.getContext('2d');
+
+      // Draw background (gradient sky OR transparent for cam overlay)
+      if (!state._starmapCamMode) {
+        const g = scCtx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*0.7);
+        g.addColorStop(0,'#0c0f2a'); g.addColorStop(1,'#000207');
+        scCtx.fillStyle = g; scCtx.fillRect(0,0,w,h);
+      }
+      // Draw stars/constellations
+      _renderStarMapFrame(scCtx, w, h);
+
+      // Composite onto output canvas
+      const out = document.createElement('canvas');
+      out.width = w; out.height = h;
+      const outCtx = out.getContext('2d');
+
+      if (state._starmapCamMode && _camVideo && _camVideo.readyState >= 2) {
+        // Use camera feed as background
+        outCtx.drawImage(_camVideo, 0, 0, w, h);
+      } else {
+        // Solid dark sky background
+        outCtx.fillStyle = '#000207';
+        outCtx.fillRect(0, 0, w, h);
+      }
+      // Overlay star canvas
+      outCtx.drawImage(sc, 0, 0, w, h);
+
+      const a = document.createElement('a');
+      a.download = `xr-lab-starmap-${Date.now()}.png`;
+      a.href = out.toDataURL('image/png');
+      a.click();
+      toast('截圖已儲存');
+      // Resume animation
+      if (state.experience?.id === 'starmap') _renderStarMap();
+      return;
+    }
+
+    if (state.renderer) {
+      const a = document.createElement('a');
+      a.download = `xr-lab-${state.experience.id}-${Date.now()}.png`;
+      a.href = state.canvas.toDataURL('image/png');
+      a.click();
+      toast('截圖已儲存');
+    }
   } catch (e) {
     toast('截圖失敗: ' + e.message, true);
   }
@@ -4971,7 +5483,7 @@ window.addEventListener('resize', () => {
 
 // --------- Event wiring ---------
 $('#ar-back').addEventListener('click', e => { e.stopPropagation(); exitExperience(); });
-$('#ar-grid-toggle').addEventListener('click', e => { e.stopPropagation(); toggleGrid(); });
+$('#ar-grid-toggle')?.addEventListener('click', e => { e.stopPropagation(); toggleGrid(); });
 $('#ar-light-btn').addEventListener('click', e => { e.stopPropagation(); toggleLight(); });
 
 // --------- Desktop Detection & QR Code ---------
@@ -5053,11 +5565,14 @@ async function initCameraMode(exp) {
 
   const wantFront = (exp.id === 'emotion' || exp.id === 'anatomy' || exp.id === 'coach');
   const isDesktop = !('ontouchstart' in window) && window.innerWidth > 900;
+  const res = state._camResolution || 'original';
+  const resMap = { original: { width: 4096, height: 2160 }, medium: { width: 1280, height: 720 }, low: { width: 640, height: 480 } };
+  const resConstraint = resMap[res];
 
   let constraints = {
     video: isDesktop
-      ? { width: { ideal: 1280 }, height: { ideal: 720 } }
-      : { facingMode: wantFront ? 'user' : 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      ? { width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } }
+      : { facingMode: wantFront ? 'user' : 'environment', width: { ideal: resConstraint.width }, height: { ideal: resConstraint.height } },
     audio: false
   };
 
@@ -5076,6 +5591,7 @@ async function initCameraMode(exp) {
   await _camVideo.play();
 
   _camCanvas.style.display = 'block';
+  // Set once, not every frame
   _camCanvas.width  = window.innerWidth;
   _camCanvas.height = window.innerHeight;
 }
@@ -5091,6 +5607,14 @@ function stopCameraMode() {
   $('#emotion-display').style.display = 'none';
   $('#anatomy-info').style.display = 'none';
   $('#star-canvas').style.display = 'none';
+  // Clean up star map mouse handlers
+  if (state._starMouseHandlers) {
+    const { onStarMouseDown, onStarMouseMove, onStarMouseUp, sc } = state._starMouseHandlers;
+    sc?.removeEventListener('mousedown', onStarMouseDown);
+    window.removeEventListener('mousemove', onStarMouseMove);
+    window.removeEventListener('mouseup', onStarMouseUp);
+    state._starMouseHandlers = null;
+  }
   // Stop all rAF loops
   if (state._visionRAF) { cancelAnimationFrame(state._visionRAF); state._visionRAF = null; }
   // Clean up water surface
@@ -5102,78 +5626,298 @@ function stopCameraMode() {
 const _origExitExperience = exitExperience;
 // We'll call stopCameraMode inside initExperience's cleanup logic
 
-// ─── 1. AR Emotion Filter ─────────────────────────────────
-const EMOTIONS = [
-  { label: '快樂 HAPPY',   emoji: '😄', hue: 45,  ranges: { brow: [0, 0.15], smile: [0.55, 1] } },
-  { label: '悲傷 SAD',     emoji: '😢', hue: 220, ranges: { brow: [0, 0.15], smile: [-1, 0.3] } },
-  { label: '驚訝 SURPRISE',emoji: '😲', hue: 55,  ranges: { brow: [0.5, 1], mouth: [0.6, 1] } },
-  { label: '憤怒 ANGRY',   emoji: '😠', hue: 0,   ranges: { brow: [-1, -0.3] } },
-  { label: '平靜 CALM',    emoji: '😌', hue: 160, ranges: {} },
-  { label: '困惑 CONFUSED',emoji: '🤔', hue: 280, ranges: {} },
+// ─── 1. AR Face Tracking (replaces Emotion filter) ───────
+function initEmotion() {
+  // Initialize upload state
+  state._faceHatModel = null;
+  state._faceHatImage = null;
+  if (state._faceHatStyleIdx === undefined) state._faceHatStyleIdx = 4; // default: robot
+
+  _loadMediaPipeScript('face_mesh', () => {
+    try {
+      const faceMesh = new FaceMesh({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+      });
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      faceMesh.onResults(onFaceMeshResults);
+      state._mpFaceMesh = faceMesh;
+
+      const send = async () => {
+        if (state.experience?.id !== 'emotion') return;
+        if (_camVideo.readyState >= 2) {
+          try { await faceMesh.send({ image: _camVideo }); } catch(e) {}
+        }
+        state._visionRAF = requestAnimationFrame(send);
+      };
+      send();
+      toast('臉部骨架辨識已啟動');
+    } catch(e) {
+      toast('⚠ 此裝置不支援臉部辨識');
+    }
+  });
+}
+
+// MediaPipe FaceMesh landmark indices for a simplified skeleton
+const FACE_SKELETON = [
+  // jaw line
+  [234, 93], [93, 132], [132, 58], [58, 172], [172, 136], [136, 150], [150, 149], [149, 176],
+  [176, 148], [148, 152], [152, 377], [377, 400], [400, 378], [378, 379], [379, 365], [365, 397],
+  [397, 288], [288, 361], [361, 454],
+  // left eyebrow
+  [70, 63], [63, 105], [105, 66], [66, 107],
+  // right eyebrow
+  [336, 296], [296, 334], [334, 293], [293, 300],
+  // left eye
+  [33, 160], [160, 158], [158, 133], [133, 153], [153, 144], [144, 33],
+  // right eye
+  [362, 385], [385, 387], [387, 263], [263, 373], [373, 380], [380, 362],
+  // nose bridge
+  [168, 6], [6, 197], [197, 195], [195, 5],
+  // nose tip
+  [5, 4], [4, 1], [1, 19], [19, 94],
+  // lips outer
+  [61, 39], [39, 37], [37, 0], [0, 267], [267, 269], [269, 291],
+  [61, 146], [146, 91], [91, 181], [181, 84], [84, 17], [17, 314], [314, 405], [405, 321], [321, 291],
 ];
 
-// Simple pixel-analysis emotion detection (no ML needed — uses brightness/contrast heuristics)
-function initEmotion() {
-  const display = $('#emotion-display');
-  const emoji   = $('#emotion-emoji');
-  const label   = $('#emotion-label');
-  display.style.display = 'block';
+function _drawFaceHat3D(ctx, tx, ty, hatSize, styleIdx) {
+  const s = hatSize * 0.52;
+  const t = Date.now() * 0.002;
+  ctx.save();
+  ctx.translate(tx, ty - hatSize * 1.0);
 
-  // Load MediaPipe FaceMesh for precise detection if available; else use heuristic
-  const hasMPFace = typeof FaceMesh !== 'undefined';
+  // Shared shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = s * 0.5;
 
-  let frameIdx = 0;
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = 160; tmpCanvas.height = 120;
-  const tmpCtx = tmpCanvas.getContext('2d', { willReadFrequently: true });
-
-  // Overlay draw
-  function drawEmotionFrame() {
-    if (state.experience?.id !== 'emotion') return;
-    state._visionRAF = requestAnimationFrame(drawEmotionFrame);
-
-    _camCanvas.width  = window.innerWidth;
-    _camCanvas.height = window.innerHeight;
-
-    // Draw face guide oval
-    const w = _camCanvas.width, h = _camCanvas.height;
-    const cx = w / 2, cy = h * 0.44;
-    const rx = w * 0.22, ry = h * 0.28;
-    _camCtx.clearRect(0, 0, w, h);
-    _camCtx.strokeStyle = 'rgba(255,140,66,0.7)';
-    _camCtx.lineWidth = 2;
-    _camCtx.setLineDash([8, 6]);
-    _camCtx.beginPath();
-    _camCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    _camCtx.stroke();
-    _camCtx.setLineDash([]);
-
-    // Every 15 frames, sample pixels in face region for emotion heuristic
-    frameIdx++;
-    if (frameIdx % 15 === 0 && _camVideo.readyState >= 2) {
-      tmpCtx.drawImage(_camVideo, 0, 0, 160, 120);
-      const imgData = tmpCtx.getImageData(25, 5, 110, 110);
-      const d = imgData.data;
-      let rSum = 0, gSum = 0, bSum = 0, n = d.length / 4;
-      for (let i = 0; i < d.length; i += 4) { rSum += d[i]; gSum += d[i+1]; bSum += d[i+2]; }
-      const rAvg = rSum / n, gAvg = gSum / n, bAvg = bSum / n;
-      // Heuristic: skin redness → angry; overall brightness → happy; low → sad
-      const brightness = (rAvg + gAvg + bAvg) / 3;
-      const redness = rAvg - (gAvg + bAvg) / 2;
-      let detected;
-      if (redness > 30)       detected = EMOTIONS[3]; // angry
-      else if (brightness > 165) detected = EMOTIONS[0]; // happy
-      else if (brightness < 100) detected = EMOTIONS[1]; // sad
-      else                     detected = EMOTIONS[4]; // calm
-      emoji.textContent = detected.emoji;
-      label.textContent = detected.label;
-      // Tint overlay
-      _camCtx.fillStyle = `hsla(${detected.hue},80%,50%,0.08)`;
-      _camCtx.fillRect(0, 0, w, h);
+  switch (styleIdx % 5) {
+    case 0: { // 🐱 貓咪 — orange tabby cat
+      // Body
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI*2);
+      ctx.fillStyle = '#ff8c42'; ctx.fill();
+      // Ears (triangles)
+      [[-0.6, -0.85], [0.6, -0.85]].forEach(([ex, ey], idx) => {
+        ctx.beginPath();
+        ctx.moveTo(ex*s, ey*s + s*0.3);
+        ctx.lineTo((ex + (idx?0.35:-0.35))*s, ey*s - s*0.2);
+        ctx.lineTo((ex + (idx?-0.15:0.15))*s, ey*s + s*0.1);
+        ctx.fillStyle = '#ff8c42'; ctx.fill();
+        // Inner ear
+        ctx.beginPath();
+        ctx.moveTo(ex*s, ey*s + s*0.2);
+        ctx.lineTo((ex + (idx?0.22:-0.22))*s, ey*s - s*0.08);
+        ctx.lineTo((ex + (idx?-0.08:0.08))*s, ey*s + s*0.08);
+        ctx.fillStyle = '#ffc0a0'; ctx.fill();
+      });
+      // Eyes
+      ctx.shadowBlur = 0;
+      [-s*0.3, s*0.3].forEach(ex => {
+        ctx.beginPath(); ctx.arc(ex, -s*0.08, s*0.18, 0, Math.PI*2);
+        ctx.fillStyle = '#6ef'; ctx.fill();
+        ctx.beginPath(); ctx.arc(ex + s*0.03, -s*0.08, s*0.09, 0, Math.PI*2);
+        ctx.fillStyle = '#111'; ctx.fill();
+        ctx.beginPath(); ctx.arc(ex + s*0.06, -s*0.13, s*0.03, 0, Math.PI*2);
+        ctx.fillStyle = '#fff'; ctx.fill();
+      });
+      // Nose + whiskers
+      ctx.beginPath(); ctx.arc(0, s*0.1, s*0.07, 0, Math.PI*2);
+      ctx.fillStyle = '#f87'; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1;
+      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx2,sy2]) => {
+        ctx.beginPath(); ctx.moveTo(sx2*s*0.07, s*0.12); ctx.lineTo(sx2*s*0.55, sy2*s*0.04+s*0.12); ctx.stroke();
+      });
+      // Smile
+      ctx.beginPath(); ctx.arc(0, s*0.22, s*0.16, 0.2, Math.PI-0.2);
+      ctx.strokeStyle = '#5a2'; ctx.lineWidth = 2; ctx.stroke();
+      break;
+    }
+    case 1: { // 👾 外星 — alien blob
+      const pulse = 1 + Math.sin(t*2)*0.06;
+      ctx.scale(pulse, 1/pulse);
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI*2);
+      const g = ctx.createRadialGradient(0, -s*0.3, s*0.1, 0, 0, s);
+      g.addColorStop(0, '#b0ffb0'); g.addColorStop(1, '#1a8a3a');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = '#0f5'; ctx.lineWidth = 2; ctx.stroke();
+      // Big eyes
+      ctx.shadowBlur = 0;
+      [-s*0.32, s*0.32].forEach(ex => {
+        ctx.beginPath(); ctx.ellipse(ex, -s*0.05, s*0.22, s*0.28, 0, 0, Math.PI*2);
+        ctx.fillStyle = '#000'; ctx.fill();
+        ctx.beginPath(); ctx.arc(ex+s*0.06, -s*0.12, s*0.08, 0, Math.PI*2);
+        ctx.fillStyle = '#aff'; ctx.fill();
+      });
+      // Antennae
+      ctx.strokeStyle = '#0f5'; ctx.lineWidth = 2;
+      [[-s*0.3, -s*0.9, -s*0.45, -s*1.2], [s*0.3, -s*0.9, s*0.5, -s*1.25]].forEach(([x1,y1,x2,y2]) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x2, y2, s*0.07, 0, Math.PI*2);
+        ctx.fillStyle = '#bfb'; ctx.fill();
+      });
+      break;
+    }
+    case 2: { // 🐼 熊貓
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI*2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1; ctx.stroke();
+      // Ears
+      [[-s*0.65, -s*0.75], [s*0.65, -s*0.75]].forEach(([ex, ey]) => {
+        ctx.beginPath(); ctx.arc(ex, ey, s*0.28, 0, Math.PI*2);
+        ctx.fillStyle = '#222'; ctx.fill();
+      });
+      // Eye patches
+      ctx.shadowBlur = 0;
+      [[-s*0.3, -s*0.12], [s*0.3, -s*0.12]].forEach(([ex, ey]) => {
+        ctx.beginPath(); ctx.ellipse(ex, ey, s*0.22, s*0.18, ex<0 ? -0.4:0.4, 0, Math.PI*2);
+        ctx.fillStyle = '#222'; ctx.fill();
+        ctx.beginPath(); ctx.arc(ex + s*0.04, ey - s*0.04, s*0.09, 0, Math.PI*2);
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.beginPath(); ctx.arc(ex + s*0.04, ey - s*0.04, s*0.04, 0, Math.PI*2);
+        ctx.fillStyle = '#111'; ctx.fill();
+      });
+      // Nose
+      ctx.beginPath(); ctx.arc(0, s*0.14, s*0.09, 0, Math.PI*2);
+      ctx.fillStyle = '#333'; ctx.fill();
+      ctx.beginPath(); ctx.arc(0, s*0.28, s*0.15, 0.15, Math.PI-0.15);
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.stroke();
+      break;
+    }
+    case 3: { // 🦊 狐狸
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI*2);
+      ctx.fillStyle = '#e0531a'; ctx.fill();
+      // Ears
+      [[-0.55, -0.88], [0.55, -0.88]].forEach(([ex, ey], idx) => {
+        ctx.beginPath();
+        ctx.moveTo(ex*s, ey*s+s*0.3);
+        ctx.lineTo((ex+(idx?0.42:-0.42))*s, (ey-0.35)*s);
+        ctx.lineTo((ex+(idx?-0.12:0.12))*s, ey*s+s*0.05);
+        ctx.fillStyle = '#e0531a'; ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo((ex+0.04)*s, (ey+0.1)*s);
+        ctx.lineTo((ex+(idx?0.26:-0.26))*s, (ey-0.18)*s);
+        ctx.lineTo((ex+(idx?-0.06:0.06))*s, (ey+0.02)*s);
+        ctx.fillStyle = '#fff'; ctx.fill();
+      });
+      // Face mask (white muzzle)
+      ctx.beginPath(); ctx.ellipse(0, s*0.1, s*0.45, s*0.38, 0, 0, Math.PI*2);
+      ctx.fillStyle = '#fff5e8'; ctx.fill();
+      // Eyes
+      ctx.shadowBlur = 0;
+      [-s*0.28, s*0.28].forEach(ex => {
+        ctx.beginPath(); ctx.arc(ex, -s*0.08, s*0.15, 0, Math.PI*2);
+        ctx.fillStyle = '#fbbf24'; ctx.fill();
+        ctx.beginPath(); ctx.ellipse(ex, -s*0.08, s*0.06, s*0.12, 0, 0, Math.PI*2);
+        ctx.fillStyle = '#111'; ctx.fill();
+      });
+      // Nose
+      ctx.beginPath(); ctx.arc(0, s*0.16, s*0.08, 0, Math.PI*2);
+      ctx.fillStyle = '#111'; ctx.fill();
+      break;
+    }
+    case 4: { // 🤖 機器人
+      const pulse2 = 0.5 + Math.sin(t*3)*0.5;
+      // Head box
+      ctx.shadowColor = `rgba(94,234,212,${pulse2*0.5+0.2})`; ctx.shadowBlur = s*0.3;
+      ctx.beginPath(); ctx.roundRect(-s, -s, s*2, s*2, s*0.15);
+      const g2 = ctx.createLinearGradient(0, -s, 0, s);
+      g2.addColorStop(0, '#2a2a35'); g2.addColorStop(1, '#111118');
+      ctx.fillStyle = g2; ctx.fill();
+      ctx.strokeStyle = '#5eead4'; ctx.lineWidth = 2; ctx.stroke();
+      // Antenna
+      ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(0, -s*1.3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, -s*1.38, s*0.1, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,140,66,${pulse2})`; ctx.fill();
+      // Eyes (LED-style)
+      ctx.shadowBlur = s*0.25;
+      [[-s*0.35, -s*0.15], [s*0.35, -s*0.15]].forEach(([ex, ey]) => {
+        ctx.beginPath(); ctx.rect(ex - s*0.18, ey - s*0.12, s*0.36, s*0.22);
+        ctx.fillStyle = `rgba(94,234,212,${0.5+pulse2*0.5})`; ctx.fill();
+      });
+      // Mouth panel
+      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.rect(-s*0.4, s*0.2, s*0.8, s*0.2);
+      ctx.fillStyle = '#1a3a3a'; ctx.fill();
+      ctx.strokeStyle = '#5eead4'; ctx.lineWidth = 1; ctx.stroke();
+      // Mouth LEDs
+      for (let li = 0; li < 5; li++) {
+        ctx.beginPath(); ctx.arc(-s*0.3 + li*s*0.15, s*0.3, s*0.05, 0, Math.PI*2);
+        ctx.fillStyle = li < Math.floor(pulse2 * 5) ? '#5eead4' : '#1a3a3a';
+        ctx.fill();
+      }
+      break;
     }
   }
-  drawEmotionFrame();
-  toast('面向攝影機，自動辨識情緒');
+  ctx.restore();
+}
+
+function onFaceMeshResults(results) {
+  if (state.experience?.id !== 'emotion') return;
+  _camCanvas.width = window.innerWidth;
+  _camCanvas.height = window.innerHeight;
+  _camCtx.clearRect(0, 0, _camCanvas.width, _camCanvas.height);
+  if (!results.multiFaceLandmarks?.length) return;
+
+  const lm = results.multiFaceLandmarks[0];
+  const w = _camCanvas.width, h = _camCanvas.height;
+  // Mirror X to match video scaleX(-1) applied on mobile front camera
+  const isMirror = _camVideo.style.transform.includes('scaleX(-1)');
+  const px = i => isMirror ? (w - lm[i].x * w) : lm[i].x * w;
+  const py = i => lm[i].y * h;
+
+  // Draw skeleton lines
+  _camCtx.strokeStyle = 'rgba(94,234,212,0.75)';
+  _camCtx.lineWidth = 1.2;
+  _camCtx.lineCap = 'round';
+  FACE_SKELETON.forEach(([a, b]) => {
+    _camCtx.beginPath();
+    _camCtx.moveTo(px(a), py(a));
+    _camCtx.lineTo(px(b), py(b));
+    _camCtx.stroke();
+  });
+
+  // Landmark dots
+  const KEY_PTS = [1, 33, 263, 61, 291, 199, 168, 152, 234, 454, 70, 300, 107, 336];
+  KEY_PTS.forEach(i => {
+    _camCtx.beginPath();
+    _camCtx.arc(px(i), py(i), 2, 0, Math.PI * 2);
+    _camCtx.fillStyle = '#5eead4';
+    _camCtx.fill();
+  });
+
+  // Head-top: use only top-center landmarks (10 = top of forehead, 9 = mid-brow)
+  // for accurate centering above the face
+  const topPts = [10, 9, 151, 8]; // 10:top forehead, 9:between brows, 151,8:nose bridge top
+  let tx = 0, ty = 0;
+  topPts.forEach(i => { tx += px(i); ty += py(i); });
+  tx /= topPts.length;
+  ty /= topPts.length;
+  // Use forehead top landmark (10) for vertical position
+  ty = py(10);
+
+  const chinY = py(152);
+  const headH = Math.abs(chinY - ty);
+  const hatSize = headH * 0.55;
+
+  if (state._faceHatImage) {
+    const imgW = hatSize * 1.6, imgH = hatSize * 1.6;
+    _camCtx.drawImage(state._faceHatImage, tx - imgW/2, ty - imgH * 1.15, imgW, imgH);
+  } else if (state._faceHatModel) {
+    _camCtx.fillStyle = 'rgba(10,10,11,0.85)';
+    _camCtx.beginPath(); _camCtx.roundRect(tx - 50, ty - hatSize * 1.35, 100, 28, 4); _camCtx.fill();
+    _camCtx.fillStyle = '#ff8c42';
+    _camCtx.font = 'bold 11px "Space Mono"';
+    _camCtx.textAlign = 'center';
+    _camCtx.fillText('3D MODEL ↑', tx, ty - hatSize * 1.35 + 19);
+  } else {
+    _drawFaceHat3D(_camCtx, tx, ty, hatSize, state._faceHatStyleIdx || 0);
+  }
+
+  $('#hud-counter').textContent = results.multiFaceLandmarks.length;
 }
 
 // ─── 2. AR Color Scanner ─────────────────────────────────
@@ -5217,40 +5961,126 @@ function initColorScanner() {
   function colorFrame() {
     if (state.experience?.id !== 'colorscanner') return;
     state._visionRAF = requestAnimationFrame(colorFrame);
-    _camCanvas.width = window.innerWidth; _camCanvas.height = window.innerHeight;
+    // Only resize if needed
+    if (_camCanvas.width !== window.innerWidth || _camCanvas.height !== window.innerHeight) {
+      _camCanvas.width = window.innerWidth; _camCanvas.height = window.innerHeight;
+    }
     _camCtx.clearRect(0, 0, _camCanvas.width, _camCanvas.height);
     const { r, g, b } = sampleCenter();
     const hex = rgbToHex(r, g, b);
     const { h, s, l } = toHsl(r, g, b);
     const cx = _camCanvas.width / 2, cy = _camCanvas.height / 2;
-    // Hex label
-    _camCtx.fillStyle = 'rgba(0,0,0,0.55)';
-    _camCtx.beginPath(); _camCtx.roundRect(cx - 80, cy + 44, 160, 36, 4); _camCtx.fill();
+    const t = Date.now() * 0.001;
+
+    // ── Static crosshair ring (no scale animation) ──────
+    const ringR = 36;
+    _camCtx.strokeStyle = hex;
+    _camCtx.lineWidth = 2.5;
+    _camCtx.shadowColor = hex;
+    _camCtx.shadowBlur = 12;
+    _camCtx.beginPath();
+    _camCtx.arc(cx, cy, ringR, 0, Math.PI * 2);
+    _camCtx.stroke();
+    _camCtx.shadowBlur = 0;
+
+    // Corner brackets
+    const bSize = 14, bOff = ringR + 6;
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx, sy]) => {
+      const bx = cx + sx * bOff, by = cy + sy * bOff;
+      _camCtx.beginPath();
+      _camCtx.moveTo(bx, by + sy * -bSize); _camCtx.lineTo(bx, by); _camCtx.lineTo(bx + sx * bSize, by);
+      _camCtx.strokeStyle = 'rgba(255,255,255,0.85)'; _camCtx.lineWidth = 2; _camCtx.stroke();
+    });
+
+    // Center dot
+    _camCtx.beginPath();
+    _camCtx.arc(cx, cy, 4, 0, Math.PI * 2);
     _camCtx.fillStyle = '#fff';
-    _camCtx.font = '600 13px "Space Mono", monospace';
+    _camCtx.fill();
+
+    // ── Colour name guess ────────────────────────────
+    const colorName = _guessColorName(h, s, l);
+
+    // ── Large colour swatch panel ────────────────────
+    const panelW = 220, panelH = 136, panelX = cx - panelW / 2, panelY = cy + ringR + 20;
+    // Swatch
+    _camCtx.fillStyle = hex;
+    _camCtx.beginPath(); _camCtx.roundRect(panelX, panelY, panelW, 48, [6, 6, 0, 0]); _camCtx.fill();
+    // Info panel
+    _camCtx.fillStyle = 'rgba(10,10,11,0.88)';
+    _camCtx.beginPath(); _camCtx.roundRect(panelX, panelY + 48, panelW, panelH - 48, [0, 0, 6, 6]); _camCtx.fill();
+
+    // Hex
+    _camCtx.fillStyle = '#fff';
+    _camCtx.font = 'bold 16px "Space Mono", monospace';
     _camCtx.textAlign = 'center';
-    _camCtx.fillText(hex.toUpperCase() + `  H${h} S${s} L${l}`, cx, cy + 68);
-    // Color preview circle
-    _camCtx.beginPath(); _camCtx.arc(cx, cy - 60, 28, 0, Math.PI*2);
-    _camCtx.fillStyle = hex; _camCtx.fill();
-    _camCtx.strokeStyle = 'rgba(255,255,255,0.6)'; _camCtx.lineWidth = 2; _camCtx.stroke();
+    _camCtx.fillText(hex.toUpperCase(), cx, panelY + 28);
+
+    // Color name
+    _camCtx.fillStyle = hex;
+    _camCtx.font = '700 12px "Space Mono"';
+    _camCtx.fillText(colorName, cx, panelY + 44);
+
+    // RGB
+    _camCtx.fillStyle = 'rgba(255,255,255,0.6)';
+    _camCtx.font = '10px "Space Mono"';
+    _camCtx.fillText(`R ${r}  G ${g}  B ${b}`, cx, panelY + 64);
+
+    // HSL
+    _camCtx.fillText(`H ${h}°  S ${s}%  L ${l}%`, cx, panelY + 80);
+
+    // Harmony bar (complementary + analogous)
+    const harmonies = [
+      (h + 180) % 360,          // complementary
+      (h + 30) % 360,           // analogous +
+      (h - 30 + 360) % 360,     // analogous -
+      (h + 120) % 360,          // triadic
+    ];
+    const bW = 30, bH = 16, totalW = harmonies.length * (bW + 4);
+    const startX = cx - totalW / 2;
+    _camCtx.fillStyle = 'rgba(255,255,255,0.25)';
+    _camCtx.font = '9px "Space Mono"';
+    _camCtx.fillText('調和色', cx, panelY + 98);
+    harmonies.forEach((hh, i) => {
+      const hc = `hsl(${hh},${s}%,${l}%)`;
+      _camCtx.fillStyle = hc;
+      _camCtx.beginPath();
+      _camCtx.roundRect(startX + i * (bW + 4), panelY + 102, bW, bH, 3);
+      _camCtx.fill();
+    });
+
+    // Brightness bar
+    const barW = panelW - 24, barX = panelX + 12;
+    _camCtx.fillStyle = 'rgba(255,255,255,0.12)';
+    _camCtx.beginPath(); _camCtx.roundRect(barX, panelY + 124, barW, 6, 3); _camCtx.fill();
+    const brightnessGrad = _camCtx.createLinearGradient(barX, 0, barX + barW, 0);
+    brightnessGrad.addColorStop(0, `hsl(${h},${s}%,0%)`);
+    brightnessGrad.addColorStop(1, `hsl(${h},${s}%,100%)`);
+    _camCtx.fillStyle = brightnessGrad;
+    _camCtx.beginPath(); _camCtx.roundRect(barX, panelY + 124, barW, 6, 3); _camCtx.fill();
+    // Marker
+    const markerX = barX + (l / 100) * barW;
+    _camCtx.beginPath(); _camCtx.arc(markerX, panelY + 127, 5, 0, Math.PI * 2);
+    _camCtx.fillStyle = '#fff'; _camCtx.fill();
+    _camCtx.strokeStyle = 'rgba(0,0,0,0.5)'; _camCtx.lineWidth = 1.5; _camCtx.stroke();
+  }
+
+  function _guessColorName(h, s, l) {
+    if (l < 8)  return '// 黑色 BLACK';
+    if (l > 92) return '// 白色 WHITE';
+    if (s < 12) return l < 45 ? '// 深灰 DARK GRAY' : '// 淺灰 LIGHT GRAY';
+    if (h < 15 || h >= 345) return l < 40 ? '// 深紅 DARK RED' : '// 紅色 RED';
+    if (h < 35)  return '// 橙色 ORANGE';
+    if (h < 65)  return '// 黃色 YELLOW';
+    if (h < 150) return l < 40 ? '// 深綠 DARK GREEN' : '// 綠色 GREEN';
+    if (h < 190) return '// 青色 CYAN';
+    if (h < 250) return l < 40 ? '// 深藍 DARK BLUE' : '// 藍色 BLUE';
+    if (h < 290) return '// 紫色 PURPLE';
+    if (h < 345) return '// 粉色 PINK';
+    return '// 未知 UNKNOWN';
   }
   colorFrame();
-
-  // Tap to collect
-  const collectFn = () => {
-    if (state.experience?.id !== 'colorscanner' || state.uiBlocked) return;
-    const { r, g, b } = sampleCenter();
-    const hex = rgbToHex(r, g, b);
-    state._colorSwatches = (state._colorSwatches || []).slice(-7); // keep last 8
-    state._colorSwatches.push(hex);
-    renderSwatches();
-    $('#hud-counter').textContent = state._colorSwatches.length;
-    toast('已採集 ' + hex.toUpperCase());
-  };
-  $('#ar-overlay').addEventListener('touchend', collectFn, { passive: true });
-  state._colorCollectFn = collectFn;
-  toast('對準顏色，點擊採集');
+  toast('對準中心感測色彩，按拍照儲存');
 }
 
 function renderSwatches() {
@@ -5305,7 +6135,8 @@ function onPoseResults(results) {
   if (!results.poseLandmarks) return;
   const lm = results.poseLandmarks;
   const w = _camCanvas.width, h = _camCanvas.height;
-  const x = i => (1 - lm[i].x) * w; // mirror
+  const isMirrorP = _camVideo.style.transform.includes('scaleX(-1)');
+  const x = i => isMirrorP ? (w - lm[i].x * w) : lm[i].x * w;
   const y = i => lm[i].y * h;
   const z = i => lm[i].visibility || 0;
 
@@ -5379,16 +6210,45 @@ function initStarMap() {
   _camVideo.style.display = 'none';
   _camCanvas.style.display = 'none';
 
-  state._starYaw = 0; state._starPitch = 30;
+  state._starYaw = 0; state._starPitch = 70; // default: looking nearly straight up
   state._starGyroActive = false;
 
-  // Request device orientation
+  // PC mouse drag to rotate
+  let _starDragActive = false, _starDragX = 0, _starDragY = 0;
+  const onStarMouseDown = (e) => {
+    if (e.button !== 0) return;
+    _starDragActive = true;
+    _starDragX = e.clientX;
+    _starDragY = e.clientY;
+    sc.style.cursor = 'grabbing';
+    e.preventDefault();
+  };
+  const onStarMouseMove = (e) => {
+    if (!_starDragActive) return;
+    const dx = e.clientX - _starDragX;
+    const dy = e.clientY - _starDragY;
+    _starDragX = e.clientX;
+    _starDragY = e.clientY;
+    state._starYaw = ((state._starYaw || 0) - dx * 0.3 + 360) % 360;
+    state._starPitch = Math.max(-85, Math.min(85, (state._starPitch || 70) + dy * 0.25));
+  };
+  const onStarMouseUp = () => { _starDragActive = false; sc.style.cursor = 'grab'; };
+  sc.style.cursor = 'grab';
+  sc.addEventListener('mousedown', onStarMouseDown);
+  window.addEventListener('mousemove', onStarMouseMove);
+  window.addEventListener('mouseup', onStarMouseUp);
+  state._starMouseHandlers = { onStarMouseDown, onStarMouseMove, onStarMouseUp, sc };
+
+  // Request device orientation (mobile)
   const activate = () => {
     state._starGyroActive = true;
     window.addEventListener('deviceorientation', _onStarOrientation, true);
     toast('對準天空，轉動手機瀏覽星圖');
   };
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+  const isDesktop2 = !('ontouchstart' in window);
+  if (isDesktop2) {
+    toast('按住滑鼠拖曳旋轉星空');
+  } else if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(r => { if (r === 'granted') activate(); }).catch(()=>{});
   } else {
     activate();
@@ -5398,9 +6258,38 @@ function initStarMap() {
 }
 
 function _onStarOrientation(e) {
-  if (!e.beta) return;
-  state._starYaw   = (e.alpha || 0);
-  state._starPitch = Math.max(-85, Math.min(85, -(e.beta - 90)));
+  if (e.beta === null || e.gamma === null) return;
+  const alpha = (e.alpha || 0);
+  const beta  = e.beta  || 0;
+  const gamma = e.gamma || 0;
+
+  // Yaw: smooth compass heading (handle 0/360 wraparound)
+  const rawYaw = alpha;
+  let prevYaw = state._starYaw || 0;
+  let diff = rawYaw - prevYaw;
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  state._starYaw = prevYaw + diff * 0.15;
+
+  // Pitch: beta 0°=flat/up, 90°=upright/horizon
+  // Use gamma when phone is more upright (abs(beta) > 45) for smoother side-viewing
+  let rawPitch;
+  const absBeta = Math.abs(beta);
+  if (absBeta < 45) {
+    // Phone mostly flat — beta controls pitch well
+    rawPitch = 90 - beta;
+  } else {
+    // Phone more upright — blend based on tilt angle
+    const t = Math.min(1, (absBeta - 45) / 45);
+    rawPitch = (90 - beta) * (1 - t) + (beta > 0 ? 10 : -10) * t;
+  }
+
+  const prevPitch = state._starPitch || 70;
+  const pitchDelta = Math.abs(rawPitch - prevPitch);
+  // Faster smoothing for small changes (steady hold), slower for big jumps (deliberate tilt)
+  const smoothFactor = pitchDelta > 20 ? 0.08 : 0.12;
+  state._starPitch = prevPitch + (rawPitch - prevPitch) * smoothFactor;
+  state._starPitch = Math.max(-85, Math.min(85, state._starPitch));
 }
 
 function _renderStarMap() {
@@ -5408,23 +6297,31 @@ function _renderStarMap() {
   state._visionRAF = requestAnimationFrame(_renderStarMap);
 
   const sc = $('#star-canvas');
-  sc.width = window.innerWidth; sc.height = window.innerHeight;
+  if (sc.width !== window.innerWidth || sc.height !== window.innerHeight) {
+    sc.width = window.innerWidth; sc.height = window.innerHeight;
+  }
   const ctx = sc.getContext('2d');
   const w = sc.width, h = sc.height;
 
-  // Draw sky gradient
-  const grad = ctx.createRadialGradient(w/2,h/2,0, w/2,h/2,Math.max(w,h)*0.7);
-  grad.addColorStop(0, '#0c0f2a'); grad.addColorStop(1, '#000207');
-  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+  // Draw sky gradient (skip if camera overlay active — camera feed shows through)
+  if (!state._starmapCamMode) {
+    const grad = ctx.createRadialGradient(w/2,h/2,0, w/2,h/2,Math.max(w,h)*0.7);
+    grad.addColorStop(0, '#0c0f2a'); grad.addColorStop(1, '#000207');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+    const mwGrad = ctx.createLinearGradient(0,0,w,h);
+    mwGrad.addColorStop(0,'rgba(100,120,200,0)'); mwGrad.addColorStop(0.4,'rgba(100,120,200,0.06)'); mwGrad.addColorStop(0.6,'rgba(100,120,200,0.08)'); mwGrad.addColorStop(1,'rgba(100,120,200,0)');
+    ctx.fillStyle = mwGrad; ctx.fillRect(0,0,w,h);
+  } else {
+    ctx.clearRect(0, 0, w, h);
+  }
 
-  // Milky way band (simplified)
-  const mwGrad = ctx.createLinearGradient(0,0,w,h);
-  mwGrad.addColorStop(0,'rgba(100,120,200,0)'); mwGrad.addColorStop(0.4,'rgba(100,120,200,0.06)'); mwGrad.addColorStop(0.6,'rgba(100,120,200,0.08)'); mwGrad.addColorStop(1,'rgba(100,120,200,0)');
-  ctx.fillStyle = mwGrad; ctx.fillRect(0,0,w,h);
+  _renderStarMapFrame(ctx, w, h);
+}
 
-  const fov = 90; // field of view in degrees
+function _renderStarMapFrame(ctx, w, h) {
+  const fov = 90;
   const yaw = (state._starYaw || 0) * Math.PI / 180;
-  const pitch = (state._starPitch || 30) * Math.PI / 180;
+  const pitch = (state._starPitch || 70) * Math.PI / 180;
 
   // Project spherical coords to screen
   const project = (raDeg, deDeg) => {
@@ -5821,27 +6718,109 @@ function* _genTextStrokes(text, camPos, camQuat) {
   const right   = new THREE.Vector3(1, 0, 0).applyQuaternion(camQuat);
   const up      = new THREE.Vector3(0, 1, 0);
   const origin  = camPos.clone().add(forward);
-  origin.y -= 0.0; // eye level
 
-  const charW = 0.07; // metres per character width
-  const charH = 0.12;
-  const pad   = 0.01;
-  const totalW = text.length * (charW + pad);
-  const startX = -totalW / 2;
+  // Determine if text has any non-ASCII characters (e.g. Chinese)
+  const hasWide = /[^\x00-\x7F]/.test(text);
+
+  if (hasWide) {
+    // ── Canvas-raster path for Chinese/Unicode ──────────────
+    // Render each character to a small canvas, sample pixels, build tube strokes
+    const CELL = 32; // px per character cell
+    const THRESH = 80;
+
+    const charW = 0.09; const charH = 0.11; const pad = 0.012;
+    const totalW = text.length * (charW + pad);
+    const startX = -totalW / 2;
+
+    const tmpC = document.createElement('canvas');
+    tmpC.width = CELL; tmpC.height = CELL;
+    const tmpCtx = tmpC.getContext('2d');
+
+    for (let ci = 0; ci < text.length; ci++) {
+      const ch = text[ci];
+      if (ch === ' ') continue;
+
+      // Check stroke font first (fast path for ASCII)
+      if (STROKE_FONT[ch]) {
+        const strokes = STROKE_FONT[ch];
+        const charOffX = startX + ci * (charW + pad);
+        for (const stroke of strokes) {
+          if (stroke.length < 2) continue;
+          const pts = stroke.map(([nx, ny]) =>
+            origin.clone()
+              .addScaledVector(right, charOffX + nx * charW)
+              .addScaledVector(up,    (0.5 - ny) * charH)
+          );
+          const curve = new THREE.CatmullRomCurve3(pts.length > 2 ? pts : [pts[0], pts[0].clone().addScaledVector(right, 0.001), pts[pts.length-1]]);
+          const tGeom = new THREE.TubeGeometry(curve, Math.max(pts.length * 3, 8), 0.004, 5, false);
+          const tMat  = new THREE.MeshStandardMaterial({ color: new THREE.Color(state.color), emissive: new THREE.Color(state.color).multiplyScalar(0.4), emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.3 });
+          yield new THREE.Mesh(tGeom, tMat);
+        }
+        continue;
+      }
+
+      // Raster the character
+      tmpCtx.clearRect(0, 0, CELL, CELL);
+      tmpCtx.fillStyle = '#000';
+      tmpCtx.fillRect(0, 0, CELL, CELL);
+      tmpCtx.fillStyle = '#fff';
+      tmpCtx.font = `bold ${CELL * 0.85}px "DM Sans", sans-serif`;
+      tmpCtx.textAlign = 'center';
+      tmpCtx.textBaseline = 'middle';
+      tmpCtx.fillText(ch, CELL / 2, CELL / 2);
+
+      const imgData = tmpCtx.getImageData(0, 0, CELL, CELL).data;
+      const charOffX = startX + ci * (charW + pad);
+
+      // Horizontal scan lines → strokes
+      for (let row = 0; row < CELL; row++) {
+        let inStroke = false;
+        let strokeStart = 0;
+        for (let col = 0; col <= CELL; col++) {
+          const bright = col < CELL ? imgData[(row * CELL + col) * 4] > THRESH : false;
+          if (bright && !inStroke) { inStroke = true; strokeStart = col; }
+          if (!bright && inStroke) {
+            inStroke = false;
+            const nx0 = strokeStart / CELL;
+            const nx1 = col / CELL;
+            const ny  = row / CELL;
+            if (nx1 - nx0 < 0.05) continue; // skip tiny
+            const p0 = origin.clone()
+              .addScaledVector(right, charOffX + nx0 * charW)
+              .addScaledVector(up,    (0.5 - ny) * charH);
+            const p1 = origin.clone()
+              .addScaledVector(right, charOffX + nx1 * charW)
+              .addScaledVector(up,    (0.5 - ny) * charH);
+            const mid = p0.clone().lerp(p1, 0.5);
+            const curve = new THREE.CatmullRomCurve3([p0, mid, p1]);
+            const tGeom = new THREE.TubeGeometry(curve, 4, 0.0035, 4, false);
+            const tMat  = new THREE.MeshStandardMaterial({ color: new THREE.Color(state.color), emissive: new THREE.Color(state.color).multiplyScalar(0.4), emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.3 });
+            const tube  = new THREE.Mesh(tGeom, tMat);
+            tube.frustumCulled = false;
+            yield tube;
+          }
+        }
+      }
+    }
+    return;
+  }
+
+  // ── Original ASCII stroke-font path ────────────────────
+  const charW = 0.07; const charH = 0.12; const pad = 0.01;
+  const totalW2 = text.length * (charW + pad);
+  const startX2 = -totalW2 / 2;
 
   for (let ci = 0; ci < text.length; ci++) {
     const ch = text[ci];
     const strokes = STROKE_FONT[ch] || STROKE_FONT['?'] || [];
-    const charOffX = startX + ci * (charW + pad);
-
+    const charOffX = startX2 + ci * (charW + pad);
     for (const stroke of strokes) {
       if (stroke.length < 2) continue;
-      const pts = stroke.map(([nx, ny]) => {
-        return origin.clone()
+      const pts = stroke.map(([nx, ny]) =>
+        origin.clone()
           .addScaledVector(right, charOffX + nx * charW)
-          .addScaledVector(up,    (0.5 - ny) * charH);
-      });
-      // Build tube from stroke points
+          .addScaledVector(up,    (0.5 - ny) * charH)
+      );
       const curve = new THREE.CatmullRomCurve3(pts.length > 2 ? pts : [pts[0], pts[0].clone().addScaledVector(right, 0.001), pts[pts.length-1]]);
       const tGeom = new THREE.TubeGeometry(curve, Math.max(pts.length * 3, 8), 0.004, 5, false);
       const tMat  = new THREE.MeshStandardMaterial({ color: new THREE.Color(state.color), emissive: new THREE.Color(state.color).multiplyScalar(0.4), emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.3 });
@@ -5860,7 +6839,7 @@ async function writeText3D(text) {
   for (const tube of gen) {
     state.scene.add(tube);
     allTubes.push(tube);
-    await new Promise(r => setTimeout(r, 50)); // animate stroke-by-stroke
+    await new Promise(r => setTimeout(r, 20)); // 5x faster stroke animation
   }
   allTubes.forEach(t => state.drawing.strokes.push(t));
   updateCounter();
@@ -5883,118 +6862,495 @@ function _initText3DRow() {
   });
   send.addEventListener('touchend', e => { e.stopPropagation(); });
   inp?.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-  inp?.addEventListener('blur', () => setTimeout(() => { state.uiBlocked = false; }, 200));
+  inp?.addEventListener('keydown', e => { e.stopPropagation(); });
+  let _composing = false;
+  inp?.addEventListener('compositionstart', () => { _composing = true; state.uiBlocked = true; });
+  inp?.addEventListener('compositionend', () => { _composing = false; });
+
+  // Use visualViewport API to track keyboard height properly
+  const vv = window.visualViewport;
+  const updateKeyboardOffset = () => {
+    if (!vv) return;
+    const row = $('#text3d-row');
+    if (!row || row.style.display === 'none') return;
+    // Distance from bottom of layout viewport to bottom of visual viewport (= keyboard height)
+    const kbHeight = window.innerHeight - vv.height - vv.offsetTop;
+    if (kbHeight > 50) {
+      // Keyboard is open — pin row above it
+      row.style.position = 'fixed';
+      row.style.bottom = `${kbHeight + 12}px`;
+      row.style.left = '50%';
+      row.style.transform = 'translateX(-50%)';
+      row.style.zIndex = '500';
+    } else {
+      // Keyboard closed — restore default position
+      row.style.position = '';
+      row.style.bottom = '';
+      row.style.left = '';
+      row.style.transform = '';
+      row.style.zIndex = '';
+    }
+  };
+
+  inp?.addEventListener('focus', (e) => {
+    state.uiBlocked = true;
+    // Prevent browser auto-scrolling that squashes the layout
+    if (vv) {
+      vv.addEventListener('resize', updateKeyboardOffset);
+      vv.addEventListener('scroll', updateKeyboardOffset);
+      setTimeout(updateKeyboardOffset, 350);
+    }
+    // Force window scroll back to top to counter iOS Safari auto-scroll
+    setTimeout(() => { window.scrollTo(0, 0); }, 50);
+    setTimeout(() => { window.scrollTo(0, 0); }, 400);
+  });
+  inp?.addEventListener('blur', () => {
+    setTimeout(() => { if (!_composing) state.uiBlocked = false; }, 200);
+    if (vv) {
+      vv.removeEventListener('resize', updateKeyboardOffset);
+      vv.removeEventListener('scroll', updateKeyboardOffset);
+      // Restore position
+      const row = $('#text3d-row');
+      if (row) {
+        row.style.position = '';
+        row.style.bottom = '';
+        row.style.left = '';
+        row.style.transform = '';
+        row.style.zIndex = '';
+      }
+    }
+  });
 }
 _initText3DRow();
 
 // ─── Wire new toolbar cases ───────────────────────────────
 // (coach-mode and water-reset added to buildToolbar switch below)
 
-// ─── Scan Particle Effect ─────────────────────────────────
-let _scanParticleRAF = null;
-const _scanParticles = [];
-
-function startScanParticles() {
-  const canvas = $('#scan-particles');
+// ─── Scanning particle overlay ────────────────────────────
+(function() {
+  const canvas = document.getElementById('scan-overlay');
   if (!canvas) return;
-  canvas.style.display = 'block';
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
   const ctx = canvas.getContext('2d');
-  _scanParticles.length = 0;
-  for (let i = 0; i < 120; i++) {
-    _scanParticles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: 0.8 + Math.random() * 1.6, vx: (Math.random()-.5)*.4, vy: (Math.random()-.5)*.4, a: 0.15 + Math.random()*.5, da: (Math.random()-.5)*.012 });
+  let raf = null;
+  const PARTICLE_COUNT = 90;
+  const particles = [];
+
+  function resetParticle(p) {
+    // Use grid-aligned distribution for even coverage
+    p.x = Math.random() * window.innerWidth;
+    p.y = Math.random() * window.innerHeight;
+    p.vx = (Math.random() - 0.5) * 0.3;
+    p.vy = (Math.random() - 0.5) * 0.3;
+    p.maxLife = 0.6 + Math.random() * 0.7;
+    p.life = p.maxLife;
+    p.r = 1 + Math.random() * 1.8;
   }
-  function frame() {
-    const c = $('#scan-particles');
-    if (!c || c.style.display === 'none') return;
-    _scanParticleRAF = requestAnimationFrame(frame);
-    c.width = window.innerWidth; c.height = window.innerHeight;
-    ctx.clearRect(0, 0, c.width, c.height);
-    _scanParticles.forEach(p => {
-      p.x += p.vx; p.y += p.vy; p.a += p.da;
-      if (p.a <= 0.05 || p.a >= 0.7) p.da *= -1;
-      if (p.x < 0) p.x = c.width; if (p.x > c.width) p.x = 0;
-      if (p.y < 0) p.y = c.height; if (p.y > c.height) p.y = 0;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(255,255,255,${p.a.toFixed(2)})`; ctx.fill();
+
+  function drawFrame() {
+    if (canvas.style.display === 'none') { raf = null; return; }
+    raf = requestAnimationFrame(drawFrame);
+    if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    const ctx2 = canvas.getContext('2d');
+    ctx2.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      // Flat motion - no perspective sine wave
+      p.x += p.vx;
+      p.y += p.vy;
+      // Wrap around edges instead of full reset, to keep coverage even
+      if (p.x < 0) p.x = canvas.width;
+      if (p.x > canvas.width) p.x = 0;
+      if (p.y < 0) p.y = canvas.height;
+      if (p.y > canvas.height) p.y = 0;
+      p.life -= 0.006;
+      if (p.life <= 0) resetParticle(p);
+      const alpha = (p.life / p.maxLife) * 0.5;
+      ctx2.beginPath();
+      ctx2.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx2.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+      ctx2.fill();
     });
   }
-  cancelAnimationFrame(_scanParticleRAF); frame();
-}
 
-function stopScanParticles() {
-  cancelAnimationFrame(_scanParticleRAF);
-  const c = $('#scan-particles');
-  if (c) c.style.display = 'none';
-}
+  window._startScanOverlay = function() {
+    // Scan particles disabled
+  };
+  window._stopScanOverlay = function() {
+    canvas.style.display = 'none';
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+  };
 
-// ─── Fix star map gyroscope (flat phone = look up) ─────────
-function _onStarOrientation(e) {
-  if (e.beta === null) return;
-  state._starPitch = (e.beta || 0) - 90;  // flat=0° → pitch -90 (zenith); upright=90° → pitch 0 (horizon)
-  state._starYaw   = (e.alpha || 0);
-}
-
-// ─── Emotion → FaceMesh skeleton + head pet ───────────────
-const FACE_OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
-const FACE_FEATURES = [[33,7,163,144,145,153,154,155,133],[362,382,381,380,374,373,390,249,263],[61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146],[1,2,98,327]];
-
-function initEmotion() {
-  $('#emotion-display').style.display = 'none';
-  $('#anatomy-info').style.display = 'block';
-  $('#anatomy-info').textContent = '正在載入臉部辨識...';
-  state._faceEmoji = '🐱';
-
-  _loadMediaPipeScript('face_mesh', () => {
-    try {
-      const faceMesh = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-      faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.55, minTrackingConfidence: 0.55 });
-      faceMesh.onResults(onFaceResults);
-      state._mpFace = faceMesh;
-      const send = async () => {
-        if (state.experience?.id !== 'emotion') return;
-        if (_camVideo.readyState >= 2) { try { await faceMesh.send({ image: _camVideo }); } catch(e){} }
-        setTimeout(send, 80);
-      };
-      send();
-      $('#anatomy-info').textContent = '臉部辨識中 — 對準攝影機';
-      toast('✓ 臉部辨識已啟動');
-    } catch(e) { $('#anatomy-info').textContent = '⚠ 臉部辨識不支援'; }
-  });
-}
-
-function onFaceResults(results) {
-  if (state.experience?.id !== 'emotion') return;
-  _camCanvas.width = window.innerWidth; _camCanvas.height = window.innerHeight;
-  _camCtx.clearRect(0, 0, _camCanvas.width, _camCanvas.height);
-  if (!results.multiFaceLandmarks?.length) return;
-  const lm = results.multiFaceLandmarks[0];
-  const w = _camCanvas.width, h = _camCanvas.height;
-  const xf = i => (1 - lm[i].x) * w;
-  const yf = i => lm[i].y * h;
-  // Face oval
-  _camCtx.strokeStyle = 'rgba(94,234,212,.75)'; _camCtx.lineWidth = 1.5; _camCtx.lineCap = 'round';
-  _camCtx.beginPath(); FACE_OVAL.forEach((idx,i) => i===0?_camCtx.moveTo(xf(idx),yf(idx)):_camCtx.lineTo(xf(idx),yf(idx))); _camCtx.closePath(); _camCtx.stroke();
-  // Features
-  FACE_FEATURES.forEach(feat => {
-    _camCtx.strokeStyle = 'rgba(255,140,66,.85)'; _camCtx.lineWidth = 1.5;
-    _camCtx.beginPath(); feat.forEach((idx,i) => i===0?_camCtx.moveTo(xf(idx),yf(idx)):_camCtx.lineTo(xf(idx),yf(idx))); _camCtx.stroke();
-  });
-  // Key dots
-  [1,33,263,61,291,4].forEach(idx => { _camCtx.beginPath(); _camCtx.arc(xf(idx),yf(idx),3,0,Math.PI*2); _camCtx.fillStyle='#5eead4'; _camCtx.fill(); });
-  // Head-top pet emoji
-  const petX = xf(10), petY = yf(10) - 55;
-  _camCtx.font = '38px serif'; _camCtx.textAlign = 'center';
-  _camCtx.fillText(state._faceEmoji || '🐱', petX, petY);
-  $('#anatomy-info').textContent = `臉部骨架 · 臉部偵測中`;
-}
-
-// ─── Wire emotion experience description update ────────────
-// The experience title is updated to "AR 臉部辨識" in the EXPERIENCES array tag
-
+  // Auto-link: scan particles appear whenever #ar-instruction is visible
+  const instr = document.getElementById('ar-instruction');
+  if (instr) {
+    const observer = new MutationObserver(() => {
+      const hidden = instr.classList.contains('hidden');
+      const overlayVisible = canvas.style.display === 'block';
+      if (!hidden && !overlayVisible) {
+        window._startScanOverlay();
+      } else if (hidden && overlayVisible) {
+        window._stopScanOverlay();
+      }
+    });
+    observer.observe(instr, { attributes: true, attributeFilter: ['class'] });
+  }
+})();
 
 // ============================================================
+// ─── Sidebar interactive canvas (desktop only) ───────────
+(function initSidebarCanvas() {
+  const el = document.getElementById('sidebar-canvas');
+  if (!el) return;
+
+  const mq = window.matchMedia('(min-width: 768px)');
+  const toggleCanvas = (m) => { el.style.display = m.matches ? 'block' : 'none'; };
+  toggleCanvas(mq);
+  mq.addEventListener('change', toggleCanvas);
+
+  const ctx = el.getContext('2d');
+  let W, H;
+  let mouseX = 0.5, mouseY = 0.5;
+  let targetMX = 0.5, targetMY = 0.5;
+
+  // Click interaction state
+  let spinVX = 0, spinVY = 0;
+  let cubeScaleTarget = 1, cubeScale = 1;
+  let shockwaves = [];
+  let pressTime = 0;
+
+  // 3-D wireframe cube
+  const VERTS = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
+  const EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+  let rotX = 0.4, rotY = 0.6;
+
+  function project(v, cx, cy, fov) {
+    let [x,y,z] = v;
+    let y2=y*Math.cos(rotX)-z*Math.sin(rotX), z2=y*Math.sin(rotX)+z*Math.cos(rotX); y=y2; z=z2;
+    let x2=x*Math.cos(rotY)+z*Math.sin(rotY); z2=-x*Math.sin(rotY)+z*Math.cos(rotY); x=x2; z=z2;
+    const s = fov/(fov+z+2);
+    return [cx+x*s*fov*0.28, cy+y*s*fov*0.28];
+  }
+
+  function resize() {
+    const rect = el.getBoundingClientRect();
+    W = el.width  = Math.round(rect.width  * devicePixelRatio);
+    H = el.height = Math.round(rect.height * devicePixelRatio);
+  }
+
+  function getPos(e) {
+    const r = el.getBoundingClientRect();
+    if (e.touches) return { nx:(e.touches[0].clientX-r.left)/r.width, ny:(e.touches[0].clientY-r.top)/r.height };
+    return { nx:(e.clientX-r.left)/r.width, ny:(e.clientY-r.top)/r.height };
+  }
+
+  function draw(t) {
+    requestAnimationFrame(draw);
+    if (!W) { resize(); return; }
+
+    // Smooth mouse follow (original speed)
+    mouseX += (targetMX - mouseX) * 0.04;
+    mouseY += (targetMY - mouseY) * 0.04;
+
+    // Rotation: mouse position + auto-spin + click momentum
+    spinVX *= 0.93; spinVY *= 0.93;
+    rotY = (mouseX-0.5)*Math.PI*1.2 + t*0.00035 + spinVY;
+    rotX = (mouseY-0.5)*Math.PI*0.8 + t*0.00018 + spinVX;
+
+    // Scale spring
+    cubeScale += (cubeScaleTarget - cubeScale) * 0.12;
+    if (Math.abs(cubeScale - cubeScaleTarget) < 0.002) cubeScaleTarget = 1;
+
+    // Clear with full transparency
+    ctx.clearRect(0, 0, W, H);
+
+    // Shockwave rings on click
+    const now = performance.now();
+    shockwaves = shockwaves.filter(sw => {
+      const age = (now - sw.born) / 600;
+      if (age > 1) return false;
+      const r = age * Math.min(W,H) * 0.45;
+      ctx.beginPath(); ctx.arc(sw.x, sw.y, r, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(255,140,66,${(1-age)*0.6})`;
+      ctx.lineWidth = 2*(1-age)*(W/300); ctx.stroke();
+      if (age > 0.2) {
+        const r2 = (age-0.2)*Math.min(W,H)*0.35;
+        ctx.beginPath(); ctx.arc(sw.x, sw.y, r2, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(255,220,100,${(1-age)*0.35})`;
+        ctx.lineWidth = 1*(W/300); ctx.stroke();
+      }
+      return true;
+    });
+
+    // Wireframe cube
+    const sv = VERTS.map(([x,y,z]) => [x*cubeScale, y*cubeScale, z*cubeScale]);
+    const cx = W/2, cy = H*0.52, fov = W*0.85;
+    const proj = sv.map(v => project(v, cx, cy, fov));
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,140,66,0.5)';
+    ctx.shadowBlur = 10*(W/300);
+    EDGES.forEach(([a,b]) => {
+      ctx.beginPath();
+      ctx.moveTo(proj[a][0], proj[a][1]);
+      ctx.lineTo(proj[b][0], proj[b][1]);
+      ctx.strokeStyle = 'rgba(255,140,66,0.85)';
+      ctx.lineWidth = 1.4*(W/300);
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    // Vertex dots
+    proj.forEach(([px,py]) => {
+      ctx.beginPath(); ctx.arc(px, py, 2*(W/300), 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,140,66,1)'; ctx.fill();
+    });
+  }
+
+  // Mouse
+  el.addEventListener('mousemove', e => { const {nx,ny}=getPos(e); targetMX=nx; targetMY=ny; });
+  el.addEventListener('mouseleave', () => { targetMX=0.5; targetMY=0.5; });
+
+  el.addEventListener('mousedown', e => { pressTime=performance.now(); const {nx,ny}=getPos(e); targetMX=nx; targetMY=ny; });
+  el.addEventListener('mouseup', e => {
+    const holdMs = performance.now()-pressTime;
+    const {nx,ny}=getPos(e);
+    shockwaves.push({ x:nx*W, y:ny*H, born:performance.now() });
+    const force = holdMs>300 ? 0.18 : 0.1;
+    spinVX += (Math.random()-0.5)*force;
+    spinVY += (Math.random()-0.5)*force;
+    cubeScaleTarget = holdMs>300 ? 1.4 : 1.25;
+  });
+
+  // Touch
+  el.addEventListener('touchstart', e=>{ e.preventDefault(); pressTime=performance.now(); const {nx,ny}=getPos(e); targetMX=nx; targetMY=ny; },{ passive:false });
+  el.addEventListener('touchmove',  e=>{ e.preventDefault(); const {nx,ny}=getPos(e); targetMX=nx; targetMY=ny; },{ passive:false });
+  el.addEventListener('touchend',   e=>{ e.preventDefault();
+    const holdMs=performance.now()-pressTime;
+    shockwaves.push({ x:targetMX*W, y:targetMY*H, born:performance.now() });
+    const force=holdMs>300?0.18:0.1;
+    spinVX+=(Math.random()-0.5)*force; spinVY+=(Math.random()-0.5)*force;
+    cubeScaleTarget=holdMs>300?1.4:1.25;
+  },{ passive:false });
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+})();
+
+// ─── Restore homepage scroll after tab switch ────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Reset uiBlocked unless mid-upload
+    if (!state._uploadInProgress) {
+      setTimeout(() => { state.uiBlocked = false; }, 300);
+    }
+    // Restore homepage scrolling and pointer events
+    const app = document.getElementById('app');
+    if (app) {
+      app.style.overflowY = 'auto';
+      app.style.touchAction = '';
+      app.style.pointerEvents = '';
+    }
+    // Restore body
+    document.body.style.touchAction = '';
+    document.body.style.pointerEvents = '';
+    // If experience ended unexpectedly during hide (and not upload), exit cleanly
+    if (state._wasInSession && !state.inSession && !state._uploadInProgress && !state._pendingRelaunch) {
+      state._wasInSession = false;
+      const ov = document.getElementById('ar-overlay');
+      if (ov) ov.classList.remove('active');
+      state.experience = null;
+    }
+  } else if (document.visibilityState === 'hidden') {
+    // Remember if we were in a session
+    state._wasInSession = state.inSession;
+    if (state._uploadInProgress) {
+      state.uiBlocked = true;
+    }
+  }
+});
+// Also restore on pageshow (iOS back/forward cache)
+window.addEventListener('pageshow', (e) => {
+  const app = document.getElementById('app');
+  if (app && !state.inSession) { app.style.overflowY = 'auto'; }
+});
+
+// ─── Sound Effects (Web Audio API) ───────────────────────
+const _sfx = (() => {
+  let ctx = null;
+  let _activeSounds = 0;
+  const MAX_SOUNDS = 4;
+  const getCtx = () => {
+    if (!ctx) {
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    }
+    if (ctx?.state === 'suspended') ctx.resume();
+    return ctx;
+  };
+
+  const play = (fn) => {
+    if (_activeSounds >= MAX_SOUNDS) return;
+    try {
+      const c = getCtx();
+      if (c) { _activeSounds++; fn(c, () => { _activeSounds = Math.max(0, _activeSounds - 1); }); }
+    } catch(e) {}
+  };
+
+  return {
+    bounce(velocity = 1) {
+      play((c, done) => {
+        const freq = 180 + Math.random() * 120;
+        const vol = Math.min(0.4, velocity * 0.12);
+        const o = c.createOscillator(), g = c.createGain();
+        o.connect(g); g.connect(c.destination);
+        o.type = 'sine'; o.frequency.setValueAtTime(freq, c.currentTime);
+        o.frequency.exponentialRampToValueAtTime(freq * 0.4, c.currentTime + 0.12);
+        g.gain.setValueAtTime(vol, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.18);
+        o.start(); o.stop(c.currentTime + 0.2);
+        o.onended = done;
+      });
+    },
+
+    roll() {
+      play((c, done) => {
+        const buf = c.createBuffer(1, c.sampleRate * 0.08, c.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * (1 - i/data.length) * 0.15;
+        const src = c.createBufferSource(), g = c.createGain();
+        const filt = c.createBiquadFilter();
+        filt.type = 'lowpass'; filt.frequency.value = 300;
+        src.buffer = buf; src.connect(filt); filt.connect(g); g.connect(c.destination);
+        g.gain.setValueAtTime(0.3, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.1);
+        src.start();
+        src.onended = done;
+      });
+    },
+
+    shoot() {
+      play((c, done) => {
+        const o = c.createOscillator(), g = c.createGain();
+        const dist = c.createWaveShaper();
+        const curve = new Float32Array(256);
+        for (let i = 0; i < 256; i++) { const x = i*2/256-1; curve[i] = (Math.PI+400)*x/(Math.PI+400*Math.abs(x)); }
+        dist.curve = curve;
+        o.connect(dist); dist.connect(g); g.connect(c.destination);
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(280, c.currentTime);
+        o.frequency.exponentialRampToValueAtTime(60, c.currentTime + 0.12);
+        g.gain.setValueAtTime(0.25, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15);
+        o.start(); o.stop(c.currentTime + 0.18);
+        o.onended = done;
+      });
+    },
+
+    explode() {
+      play((c, done) => {
+        const buf = c.createBuffer(1, c.sampleRate * 0.25, c.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 1.5);
+        const src = c.createBufferSource(), g = c.createGain();
+        const filt = c.createBiquadFilter();
+        filt.type = 'bandpass'; filt.frequency.value = 180; filt.Q.value = 0.8;
+        src.buffer = buf; src.connect(filt); filt.connect(g); g.connect(c.destination);
+        g.gain.setValueAtTime(0.45, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.28);
+        src.start();
+        src.onended = done;
+      });
+    },
+
+    playerHit() {
+      play((c, done) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.connect(g); g.connect(c.destination);
+        o.type = 'square'; o.frequency.setValueAtTime(120, c.currentTime);
+        o.frequency.setValueAtTime(80, c.currentTime + 0.06);
+        g.gain.setValueAtTime(0.3, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
+        o.start(); o.stop(c.currentTime + 0.22);
+        o.onended = done;
+      });
+    },
+  };
+})();
+
+// ─── Wire SFX into physics ────────────────────────────────
+(function() {
+  // Settings
+  const settingsBtn = $('#settings-btn');
+  const modal = $('#settings-modal');
+  const closeBtn = $('#settings-close');
+  if (settingsBtn && modal) {
+    const positionModal = () => {
+      const btnRect = settingsBtn.getBoundingClientRect();
+      const panelW = 300;
+      const safeTop = Math.max(8, btnRect.bottom + 8);
+      // Right-align to button, but keep within viewport
+      const rightEdge = window.innerWidth - btnRect.right;
+      modal.style.top = safeTop + 'px';
+      modal.style.right = Math.max(8, rightEdge) + 'px';
+      modal.style.left = 'auto';
+      modal.style.transform = 'none';
+    };
+
+    const updateResHighlight = () => {
+      ['original','medium','low'].forEach(v => {
+        const lbl = document.getElementById('res-label-' + v);
+        if (lbl) lbl.style.borderColor = (state._camResolution || 'original') === v
+          ? 'var(--amber)' : 'var(--line)';
+      });
+    };
+
+    settingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = modal.style.display !== 'none';
+      modal.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen) { positionModal(); updateResHighlight(); }
+    });
+    closeBtn?.addEventListener('click', (e) => { e.stopPropagation(); modal.style.display = 'none'; });
+    modal.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => {
+      if (modal.style.display !== 'none') modal.style.display = 'none';
+    });
+    // Camera resolution setting — applies to both camera mode AND WebXR renderer
+    document.querySelectorAll('input[name="cam-res"]').forEach(r => {
+      r.addEventListener('change', () => {
+        state._camResolution = r.value;
+        // Apply pixel ratio to active renderer immediately if in a WebXR/fallback session
+        if (state.renderer) {
+          const prMap = { original: Math.min(window.devicePixelRatio, 2.5), medium: Math.min(window.devicePixelRatio, 1.5), low: 1.0 };
+          state.renderer.setPixelRatio(prMap[r.value] ?? Math.min(window.devicePixelRatio, 2.5));
+        }
+        updateResHighlight();
+      });
+    });
+  }
+
+  // Fullscreen
+  const fsBtn = $('#fullscreen-btn');
+  const fsExpand = $('#fs-icon-expand');
+  const fsCompress = $('#fs-icon-compress');
+  if (fsBtn) {
+    fsBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      const inFs = !!document.fullscreenElement;
+      if (fsExpand) fsExpand.style.display = inFs ? 'none' : '';
+      if (fsCompress) fsCompress.style.display = inFs ? '' : 'none';
+    });
+  }
+})();
+
 // --------- Boot ---------
 buildMenu();
 checkXRSupport();
