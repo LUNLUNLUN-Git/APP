@@ -1382,7 +1382,7 @@ const EXPERIENCES = [
     icon: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="6" fill="none" stroke-width="2"/><line x1="50" y1="10" x2="50" y2="38" stroke-width="2"/><line x1="50" y1="62" x2="50" y2="90" stroke-width="2"/><line x1="10" y1="50" x2="38" y2="50" stroke-width="2"/><line x1="62" y1="50" x2="90" y2="50" stroke-width="2"/><circle cx="50" cy="20" r="4" fill="currentColor" opacity="0.7"/><circle cx="80" cy="30" r="5" fill="currentColor" opacity="0.6"/></svg>`,
     instruction: '轉動手機瞄準敵人<br>點擊畫面射擊',
     hudLabel: '擊殺',
-    tools: ['capture']
+    tools: []
   }
 ];
 
@@ -1608,6 +1608,11 @@ async function launchExperience(exp) {
   const NO_LIGHT_EXP = ['portal', 'measure', 'particles', 'shooter'];
   const lightBtnEl = $('#ar-light-btn');
   if (lightBtnEl) lightBtnEl.style.display = NO_LIGHT_EXP.includes(exp.id) ? 'none' : '';
+
+  // Hide grid toggle button for camera-only experiences and shooter
+  const NO_GRID_EXP = ['emotion', 'anatomy', 'colorscanner', 'starmap', 'shooter'];
+  const gridToggleBtn = $('#ar-grid-toggle');
+  if (gridToggleBtn) gridToggleBtn.style.display = NO_GRID_EXP.includes(exp.id) ? 'none' : '';
 
   // Prevent ALL touches on AR overlay UI from reaching the XR canvas
   $('#ar-overlay').querySelectorAll('button, input, .ar-sub-toolbar').forEach(el => {
@@ -2213,6 +2218,11 @@ function exitExperience() {
   $('#pc-crosshair').style.display = 'none';
   document.removeEventListener('keydown', _shooterEscHandler);
   document.exitPointerLock?.();
+  // Remove mobile fire touchend handler to prevent bullets in other scenes
+  if (state.shooter?._mobileFireHandler && state.shooter?._mobileFireTarget) {
+    state.shooter._mobileFireTarget.removeEventListener('touchend', state.shooter._mobileFireHandler);
+    state.shooter._mobileFireHandler = null;
+  }
 
   // Reset light state so each experience starts with lights on
   state.lightOn = true;
@@ -2239,7 +2249,6 @@ function exitExperience() {
   const gridBtn = $('#ar-grid-toggle');
   if (gridBtn) gridBtn.style.display = '';
   const modeBtn = $('#ar-3d-mode');
-  if (modeBtn) { modeBtn.style.opacity = ''; modeBtn.style.pointerEvents = ''; modeBtn.style.display = ''; }
 }
 
 // --------- Toolbar construction ---------
@@ -2276,47 +2285,23 @@ function buildToolbar(exp) {
 
     switch (tool) {
       case 'shape': {
-        // Shape/Model toggle pair
-        const pair = document.createElement('div');
-        pair.className = 'toggle-pair';
+        // Shape-only button (no upload toggle)
         const shapeBtn = document.createElement('button');
         shapeBtn.className = 'ar-tool selected';
         shapeBtn.dataset.tool = 'shape';
+        shapeBtn.dataset.shape = state.currentShape || 'cube';
         shapeBtn.title = '形狀';
-        shapeBtn.innerHTML = SHAPE_ICONS['cube'];
-        const modelBtn = document.createElement('button');
-        modelBtn.className = 'ar-tool';
-        modelBtn.dataset.tool = 'upload';
-        modelBtn.title = '3D 模型';
-        modelBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
-
-        const showShapeSub = () => {
-          shapeBtn.classList.add('selected');
-          modelBtn.classList.remove('selected');
+        shapeBtn.innerHTML = SHAPE_ICONS[state.currentShape || 'cube'];
+        shapeBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        shapeBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        shapeBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        shapeBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        shapeBtn.onclick = () => {
           state.uploadMode = 'shape';
           state.customModel = null;
           buildShapeSubToolbar();
         };
-        const showModelSub = () => {
-          modelBtn.classList.add('selected');
-          shapeBtn.classList.remove('selected');
-          state.uploadMode = 'model';
-          // Hide shape/color sub-toolbar while in model mode
-          const sub = $('#ar-sub-toolbar');
-          if (sub) { sub.innerHTML = ''; sub.classList.remove('visible'); }
-          triggerModelUpload(exp.id);
-        };
-        shapeBtn.onclick = showShapeSub;
-        modelBtn.onclick = showModelSub;
-        [shapeBtn, modelBtn].forEach(b => {
-          b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-          b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        });
-        pair.appendChild(shapeBtn);
-        pair.appendChild(modelBtn);
-        tb.appendChild(pair);
+        tb.appendChild(shapeBtn);
         // Show shape sub-toolbar by default
         setTimeout(() => buildShapeSubToolbar(), 50);
         return;
@@ -2529,46 +2514,22 @@ function buildToolbar(exp) {
         };
         break;
       case 'pet-toggle': {
-        const pair = document.createElement('div');
-        pair.className = 'toggle-pair';
+        // Pet-only button (no upload toggle)
         const petBtn = document.createElement('button');
         petBtn.className = 'ar-tool selected';
         petBtn.title = '預設寵物';
         petBtn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5"/><circle cx="9" cy="8" r="1.5" fill="currentColor"/><circle cx="15" cy="8" r="1.5" fill="currentColor"/><path d="M9 12 Q12 14 15 12" stroke-linecap="round"/><path d="M8 14 Q7 18 8 20M16 14 Q17 18 16 20"/></svg>`;
-        const modelBtn2 = document.createElement('button');
-        modelBtn2.className = 'ar-tool';
-        modelBtn2.title = '3D 模型';
-        modelBtn2.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
-
-        const showPetSub = () => {
-          petBtn.classList.add('selected');
-          modelBtn2.classList.remove('selected');
+        petBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
+        petBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
+        petBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        petBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        tb.appendChild(petBtn);
+        setTimeout(() => {
           state.customModel = null;
           state.uploadMode = 'shape';
-          // Show color sub-toolbar for pet
           const sub = $('#ar-sub-toolbar');
           if (sub) { sub.innerHTML = ''; sub.classList.add('visible'); buildPetColorSub(sub); }
-        };
-        const showPetModelSub = () => {
-          modelBtn2.classList.add('selected');
-          petBtn.classList.remove('selected');
-          state.uploadMode = 'model';
-          $('#ar-sub-toolbar').innerHTML = '';
-          $('#ar-sub-toolbar').classList.remove('visible');
-          triggerModelUpload('pet');
-        };
-        petBtn.onclick = showPetSub;
-        modelBtn2.onclick = showPetModelSub;
-        [petBtn, modelBtn2].forEach(b => {
-          b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-          b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        });
-        pair.appendChild(petBtn);
-        pair.appendChild(modelBtn2);
-        tb.appendChild(pair);
-        setTimeout(() => showPetSub(), 50);
+        }, 50);
         return;
       }
       case 'face-upload': {
@@ -4391,20 +4352,18 @@ function initShooter() {
       bullet.id = 'shooter-mobile-bullet';
       bullet.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:42px;height:42px;pointer-events:none;z-index:50;';
       bullet.innerHTML = `
-        <svg viewBox="0 0 42 42" style="width:100%;height:100%;animation:bulletSpin 2.6s linear infinite;animation-delay:0s;filter:drop-shadow(0 0 8px rgba(255,140,66,0.7));">
+        <svg viewBox="0 0 42 42" style="width:100%;height:100%;filter:drop-shadow(0 0 10px rgba(255,208,128,0.9)) drop-shadow(0 0 4px rgba(255,208,128,0.6));">
           <defs>
-            <radialGradient id="bulletGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#ffd680"/>
-              <stop offset="50%" stop-color="#ff8c42"/>
-              <stop offset="100%" stop-color="#cc5520"/>
+            <radialGradient id="bulletGrad" cx="38%" cy="35%" r="60%">
+              <stop offset="0%" stop-color="#fffbe0"/>
+              <stop offset="40%" stop-color="#ffd080"/>
+              <stop offset="100%" stop-color="#cc7700"/>
             </radialGradient>
           </defs>
-          <ellipse cx="21" cy="21" rx="9" ry="14" fill="url(#bulletGrad)" stroke="#ffd680" stroke-width="0.8"/>
-          <ellipse cx="21" cy="21" rx="2" ry="6" fill="rgba(255,255,255,0.6)" transform="translate(-2,-2)"/>
-          <line x1="21" y1="2" x2="21" y2="8" stroke="#ff8c42" stroke-width="1" opacity="0.4"/>
-          <line x1="21" y1="34" x2="21" y2="40" stroke="#ff8c42" stroke-width="1" opacity="0.4"/>
+          <circle cx="21" cy="21" r="11" fill="url(#bulletGrad)"/>
+          <circle cx="17" cy="17" r="3.5" fill="rgba(255,255,255,0.45)"/>
         </svg>
-        <style>@keyframes bulletSpin{from{transform:rotateY(0deg)}to{transform:rotateY(360deg)}}@keyframes bulletFloat{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-6px)}}</style>
+        <style>@keyframes bulletFloat{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-6px)}}</style>
       `;
       bullet.style.animation = 'bulletFloat 2.4s ease-in-out infinite';
       $('#ar-overlay').appendChild(bullet);
@@ -6995,15 +6954,7 @@ _initText3DRow();
   }
 
   window._startScanOverlay = function() {
-    canvas.style.display = 'block';
-    particles.length = 0;
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      const p = {};
-      resetParticle(p);
-      p.life = Math.random() * p.maxLife;
-      particles.push(p);
-    }
-    if (!raf) drawFrame();
+    // Scan particles disabled
   };
   window._stopScanOverlay = function() {
     canvas.style.display = 'none';
