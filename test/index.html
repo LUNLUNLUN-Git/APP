@@ -422,6 +422,7 @@
     max-width: 80%;
     pointer-events: none;
     animation: fadeIn 0.3s ease;
+    z-index: 5;
   }
   @keyframes fadeIn {
     from { opacity: 0; transform: translateX(-50%) translateY(10px); }
@@ -1161,6 +1162,8 @@
     </div>
     <!-- Sub toolbar (shapes, model preview, color) -->
     <div class="ar-sub-toolbar" id="ar-sub-toolbar"></div>
+    <!-- Scan particles overlay (inside ar-overlay so it renders in WebXR DOM-overlay layer) -->
+    <canvas id="scan-overlay" style="position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;display:none;"></canvas>
     <div class="ar-toolbar" id="ar-toolbar">
       <!-- Populated by JS per experience -->
     </div>
@@ -1173,7 +1176,6 @@
 </div>
 
 <!-- Camera-mode elements (no WebXR) -->
-<canvas id="scan-overlay" style="position:fixed;inset:0;width:100%;height:100%;z-index:150;pointer-events:none;display:none;"></canvas>
 <video id="cam-video" autoplay playsinline muted></video>
 <canvas id="cam-canvas"></canvas>
 <canvas id="star-canvas"></canvas>
@@ -2205,6 +2207,7 @@ function exitExperience() {
   // Clean up shooter artefacts
   $('#shooter-intro')?.remove();
   $('#shooter-indicators')?.remove();
+  $('#shooter-mobile-intro')?.remove();
   $('#pc-crosshair').style.display = 'none';
   document.removeEventListener('keydown', _shooterEscHandler);
   document.exitPointerLock?.();
@@ -3073,17 +3076,17 @@ function showResumePrompt(exp) {
 
   const div = document.createElement('div');
   div.id = 'resume-prompt';
-  div.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(16,16,18,0.97);border:1px solid var(--amber);border-radius:6px;padding:24px 28px;z-index:900;font-family:var(--mono);text-align:center;box-shadow:0 8px 40px rgba(255,140,66,0.2);max-width:320px;';
+  div.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(16,16,18,0.97);border:2px solid var(--amber);border-radius:8px;padding:36px 32px;z-index:900;font-family:var(--mono);text-align:center;box-shadow:0 12px 60px rgba(255,140,66,0.35);width:calc(100% - 40px);max-width:400px;';
 
   const hasModel = !!state.customModel;
   div.innerHTML = `
-    <div style="color:var(--amber);font-size:11px;letter-spacing:.1em;margin-bottom:10px;">// ${hasModel ? '模型已載入' : '檔案處理完成'}</div>
-    <div style="color:var(--text);font-size:14px;margin-bottom:6px;">準備返回 ${exp.title}</div>
-    <div style="color:var(--text-dim);font-size:11px;margin-bottom:18px;line-height:1.5;">瀏覽器需要您的點擊<br>才能重新啟動 AR 場景</div>
-    <button id="resume-btn" style="background:var(--amber);color:#000;border:none;border-radius:3px;padding:12px 28px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.1em;cursor:pointer;width:100%;">
+    <div style="color:var(--amber);font-size:13px;letter-spacing:.12em;margin-bottom:16px;">// ${hasModel ? '✓ 模型已載入' : '檔案處理完成'}</div>
+    <div style="color:var(--text);font-size:18px;margin-bottom:10px;font-weight:700;">準備返回 ${exp.title}</div>
+    <div style="color:var(--text-dim);font-size:13px;margin-bottom:28px;line-height:1.6;">瀏覽器需要您的點擊<br>才能重新啟動 AR 場景</div>
+    <button id="resume-btn" style="background:var(--amber);color:#000;border:none;border-radius:4px;padding:18px 32px;font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.12em;cursor:pointer;width:100%;touch-action:manipulation;">
       點擊繼續 →
     </button>
-    <button id="resume-cancel" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:10px;margin-top:12px;cursor:pointer;letter-spacing:.05em;">
+    <button id="resume-cancel" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:12px;margin-top:18px;padding:10px;cursor:pointer;letter-spacing:.06em;width:100%;">
       取消
     </button>
   `;
@@ -3092,20 +3095,46 @@ function showResumePrompt(exp) {
   const resumeBtn = div.querySelector('#resume-btn');
   const cancelBtn = div.querySelector('#resume-cancel');
 
-  // CRITICAL: this click is the user activation that allows requestSession to succeed
-  resumeBtn.addEventListener('click', () => {
+  // CRITICAL: handle the click directly with relaunch logic inline
+  // (synchronous to preserve user-activation token for requestSession)
+  const doResume = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    // Reset all blocking states FIRST so launchExperience can proceed
+    state.uiBlocked = false;
+    state._uploadInProgress = false;
+    state._pendingRelaunch = null;
     div.remove();
-    launchExperience(exp); // user activation chain → requestSession will succeed
+    // Launch immediately — this synchronous call preserves user activation
+    launchExperience(exp).catch(err => {
+      console.error('Resume launch failed:', err);
+      toast('啟動失敗，請從首頁重新進入', true);
+    });
+  };
+
+  // Use both click and touchend for max compatibility (mobile sometimes misses click)
+  resumeBtn.addEventListener('click', doResume);
+  resumeBtn.addEventListener('touchend', (e) => {
+    if (e.cancelable) e.preventDefault();
+    doResume(e);
   });
+
   cancelBtn.addEventListener('click', () => {
     div.remove();
     state.customModel = null;
+    state._pendingRelaunch = null;
+    state.uiBlocked = false;
+    state._uploadInProgress = false;
   });
 }
 
 function triggerModelUpload(expId) {
   state.uiBlocked = true;
   state._uploadInProgress = true;
+  // Immediately hide AR instruction and scan particles
+  // (when XR session ends due to file picker, home page should look clean)
+  $('#ar-instruction').classList.add('hidden');
+  window._stopScanOverlay?.();
 
   if (!_modelFileInput) {
     _modelFileInput = document.createElement('input');
@@ -3368,6 +3397,7 @@ function clearAll() {
       // Clean up intro and indicators
       $('#shooter-intro')?.remove();
       $('#shooter-indicators')?.remove();
+      $('#shooter-mobile-intro')?.remove();
       $('#pc-crosshair').style.display = 'none';
       document.removeEventListener('keydown', _shooterEscHandler);
       document.exitPointerLock?.();
@@ -4256,8 +4286,9 @@ function initShooter() {
   if (!indContainer) {
     indContainer = document.createElement('div');
     indContainer.id = 'shooter-indicators';
-    indContainer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;';
-    document.body.appendChild(indContainer);
+    indContainer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:180;overflow:hidden;';
+    // Append inside ar-overlay so it renders in WebXR DOM-overlay layer
+    ($('#ar-overlay') || document.body).appendChild(indContainer);
   }
   state.shooter.indContainer = indContainer;
 
@@ -4302,35 +4333,64 @@ function initShooter() {
       });
     };
   } else {
-    // Mobile: start immediately — no plane scan required
-    state.shooter.active = true;
-    state.shooter.started = true;
-    state.uiBlocked = false; // ensure not stuck from previous interaction
+    // Mobile: show intro panel first, then start on dismiss
+    state.shooter.active = false;
+    state.shooter.started = false;
+    state.uiBlocked = false;
     if (state.reticle) state.reticle.visible = false;
 
-    // Start gyroscope for aim control
-    startGyroscope(state.camera);
-    if (state.camera) { state.camera.position.set(0, 0, 0); }
+    // Hide instruction panel (we'll show our own intro)
+    $('#ar-instruction').classList.add('hidden');
+    window._stopScanOverlay?.();
 
-    // Show crosshair
-    $('#pc-crosshair').style.display = 'block';
+    // Build mobile intro panel inside ar-overlay (visible in WebXR DOM-overlay)
+    $('#shooter-mobile-intro')?.remove();
+    const intro = document.createElement('div');
+    intro.id = 'shooter-mobile-intro';
+    intro.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(10,10,11,0.94);border:2px solid var(--amber);border-radius:8px;padding:28px 24px;z-index:300;font-family:var(--mono);text-align:center;width:calc(100% - 40px);max-width:340px;pointer-events:auto;box-shadow:0 12px 40px rgba(255,140,66,0.25);';
+    intro.innerHTML = `
+      <div style="font-size:11px;color:var(--amber);letter-spacing:.15em;margin-bottom:10px;">// 空間射擊</div>
+      <h3 style="font-size:18px;color:var(--text);margin:0 0 18px 0;font-weight:700;">準備好了嗎？</h3>
+      <div style="font-size:13px;color:var(--text-dim);line-height:1.9;margin-bottom:20px;text-align:left;padding:0 8px;">
+        <div style="margin-bottom:6px;"><span style="color:var(--amber);">①</span> 轉動手機觀察四周敵人</div>
+        <div style="margin-bottom:6px;"><span style="color:var(--amber);">②</span> 邊緣箭頭指引敵人方位</div>
+        <div><span style="color:var(--amber);">③</span> 點擊畫面射出子彈消滅敵人</div>
+      </div>
+      <button id="shooter-mobile-start" style="background:var(--amber);color:#000;border:none;border-radius:4px;padding:14px 24px;font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.12em;cursor:pointer;width:100%;touch-action:manipulation;">
+        點擊開始 →
+      </button>
+    `;
+    $('#ar-overlay').appendChild(intro);
 
-    // Mobile fire: tap on canvas/document body (overlay has pointer-events:none)
-    const mobileFire = (e) => {
-      if (state._uploadInProgress) return;
-      // Only fire if touch is NOT on a UI button
-      const tgt = e.changedTouches?.[0] ? document.elementFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY) : e.target;
-      if (tgt && tgt.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom, #power-bar-wrap, #ar-toolbar, button, input, label')) return;
-      if (state.shooter?.active && state.shooter?.started) {
-        fireShooterBullet();
-      }
+    const startBtn = intro.querySelector('#shooter-mobile-start');
+    const startGame = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      intro.remove();
+      state.shooter.active = true;
+      state.shooter.started = true;
+      // Start gyroscope for aim control
+      startGyroscope(state.camera);
+      if (state.camera) { state.camera.position.set(0, 0, 0); }
+      // Show crosshair
+      $('#pc-crosshair').style.display = 'block';
+
+      // Mobile fire: tap on canvas/document body (overlay has pointer-events:none)
+      const mobileFire = (ev) => {
+        if (state._uploadInProgress) return;
+        const tgt = ev.changedTouches?.[0] ? document.elementFromPoint(ev.changedTouches[0].clientX, ev.changedTouches[0].clientY) : ev.target;
+        if (tgt && tgt.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom, #power-bar-wrap, #ar-toolbar, button, input, label')) return;
+        if (state.shooter?.active && state.shooter?.started) {
+          fireShooterBullet();
+        }
+      };
+      document.addEventListener('touchend', mobileFire, { passive: true });
+      state.shooter._mobileFireHandler = mobileFire;
+      state.shooter._mobileFireTarget = document;
+      toast('開始遊戲！');
     };
-    // Attach to document for reliable touch capture (canvas may be obscured by XR layer)
-    document.addEventListener('touchend', mobileFire, { passive: true });
-    state.shooter._mobileFireHandler = mobileFire;
-    state.shooter._mobileFireTarget = document;
-
-    toast('轉動手機瞄準，點擊畫面射擊');
+    startBtn.addEventListener('click', startGame);
+    startBtn.addEventListener('touchend', startGame);
   }
 }
 
@@ -4354,8 +4414,8 @@ function _updateShooterIndicators() {
     if (!cont) {
       cont = document.createElement('div');
       cont.id = 'shooter-indicators';
-      cont.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:180;overflow:hidden;';
-      document.body.appendChild(cont);
+      cont.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:180;overflow:hidden;';
+      ($('#ar-overlay') || document.body).appendChild(cont);
     }
     state.shooter.indContainer = cont;
   }
