@@ -1088,22 +1088,37 @@
 </div>
 
 <!-- Settings Modal -->
-<div id="settings-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:260px;background:rgba(16,16,18,0.97);border:1px solid rgba(255,255,255,0.15);border-radius:4px;z-index:800;padding:20px;font-family:var(--mono);font-size:10px;color:var(--text-dim);box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-    <span style="color:var(--amber);letter-spacing:.08em;">// 設定</span>
-    <button id="settings-close" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;padding:0;line-height:1;">✕</button>
+<div id="settings-modal" style="display:none;position:fixed;top:0;right:0;width:300px;background:rgba(14,14,16,0.98);border:1px solid rgba(255,255,255,0.18);border-radius:6px;z-index:800;padding:24px 22px 20px;font-family:var(--mono);font-size:12px;color:var(--text-dim);box-shadow:0 12px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,140,66,0.08);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <span style="color:var(--amber);letter-spacing:.12em;font-size:11px;font-weight:700;">// 設定</span>
+    <button id="settings-close" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:18px;padding:0;line-height:1;opacity:.7;">✕</button>
   </div>
-  <div style="margin-bottom:10px;color:rgba(255,255,255,0.35);letter-spacing:.06em;">相機解析度</div>
-  <div style="display:flex;flex-direction:column;gap:8px;" id="res-options">
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-      <input type="radio" name="cam-res" value="original" style="accent-color:var(--amber);" checked> 最高畫質（自動）
+  <div style="margin-bottom:14px;color:rgba(255,255,255,0.4);letter-spacing:.08em;font-size:10px;text-transform:uppercase;">相機 / 渲染解析度</div>
+  <div style="display:flex;flex-direction:column;gap:12px;" id="res-options">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:4px;transition:border-color .15s;" id="res-label-original">
+      <input type="radio" name="cam-res" value="original" style="accent-color:var(--amber);width:16px;height:16px;" checked>
+      <span>
+        <span style="color:var(--text);display:block;margin-bottom:2px;">最高畫質（自動）</span>
+        <span style="font-size:9px;color:var(--text-faint);">完整解析度・耗電較高</span>
+      </span>
     </label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-      <input type="radio" name="cam-res" value="medium" style="accent-color:var(--amber);"> 中（1280×720）
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:4px;transition:border-color .15s;" id="res-label-medium">
+      <input type="radio" name="cam-res" value="medium" style="accent-color:var(--amber);width:16px;height:16px;">
+      <span>
+        <span style="color:var(--text);display:block;margin-bottom:2px;">中畫質（1280×720）</span>
+        <span style="font-size:9px;color:var(--text-faint);">平衡畫質與效能</span>
+      </span>
     </label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-      <input type="radio" name="cam-res" value="low" style="accent-color:var(--amber);"> 低（640×480）
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:4px;transition:border-color .15s;" id="res-label-low">
+      <input type="radio" name="cam-res" value="low" style="accent-color:var(--amber);width:16px;height:16px;">
+      <span>
+        <span style="color:var(--text);display:block;margin-bottom:2px;">低畫質（640×480）</span>
+        <span style="font-size:9px;color:var(--text-faint);">最省電・低階裝置適用</span>
+      </span>
     </label>
+  </div>
+  <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);font-size:9px;color:var(--text-faint);line-height:1.7;">
+    WebXR 場景：影響 3D 渲染品質<br>相機場景：影響影像串流解析度
   </div>
 </div>
 
@@ -1615,9 +1630,10 @@ async function launchExperience(exp) {
   if (gridToggleBtn) gridToggleBtn.style.display = NO_GRID_EXP.includes(exp.id) ? 'none' : '';
 
   // Prevent ALL touches on AR overlay UI from reaching the XR canvas
+  // Also set uiBlocked so XR select events are suppressed
   $('#ar-overlay').querySelectorAll('button, input, .ar-sub-toolbar').forEach(el => {
-    el.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: false, capture: true });
-    el.addEventListener('touchend',   e => { e.stopPropagation(); }, { passive: false, capture: true });
+    el.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: false, capture: true });
+    el.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: false, capture: true });
   });
 
   // Init touch gesture handlers for object selection/manipulation
@@ -1682,7 +1698,8 @@ async function initXR() {
 
   const context = canvas.getContext('webgl2', { xrCompatible: true, antialias: false, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
   state.renderer = new THREE.WebGLRenderer({ canvas, context, antialias: false, alpha: true, preserveDrawingBuffer: true });
-  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
+  const _prMap = { original: Math.min(window.devicePixelRatio, 2.5), medium: Math.min(window.devicePixelRatio, 1.5), low: 1.0 };
+  state.renderer.setPixelRatio(_prMap[state._camResolution || 'original'] ?? Math.min(window.devicePixelRatio, 2.5));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.xr.enabled = true;
   state.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1772,7 +1789,8 @@ function initFallback() {
   state.canvas = canvas;
 
   state.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const _prMapFb = { original: Math.min(window.devicePixelRatio, 2), medium: Math.min(window.devicePixelRatio, 1.5), low: 1.0 };
+  state.renderer.setPixelRatio(_prMapFb[state._camResolution || 'original'] ?? Math.min(window.devicePixelRatio, 2));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.outputColorSpace = THREE.SRGBColorSpace;
   state.renderer.autoClear = false;
@@ -2280,8 +2298,8 @@ function buildToolbar(exp) {
     btn.dataset.tool = tool;
     btn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
     btn.addEventListener('touchstart',  e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-    btn.addEventListener('pointerup',   () => setTimeout(() => { state.uiBlocked = false; }, 120));
-    btn.addEventListener('touchend',    () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    btn.addEventListener('pointerup',   () => setTimeout(() => { state.uiBlocked = false; }, 400));
+    btn.addEventListener('touchend',    e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
 
     switch (tool) {
       case 'shape': {
@@ -2294,8 +2312,8 @@ function buildToolbar(exp) {
         shapeBtn.innerHTML = SHAPE_ICONS[state.currentShape || 'cube'];
         shapeBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
         shapeBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-        shapeBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        shapeBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        shapeBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        shapeBtn.addEventListener('touchend', e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
         shapeBtn.onclick = () => {
           state.uploadMode = 'shape';
           state.customModel = null;
@@ -2433,8 +2451,8 @@ function buildToolbar(exp) {
         sqBtn.title = '拍攝截圖';
         sqBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
         sqBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-        sqBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        sqBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        sqBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        sqBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 400));
         sqBtn.onclick = captureScreenshot;
         tb.appendChild(sqBtn);
         return;
@@ -2521,8 +2539,8 @@ function buildToolbar(exp) {
         petBtn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5"/><circle cx="9" cy="8" r="1.5" fill="currentColor"/><circle cx="15" cy="8" r="1.5" fill="currentColor"/><path d="M9 12 Q12 14 15 12" stroke-linecap="round"/><path d="M8 14 Q7 18 8 20M16 14 Q17 18 16 20"/></svg>`;
         petBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
         petBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-        petBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-        petBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+        petBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+        petBtn.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 400));
         tb.appendChild(petBtn);
         setTimeout(() => {
           state.customModel = null;
@@ -2583,8 +2601,8 @@ function buildToolbar(exp) {
         [styleBtn, uploadBtn].forEach(b => {
           b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
           b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
-          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+          b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
+          b.addEventListener('touchend', () => setTimeout(() => { state.uiBlocked = false; }, 400));
         });
         tb.appendChild(styleBtn);
         tb.appendChild(uploadBtn);
@@ -2876,7 +2894,8 @@ function buildShapeSubToolbar() {
     b.title = shape;
     b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
     b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    b.addEventListener('pointerup',  () => setTimeout(() => { state.uiBlocked = false; }, 400));
+    b.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
     b.onclick = () => {
       state.currentShape = shape;
       buildShapeSubToolbar();
@@ -2900,7 +2919,8 @@ function buildShapeSubToolbar() {
   colorBtn.innerHTML = `<svg viewBox="0 0 16 16" style="width:12px;height:12px;position:absolute;bottom:1px;right:1px;opacity:.7;"><path d="M4 6l4 4 4-4" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
   colorBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
   colorBtn.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-  colorBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+  colorBtn.addEventListener('pointerup',  () => setTimeout(() => { state.uiBlocked = false; }, 400));
+  colorBtn.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
   colorBtn.onclick = () => {
     const i = COLORS.indexOf(state.color);
     state.color = COLORS[(i + 1) % COLORS.length];
@@ -2928,7 +2948,7 @@ function showModelSubToolbar(modelName) {
   reuploadBtn.title = '更換模型';
   reuploadBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
   reuploadBtn.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
-  reuploadBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+  reuploadBtn.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 400));
   reuploadBtn.onclick = () => triggerModelUpload(state.experience?.id);
   sub.appendChild(reuploadBtn);
 }
@@ -2975,7 +2995,8 @@ function buildPetColorSub(container) {
     b.style.cssText = `background:${c};width:28px;height:28px;border-radius:50%;border:2px solid ${c === state.color ? 'white' : 'transparent'};flex-shrink:0;`;
     b.addEventListener('pointerdown', e => { e.stopPropagation(); state.uiBlocked = true; });
     b.addEventListener('touchstart', e => { e.stopPropagation(); state.uiBlocked = true; }, { passive: true });
-    b.addEventListener('pointerup', () => setTimeout(() => { state.uiBlocked = false; }, 120));
+    b.addEventListener('pointerup',  () => setTimeout(() => { state.uiBlocked = false; }, 400));
+    b.addEventListener('touchend',   e => { e.stopPropagation(); setTimeout(() => { state.uiBlocked = false; }, 400); }, { passive: true });
     b.onclick = () => { state.color = c; buildPetColorSub(container); };
     container.appendChild(b);
   });
@@ -4352,18 +4373,18 @@ function initShooter() {
       bullet.id = 'shooter-mobile-bullet';
       bullet.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:42px;height:42px;pointer-events:none;z-index:50;';
       bullet.innerHTML = `
-        <svg viewBox="0 0 42 42" style="width:100%;height:100%;filter:drop-shadow(0 0 10px rgba(255,208,128,0.9)) drop-shadow(0 0 4px rgba(255,208,128,0.6));">
+        <svg viewBox="0 0 42 42" style="width:100%;height:100%;filter:drop-shadow(0 0 8px #ffd080) drop-shadow(0 0 3px rgba(255,208,128,0.8));">
           <defs>
-            <radialGradient id="bulletGrad" cx="38%" cy="35%" r="60%">
-              <stop offset="0%" stop-color="#fffbe0"/>
-              <stop offset="40%" stop-color="#ffd080"/>
-              <stop offset="100%" stop-color="#cc7700"/>
+            <radialGradient id="bulletGrad" cx="40%" cy="35%" r="55%">
+              <stop offset="0%" stop-color="#fff8e0"/>
+              <stop offset="35%" stop-color="#ffd080"/>
+              <stop offset="100%" stop-color="#ffd080"/>
             </radialGradient>
           </defs>
-          <circle cx="21" cy="21" r="11" fill="url(#bulletGrad)"/>
-          <circle cx="17" cy="17" r="3.5" fill="rgba(255,255,255,0.45)"/>
+          <circle cx="21" cy="21" r="9" fill="#ffd080"/>
+          <circle cx="17.5" cy="17.5" r="3" fill="rgba(255,255,255,0.5)"/>
         </svg>
-        <style>@keyframes bulletFloat{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-6px)}}</style>
+        <style>@keyframes bulletFloat{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-5px)}}</style>
       `;
       bullet.style.animation = 'bulletFloat 2.4s ease-in-out infinite';
       $('#ar-overlay').appendChild(bullet);
@@ -7265,18 +7286,48 @@ const _sfx = (() => {
   const modal = $('#settings-modal');
   const closeBtn = $('#settings-close');
   if (settingsBtn && modal) {
+    const positionModal = () => {
+      const btnRect = settingsBtn.getBoundingClientRect();
+      const panelW = 300;
+      const safeTop = Math.max(8, btnRect.bottom + 8);
+      // Right-align to button, but keep within viewport
+      const rightEdge = window.innerWidth - btnRect.right;
+      modal.style.top = safeTop + 'px';
+      modal.style.right = Math.max(8, rightEdge) + 'px';
+      modal.style.left = 'auto';
+      modal.style.transform = 'none';
+    };
+
+    const updateResHighlight = () => {
+      ['original','medium','low'].forEach(v => {
+        const lbl = document.getElementById('res-label-' + v);
+        if (lbl) lbl.style.borderColor = (state._camResolution || 'original') === v
+          ? 'var(--amber)' : 'var(--line)';
+      });
+    };
+
     settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
+      const isOpen = modal.style.display !== 'none';
+      modal.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen) { positionModal(); updateResHighlight(); }
     });
     closeBtn?.addEventListener('click', (e) => { e.stopPropagation(); modal.style.display = 'none'; });
-    modal.addEventListener('click', (e) => e.stopPropagation()); // prevent modal clicks from closing
+    modal.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('click', () => {
       if (modal.style.display !== 'none') modal.style.display = 'none';
     });
-    // Camera resolution setting
+    // Camera resolution setting — applies to both camera mode AND WebXR renderer
     document.querySelectorAll('input[name="cam-res"]').forEach(r => {
-      r.addEventListener('change', () => { state._camResolution = r.value; });
+      r.addEventListener('change', () => {
+        state._camResolution = r.value;
+        // Apply pixel ratio to active renderer immediately if in a WebXR/fallback session
+        if (state.renderer) {
+          const prMap = { original: Math.min(window.devicePixelRatio, 2.5), medium: Math.min(window.devicePixelRatio, 1.5), low: 1.0 };
+          state.renderer.setPixelRatio(prMap[r.value] ?? Math.min(window.devicePixelRatio, 2.5));
+        }
+        updateResHighlight();
+      });
     });
   }
 
