@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#0a0a0b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2208,6 +2208,8 @@ function exitExperience() {
   $('#shooter-intro')?.remove();
   $('#shooter-indicators')?.remove();
   $('#shooter-mobile-intro')?.remove();
+  $('#shooter-mobile-bullet')?.remove();
+  $('#shooter-mobile-hint')?.remove();
   $('#pc-crosshair').style.display = 'none';
   document.removeEventListener('keydown', _shooterEscHandler);
   document.exitPointerLock?.();
@@ -3069,24 +3071,31 @@ let _imageFileInput = null;
 function showResumePrompt(exp) {
   // Clear any existing prompt
   $('#resume-prompt')?.remove();
+  $('#resume-backdrop')?.remove();
   // Make sure we're on home page
   $('#ar-overlay').classList.remove('active');
   $('#ar-instruction').classList.add('hidden');
   window._stopScanOverlay?.();
 
+  // Backdrop — semi-transparent dark layer that blocks underlying clicks
+  const backdrop = document.createElement('div');
+  backdrop.id = 'resume-backdrop';
+  backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:898;pointer-events:auto;';
+  document.body.appendChild(backdrop);
+
   const div = document.createElement('div');
   div.id = 'resume-prompt';
-  div.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(16,16,18,0.97);border:2px solid var(--amber);border-radius:8px;padding:36px 32px;z-index:900;font-family:var(--mono);text-align:center;box-shadow:0 12px 60px rgba(255,140,66,0.35);width:calc(100% - 40px);max-width:400px;';
+  div.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(16,16,18,0.97);border:2px solid var(--amber);border-radius:8px;padding:36px 32px;z-index:900;font-family:var(--mono);text-align:center;box-shadow:0 12px 60px rgba(255,140,66,0.35);width:calc(100% - 40px);max-width:400px;pointer-events:auto;';
 
   const hasModel = !!state.customModel;
   div.innerHTML = `
     <div style="color:var(--amber);font-size:13px;letter-spacing:.12em;margin-bottom:16px;">// ${hasModel ? '✓ 模型已載入' : '檔案處理完成'}</div>
     <div style="color:var(--text);font-size:18px;margin-bottom:10px;font-weight:700;">準備返回 ${exp.title}</div>
     <div style="color:var(--text-dim);font-size:13px;margin-bottom:28px;line-height:1.6;">瀏覽器需要您的點擊<br>才能重新啟動 AR 場景</div>
-    <button id="resume-btn" style="background:var(--amber);color:#000;border:none;border-radius:4px;padding:18px 32px;font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.12em;cursor:pointer;width:100%;touch-action:manipulation;">
+    <button id="resume-btn" type="button" style="background:var(--amber);color:#000;border:none;border-radius:4px;padding:18px 32px;font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.12em;cursor:pointer;width:100%;touch-action:manipulation;pointer-events:auto;">
       點擊繼續 →
     </button>
-    <button id="resume-cancel" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:12px;margin-top:18px;padding:10px;cursor:pointer;letter-spacing:.06em;width:100%;">
+    <button id="resume-cancel" type="button" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:12px;margin-top:18px;padding:10px;cursor:pointer;letter-spacing:.06em;width:100%;touch-action:manipulation;pointer-events:auto;">
       取消
     </button>
   `;
@@ -3095,36 +3104,43 @@ function showResumePrompt(exp) {
   const resumeBtn = div.querySelector('#resume-btn');
   const cancelBtn = div.querySelector('#resume-cancel');
 
-  // CRITICAL: handle the click directly with relaunch logic inline
-  // (synchronous to preserve user-activation token for requestSession)
+  const cleanup = () => {
+    div.remove();
+    backdrop.remove();
+  };
+
   const doResume = (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
-    // Reset all blocking states FIRST so launchExperience can proceed
     state.uiBlocked = false;
     state._uploadInProgress = false;
     state._pendingRelaunch = null;
-    div.remove();
-    // Launch immediately — this synchronous call preserves user activation
+    cleanup();
     launchExperience(exp).catch(err => {
       console.error('Resume launch failed:', err);
       toast('啟動失敗，請從首頁重新進入', true);
     });
   };
 
-  // Use both click and touchend for max compatibility (mobile sometimes misses click)
   resumeBtn.addEventListener('click', doResume);
   resumeBtn.addEventListener('touchend', (e) => {
     if (e.cancelable) e.preventDefault();
     doResume(e);
   });
 
-  cancelBtn.addEventListener('click', () => {
-    div.remove();
+  const doCancel = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    cleanup();
     state.customModel = null;
     state._pendingRelaunch = null;
     state.uiBlocked = false;
     state._uploadInProgress = false;
+  };
+  cancelBtn.addEventListener('click', doCancel);
+  cancelBtn.addEventListener('touchend', (e) => {
+    if (e.cancelable) e.preventDefault();
+    doCancel(e);
   });
 }
 
@@ -3398,6 +3414,8 @@ function clearAll() {
       $('#shooter-intro')?.remove();
       $('#shooter-indicators')?.remove();
       $('#shooter-mobile-intro')?.remove();
+      $('#shooter-mobile-bullet')?.remove();
+      $('#shooter-mobile-hint')?.remove();
       $('#pc-crosshair').style.display = 'none';
       document.removeEventListener('keydown', _shooterEscHandler);
       document.exitPointerLock?.();
@@ -4140,11 +4158,7 @@ function updatePhysics(dt) {
       b.userData.velocity.x *= rollingFriction;
       b.userData.velocity.z *= rollingFriction;
       b.userData.bounces++;
-      // Play bounce sound only if real impact (not tiny residual bounce when resting)
-      if (vy > 0.08 && !b.userData.resting) {
-        const isNewest2 = b === state.physics.balls[state.physics.balls.length - 1];
-        _sfx.bounce(isNewest2 ? vy * 1.3 : vy); // newest ball slightly louder
-      }
+      // Bounce sound disabled — physics scene now silent
 
       // Settle threshold — only rest when both vertical and horizontal are tiny
       const hSpeed = Math.sqrt(b.userData.velocity.x**2 + b.userData.velocity.z**2);
@@ -4153,11 +4167,7 @@ function updatePhysics(dt) {
         b.userData.resting = true;
       } else {
         b.userData.resting = false;
-        // Rolling sound — only when ball is actually moving and not resting
-        const ballDist = state.camera ? b.position.distanceTo(state.camera.position) : 99;
-        const isNewest = b === state.physics.balls[state.physics.balls.length - 1];
-        const priority = isNewest ? 0.06 : 0.02; // newest ball gets 3x chance
-        if (!b.userData.resting && vy < 0.15 && hSpeed > 0.05 && hSpeed < 0.8 && ballDist < 3 && Math.random() < priority) _sfx.roll();
+        // Rolling sound disabled — physics scene now silent
       }
     }
 
@@ -4372,8 +4382,40 @@ function initShooter() {
       // Start gyroscope for aim control
       startGyroscope(state.camera);
       if (state.camera) { state.camera.position.set(0, 0, 0); }
-      // Show crosshair
-      $('#pc-crosshair').style.display = 'block';
+      // Hide standard crosshair (we'll show the floating bullet instead)
+      $('#pc-crosshair').style.display = 'none';
+
+      // Floating rotating bullet at screen center (visual aim guide)
+      $('#shooter-mobile-bullet')?.remove();
+      const bullet = document.createElement('div');
+      bullet.id = 'shooter-mobile-bullet';
+      bullet.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:42px;height:42px;pointer-events:none;z-index:50;';
+      bullet.innerHTML = `
+        <svg viewBox="0 0 42 42" style="width:100%;height:100%;animation:bulletSpin 2.6s linear infinite;animation-delay:0s;filter:drop-shadow(0 0 8px rgba(255,140,66,0.7));">
+          <defs>
+            <radialGradient id="bulletGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffd680"/>
+              <stop offset="50%" stop-color="#ff8c42"/>
+              <stop offset="100%" stop-color="#cc5520"/>
+            </radialGradient>
+          </defs>
+          <ellipse cx="21" cy="21" rx="9" ry="14" fill="url(#bulletGrad)" stroke="#ffd680" stroke-width="0.8"/>
+          <ellipse cx="21" cy="21" rx="2" ry="6" fill="rgba(255,255,255,0.6)" transform="translate(-2,-2)"/>
+          <line x1="21" y1="2" x2="21" y2="8" stroke="#ff8c42" stroke-width="1" opacity="0.4"/>
+          <line x1="21" y1="34" x2="21" y2="40" stroke="#ff8c42" stroke-width="1" opacity="0.4"/>
+        </svg>
+        <style>@keyframes bulletSpin{from{transform:rotateY(0deg)}to{transform:rotateY(360deg)}}@keyframes bulletFloat{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-6px)}}</style>
+      `;
+      bullet.style.animation = 'bulletFloat 2.4s ease-in-out infinite';
+      $('#ar-overlay').appendChild(bullet);
+
+      // Persistent bottom hint
+      $('#shooter-mobile-hint')?.remove();
+      const hint = document.createElement('div');
+      hint.id = 'shooter-mobile-hint';
+      hint.style.cssText = 'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:rgba(10,10,11,0.75);border:1px solid var(--amber);border-radius:20px;padding:8px 18px;font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.1em;pointer-events:none;z-index:55;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);';
+      hint.textContent = '// 點擊畫面射出子彈';
+      $('#ar-overlay').appendChild(hint);
 
       // Mobile fire: tap on canvas/document body (overlay has pointer-events:none)
       const mobileFire = (ev) => {
@@ -4382,12 +4424,14 @@ function initShooter() {
         if (tgt && tgt.closest('.ar-tool, .ar-btn, .ar-hud-top, .ar-hud-bottom, #power-bar-wrap, #ar-toolbar, button, input, label')) return;
         if (state.shooter?.active && state.shooter?.started) {
           fireShooterBullet();
+          // Brief pulse on the floating bullet
+          const b = $('#shooter-mobile-bullet');
+          if (b) { b.style.transform = 'translate(-50%,-50%) scale(0.7)'; setTimeout(() => { b.style.transform = ''; }, 120); }
         }
       };
       document.addEventListener('touchend', mobileFire, { passive: true });
       state.shooter._mobileFireHandler = mobileFire;
       state.shooter._mobileFireTarget = document;
-      toast('開始遊戲！');
     };
     startBtn.addEventListener('click', startGame);
     startBtn.addEventListener('touchend', startGame);
@@ -4556,14 +4600,7 @@ function updateShooter(dt, t) {
     for (let i = sh.enemies.length - 1; i >= 0; i--) {
       if (b.position.distanceTo(sh.enemies[i].position) < 0.22) {
         const en = sh.enemies[i];
-        // Debris
-        for (let p = 0; p < 5; p++) {
-          const d = new THREE.Mesh(new THREE.SphereGeometry(0.025, 4, 3), new THREE.MeshBasicMaterial({ color: en.userData.color }));
-          d.position.copy(en.position);
-          d.userData = { v: new THREE.Vector3((Math.random()-.5)*5, Math.random()*3, (Math.random()-.5)*5), life: 0, maxLife: 0.8 };
-          state.scene.add(d);
-          sh.bullets.push(d);
-        }
+        // No debris/drops — clean kill
         state.scene.remove(en);
         sh.enemies.splice(i, 1);
         sh.score++;
@@ -5377,39 +5414,42 @@ function captureScreenshot() {
       state.renderer.render(state.scene, state.camera);
     }
 
-    // Star map: capture the 2D star canvas (+ camera feed if overlay active)
+    // Star map: capture the star canvas with current frame
     if (state.experience?.id === 'starmap') {
-      // Pause the rAF loop temporarily, do one final synchronous draw, then capture
-      const oldRAF = state._visionRAF;
-      if (oldRAF) cancelAnimationFrame(oldRAF);
+      // Cancel rAF temporarily to ensure synchronous capture
+      if (state._visionRAF) cancelAnimationFrame(state._visionRAF);
       state._visionRAF = null;
 
       const sc = $('#star-canvas');
-      // Force one synchronous render to ensure canvas has current frame
-      sc.width = window.innerWidth; sc.height = window.innerHeight;
+      const w = window.innerWidth, h = window.innerHeight;
+      sc.width = w; sc.height = h;
       const scCtx = sc.getContext('2d');
-      // Draw background
-      if (!state._starmapCamMode) {
-        const g = scCtx.createRadialGradient(sc.width/2,sc.height/2,0,sc.width/2,sc.height/2,Math.max(sc.width,sc.height)*0.7);
-        g.addColorStop(0,'#0c0f2a'); g.addColorStop(1,'#000207');
-        scCtx.fillStyle=g; scCtx.fillRect(0,0,sc.width,sc.height);
-      } else if (_camVideo && _camVideo.readyState >= 2) {
-        scCtx.drawImage(_camVideo,0,0,sc.width,sc.height);
-      } else {
-        scCtx.fillStyle='#000207'; scCtx.fillRect(0,0,sc.width,sc.height);
-      }
-      // Re-call the star rendering logic synchronously
-      _renderStarMapFrame(scCtx, sc.width, sc.height);
 
-      const out = document.createElement('canvas');
-      out.width = sc.width; out.height = sc.height;
-      const outCtx = out.getContext('2d');
-      if (state._starmapCamMode && _camVideo && _camVideo.readyState >= 2) {
-        outCtx.drawImage(_camVideo, 0, 0, out.width, out.height);
-      } else {
-        outCtx.fillStyle = '#000207'; outCtx.fillRect(0, 0, out.width, out.height);
+      // Draw background (gradient sky OR transparent for cam overlay)
+      if (!state._starmapCamMode) {
+        const g = scCtx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*0.7);
+        g.addColorStop(0,'#0c0f2a'); g.addColorStop(1,'#000207');
+        scCtx.fillStyle = g; scCtx.fillRect(0,0,w,h);
       }
-      outCtx.drawImage(sc, 0, 0, out.width, out.height);
+      // Draw stars/constellations
+      _renderStarMapFrame(scCtx, w, h);
+
+      // Composite onto output canvas
+      const out = document.createElement('canvas');
+      out.width = w; out.height = h;
+      const outCtx = out.getContext('2d');
+
+      if (state._starmapCamMode && _camVideo && _camVideo.readyState >= 2) {
+        // Use camera feed as background
+        outCtx.drawImage(_camVideo, 0, 0, w, h);
+      } else {
+        // Solid dark sky background
+        outCtx.fillStyle = '#000207';
+        outCtx.fillRect(0, 0, w, h);
+      }
+      // Overlay star canvas
+      outCtx.drawImage(sc, 0, 0, w, h);
+
       const a = document.createElement('a');
       a.download = `xr-lab-starmap-${Date.now()}.png`;
       a.href = out.toDataURL('image/png');
@@ -5869,12 +5909,15 @@ function onFaceMeshResults(results) {
     _camCtx.fill();
   });
 
-  // Head-top: average forehead landmarks
-  const foreheadPts = [10, 67, 103, 54, 21, 162, 127];
+  // Head-top: use only top-center landmarks (10 = top of forehead, 9 = mid-brow)
+  // for accurate centering above the face
+  const topPts = [10, 9, 151, 8]; // 10:top forehead, 9:between brows, 151,8:nose bridge top
   let tx = 0, ty = 0;
-  foreheadPts.forEach(i => { tx += px(i); ty += py(i); });
-  tx /= foreheadPts.length;
-  ty /= foreheadPts.length;
+  topPts.forEach(i => { tx += px(i); ty += py(i); });
+  tx /= topPts.length;
+  ty /= topPts.length;
+  // Use forehead top landmark (10) for vertical position
+  ty = py(10);
 
   const chinY = py(152);
   const headH = Math.abs(chinY - ty);
@@ -6869,14 +6912,17 @@ function _initText3DRow() {
     }
   };
 
-  inp?.addEventListener('focus', () => {
+  inp?.addEventListener('focus', (e) => {
     state.uiBlocked = true;
+    // Prevent browser auto-scrolling that squashes the layout
     if (vv) {
       vv.addEventListener('resize', updateKeyboardOffset);
       vv.addEventListener('scroll', updateKeyboardOffset);
-      // First update after keyboard slides up
       setTimeout(updateKeyboardOffset, 350);
     }
+    // Force window scroll back to top to counter iOS Safari auto-scroll
+    setTimeout(() => { window.scrollTo(0, 0); }, 50);
+    setTimeout(() => { window.scrollTo(0, 0); }, 400);
   });
   inp?.addEventListener('blur', () => {
     setTimeout(() => { if (!_composing) state.uiBlocked = false; }, 200);
@@ -6910,30 +6956,35 @@ _initText3DRow();
   const particles = [];
 
   function resetParticle(p) {
+    // Use grid-aligned distribution for even coverage
     p.x = Math.random() * window.innerWidth;
     p.y = Math.random() * window.innerHeight;
-    p.vx = (Math.random() - 0.5) * 0.4;
-    p.vy = (Math.random() - 0.5) * 0.4;
-    p.maxLife = 0.5 + Math.random() * 0.6;
+    p.vx = (Math.random() - 0.5) * 0.3;
+    p.vy = (Math.random() - 0.5) * 0.3;
+    p.maxLife = 0.6 + Math.random() * 0.7;
     p.life = p.maxLife;
-    p.r = 1 + Math.random() * 2;
+    p.r = 1 + Math.random() * 1.8;
   }
 
   function drawFrame() {
     if (canvas.style.display === 'none') { raf = null; return; }
     raf = requestAnimationFrame(drawFrame);
-    // Only resize if window dimensions changed
     if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
     const ctx2 = canvas.getContext('2d');
     ctx2.clearRect(0, 0, canvas.width, canvas.height);
-    const t = Date.now() * 0.001;
     particles.forEach(p => {
+      // Flat motion - no perspective sine wave
       p.x += p.vx;
-      p.y += p.vy + Math.sin(t + p.x * 0.02) * 0.15;
-      p.life -= 0.007;
+      p.y += p.vy;
+      // Wrap around edges instead of full reset, to keep coverage even
+      if (p.x < 0) p.x = canvas.width;
+      if (p.x > canvas.width) p.x = 0;
+      if (p.y < 0) p.y = canvas.height;
+      if (p.y > canvas.height) p.y = 0;
+      p.life -= 0.006;
       if (p.life <= 0) resetParticle(p);
       const alpha = (p.life / p.maxLife) * 0.5;
       ctx2.beginPath();
