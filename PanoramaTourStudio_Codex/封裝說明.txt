@@ -1,0 +1,47 @@
+智慧全景導覽系統 封裝說明
+
+這份資料夾已整理成可交付的完整專案副本，包含原始碼與已建置輸出。
+
+重點內容
+1. dist
+   一般網站建置輸出，可部署到一般靜態網站空間。
+   已調整為相對路徑，搬移到子資料夾時較不容易發生資源路徑錯誤。
+
+2. export-dist
+   單檔交付版輸出。
+   其中的 index.html 已內嵌主要前端資源，適合做單檔展示或後續再包裝。
+
+3. 原始專案
+   保留 package.json、src、server.ts 等完整開發檔案，可繼續修改與重新建置。
+
+已補強
+- 新增 npm run build:export
+- 新增 npm run build:all
+- 將 clean 改為可在 Windows 使用
+- 一般建置改為相對路徑 base: './'
+
+使用方式
+1. 安裝依賴
+   npm ci
+
+2. 啟動本機開發伺服器
+   npm run dev
+
+3. 產生一般網站版本
+   npm run build
+
+4. 產生單檔匯出版
+   npm run build:export
+
+5. 一次產生兩種版本
+   npm run build:all
+
+已確認
+- TypeScript 檢查可通過
+- 一般 Vite production build 可成功完成
+- 單檔匯出版 build 可成功完成
+
+需要注意
+- AI 分析與 AI 修圖功能依賴 GEMINI_API_KEY。若未設定 .env.local 並重新建置，相關 AI 功能不會正常工作。
+- 專案內建的「匯出專案為 HTML/ZIP」流程會呼叫 /api/export-bundle，因此這個匯出按鈕本身仍依賴 server.ts 提供的本機伺服器路由。
+- 如果只是要部署現成網站，可直接使用 dist；如果是要交付單檔展示，可優先看 export-dist\\index.html。
