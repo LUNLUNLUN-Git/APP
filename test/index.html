@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>手機陀螺儀尋找 3D 角色 Demo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app">
+    <video id="camera" autoplay playsinline muted></video>
+    <canvas id="threeCanvas" aria-label="3D 角色畫面"></canvas>
+
+    <div id="scanLine" aria-hidden="true"></div>
+
+    <div id="offscreenHint" class="hidden" aria-hidden="true">
+      <div id="edgeArrow">➜</div>
+      <div id="edgeText">角色在這個方向</div>
+    </div>
+
+    <section id="hud">
+      <div class="hud-card">
+        <div class="label">目標方位</div>
+        <div id="targetBearingText" class="value">--°</div>
+      </div>
+      <div class="hud-card">
+        <div class="label">目前角度差</div>
+        <div id="deltaText" class="value">--°</div>
+      </div>
+      <button id="rerollBtn" class="mini-btn" type="button">重新隨機</button>
+    </section>
+
+    <section id="message" class="hidden"></section>
+
+    <section id="startPanel">
+      <div class="panel-inner">
+        <div class="badge">Gyro Camera Demo</div>
+        <h1>轉動手機，尋找隱藏的 3D 角色</h1>
+        <p>
+          啟動後會開啟手機相機，並在水平 360° 方位中隨機放置一個 3D 角色。
+          角色不在畫面中時，邊緣箭頭會提示你該往哪邊轉。
+        </p>
+        <button id="startBtn" type="button">啟動相機與陀螺儀</button>
+        <p class="note">
+          建議用手機瀏覽器開啟 HTTPS 網址測試。iPhone / iPad 需要在按鈕點擊後授權動作與方向感測器。
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
