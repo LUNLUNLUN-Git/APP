@@ -1,1 +1,1670 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#050816" />
+  <title>手機陀螺儀 3D 方位尋找角色 Demo｜水平軸純色背景版</title>
+  <style>
+    :root {
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --accent: #ffe26a;
+      --accent2: #52e7ff;
+      --danger: #ff6b6b;
+      --panel: rgba(6, 10, 22, 0.62);
+      --line: rgba(255,255,255,0.18);
+    }
 
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #050816;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: #fff;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: #050816;
+    }
+
+    #app.mock-mode {
+      cursor: grab;
+    }
+
+    #app.mock-mode.dragging {
+      cursor: grabbing;
+    }
+
+    #camera {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      opacity: 0;
+      transition: opacity .45s ease;
+      background: #050816;
+    }
+
+    #camera.camera-on { opacity: 1; }
+
+    #cameraFallback {
+      position: absolute;
+      inset: 0;
+      background: #050816;
+      opacity: 1;
+    }
+
+    #camera.camera-on + #cameraFallback { opacity: 0.18; }
+
+    /* 相機模式下不顯示網格線與準心 */
+    #app.camera-mode #cameraFallback,
+    #app.camera-mode .center-reticle {
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
+
+    .center-glow { display: none !important; }
+
+    .vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at center, transparent 45%, rgba(0,0,0,.52) 100%),
+        linear-gradient(to bottom, rgba(0,0,0,.44), transparent 22%, transparent 72%, rgba(0,0,0,.62));
+    }
+
+    .hud {
+      position: absolute;
+      top: calc(12px + var(--safe-top));
+      left: calc(12px + var(--safe-left));
+      right: calc(12px + var(--safe-right));
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .hud-card {
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 18px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
+    }
+
+    .title {
+      font-weight: 800;
+      letter-spacing: .04em;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .hint {
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(255,255,255,.78);
+    }
+
+    .status-pill {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(0,0,0,.45);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: var(--danger);
+      box-shadow: 0 0 12px var(--danger);
+    }
+
+    .status-pill.ready .dot {
+      background: var(--accent2);
+      box-shadow: 0 0 12px var(--accent2);
+    }
+
+    .status-pill.found .dot {
+      background: var(--accent);
+      box-shadow: 0 0 14px var(--accent);
+    }
+
+    .center-reticle {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 74px;
+      height: 74px;
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      pointer-events: none;
+      z-index: 10;
+      opacity: .72;
+    }
+
+    .center-reticle::before,
+    .center-reticle::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      border: 1px solid rgba(255,255,255,.40);
+    }
+
+    .center-reticle::after {
+      inset: 18px;
+      border-color: rgba(255,255,255,.42);
+      box-shadow: none;
+    }
+
+    .cross-h,
+    .cross-v {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      background: rgba(255,255,255,.50);
+      transform: translate(-50%, -50%);
+      border-radius: 99px;
+    }
+
+    .cross-h { width: 110px; height: 1px; }
+    .cross-v { width: 1px; height: 110px; }
+
+    #characterWrap {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 148px;
+      height: 210px;
+      transform: translate(-50%, -50%) scale(.94);
+      transform-style: preserve-3d;
+      transform-origin: 50% 62%;
+      z-index: 12;
+      opacity: 0;
+      filter: drop-shadow(0 28px 34px rgba(0,0,0,.42));
+      transition: opacity .42s ease-out, filter .18s ease;
+      pointer-events: none;
+    }
+
+    #characterWrap.visible {
+      opacity: 1;
+      animation: characterFadeIn .42s ease-out both;
+    }
+
+    @keyframes characterFadeIn {
+      0% { opacity: 0; }
+      45% { opacity: .52; }
+      100% { opacity: 1; }
+    }
+    #characterWrap.found { filter: drop-shadow(0 0 30px rgba(255,226,106,.95)) drop-shadow(0 26px 30px rgba(0,0,0,.32)); }
+
+    .shadow {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      width: 112px;
+      height: 26px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,.52), transparent 68%);
+      opacity: .72;
+    }
+
+    .char {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      width: 122px;
+      height: 180px;
+      transform: translateX(-50%) rotateY(var(--char-rot, 0deg));
+      transform-style: preserve-3d;
+      animation: floaty 1.85s ease-in-out infinite;
+    }
+
+    @keyframes floaty {
+      0%, 100% { translate: 0 0; }
+      50% { translate: 0 -9px; }
+    }
+
+    .body {
+      position: absolute;
+      left: 24px;
+      top: 74px;
+      width: 74px;
+      height: 84px;
+      border-radius: 35px 35px 28px 28px;
+      background: linear-gradient(135deg, #ffd85d 0%, #ff9e3d 48%, #e85d25 100%);
+      box-shadow: inset -13px -12px 22px rgba(91,31,12,.22), inset 11px 8px 16px rgba(255,255,255,.34);
+      transform: translateZ(9px);
+    }
+
+    .belly {
+      position: absolute;
+      left: 44px;
+      top: 94px;
+      width: 34px;
+      height: 46px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.55);
+      transform: translateZ(12px);
+    }
+
+    .head {
+      position: absolute;
+      left: 18px;
+      top: 12px;
+      width: 86px;
+      height: 78px;
+      border-radius: 44px 44px 38px 38px;
+      background: linear-gradient(145deg, #ffe681 0%, #ffbe4f 50%, #f27c2b 100%);
+      box-shadow: inset -14px -12px 20px rgba(91,31,12,.20), inset 12px 9px 18px rgba(255,255,255,.38);
+      transform: translateZ(22px);
+    }
+
+    .ear {
+      position: absolute;
+      top: 5px;
+      width: 34px;
+      height: 42px;
+      background: linear-gradient(145deg, #ffd05c, #ee7830);
+      border-radius: 22px 22px 8px 8px;
+      transform: translateZ(10px) rotate(var(--r));
+      box-shadow: inset -8px -8px 13px rgba(91,31,12,.16);
+    }
+    .ear::after {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 10px;
+      width: 18px;
+      height: 23px;
+      border-radius: 20px 20px 8px 8px;
+      background: rgba(255,255,255,.52);
+    }
+    .ear.left { left: 11px; --r: -26deg; }
+    .ear.right { right: 11px; --r: 26deg; }
+
+    .eye {
+      position: absolute;
+      top: 42px;
+      width: 13px;
+      height: 17px;
+      border-radius: 50%;
+      background: #1b1620;
+      transform: translateZ(30px);
+      box-shadow: inset 2px 2px 0 rgba(255,255,255,.45);
+    }
+    .eye.left { left: 43px; }
+    .eye.right { right: 43px; }
+
+    .snout {
+      position: absolute;
+      left: 43px;
+      top: 54px;
+      width: 36px;
+      height: 25px;
+      border-radius: 60% 60% 50% 50%;
+      background: rgba(255,255,255,.72);
+      transform: translateZ(31px);
+      box-shadow: inset -3px -4px 7px rgba(166,89,30,.15);
+    }
+    .nose {
+      position: absolute;
+      left: 55px;
+      top: 55px;
+      width: 13px;
+      height: 9px;
+      border-radius: 60% 60% 50% 50%;
+      background: #2a1a19;
+      transform: translateZ(34px);
+    }
+
+    .arm {
+      position: absolute;
+      top: 88px;
+      width: 24px;
+      height: 67px;
+      border-radius: 99px;
+      background: linear-gradient(145deg, #ffc85b, #f1732c);
+      transform-origin: top center;
+      transform: translateZ(2px) rotate(var(--arm-r));
+      box-shadow: inset -5px -8px 10px rgba(91,31,12,.14);
+    }
+    .arm.left { left: 7px; --arm-r: 22deg; }
+    .arm.right { right: 7px; --arm-r: -22deg; }
+
+    .leg {
+      position: absolute;
+      top: 147px;
+      width: 32px;
+      height: 34px;
+      border-radius: 18px 18px 12px 12px;
+      background: linear-gradient(145deg, #ffb34c, #df5f24);
+      transform: translateZ(4px);
+    }
+    .leg.left { left: 31px; }
+    .leg.right { right: 31px; }
+
+    .ring {
+      position: absolute;
+      left: 56px;
+      top: 98px;
+      width: 12px;
+      height: 22px;
+      border-radius: 99px;
+      border: 3px solid rgba(255,255,255,.75);
+      transform: translateZ(18px);
+      opacity: .9;
+    }
+
+    .edge-arrow {
+      position: absolute;
+      top: 50%;
+      width: 84px;
+      height: 84px;
+      margin-top: -42px;
+      border-radius: 26px;
+      display: grid;
+      place-items: center;
+      z-index: 18;
+      opacity: 0;
+      transform: scale(.88);
+      transition: opacity .16s ease, transform .16s ease;
+      pointer-events: none;
+      background: rgba(0,0,0,.52);
+      border: 1px solid rgba(255,255,255,.26);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 14px 34px rgba(0,0,0,.28), 0 0 28px rgba(255,226,106,.18);
+    }
+
+    .edge-arrow.visible {
+      opacity: 1;
+      transform: scale(1);
+      animation: arrowPulse .9s ease-in-out infinite;
+    }
+
+    @keyframes arrowPulse {
+      0%, 100% { translate: 0 0; }
+      50% { translate: var(--pulse-x, 0) 0; }
+    }
+
+    .edge-arrow .arrow-symbol {
+      font-size: 46px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--accent);
+      text-shadow: 0 0 14px rgba(255,226,106,.82);
+    }
+
+    .edge-arrow .distance {
+      position: absolute;
+      bottom: 9px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: rgba(255,255,255,.78);
+      letter-spacing: .02em;
+    }
+
+    #leftArrow {
+      left: calc(12px + var(--safe-left));
+      --pulse-x: -8px;
+    }
+
+    #rightArrow {
+      right: calc(12px + var(--safe-right));
+      --pulse-x: 8px;
+    }
+
+
+    .dynamic-arrow {
+      left: 50%;
+      top: 50%;
+      margin-top: 0;
+      --arrow-rot: 0deg;
+      transform: translate(-50%, -50%) rotate(var(--arrow-rot)) scale(.88);
+    }
+
+    .dynamic-arrow.visible {
+      transform: translate(-50%, -50%) rotate(var(--arrow-rot)) scale(1);
+      animation: none;
+    }
+
+    .dynamic-arrow .arrow-symbol {
+      transform: translateY(-1px);
+    }
+
+    .bottom-panel {
+      position: absolute;
+      left: calc(12px + var(--safe-left));
+      right: calc(12px + var(--safe-right));
+      bottom: calc(12px + var(--safe-bottom));
+      z-index: 22;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.54);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 12px 36px rgba(0,0,0,.35);
+    }
+
+    .meter {
+      min-width: 0;
+    }
+
+    .meter-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,.76);
+      margin: 0 2px 6px;
+    }
+
+    .meter-track {
+      position: relative;
+      height: 11px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.14);
+      overflow: hidden;
+    }
+
+    #meterFill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #ff6b6b, #ffe26a, #52e7ff);
+      transition: width .1s ease;
+    }
+
+    button {
+      border: 0;
+      border-radius: 17px;
+      padding: 12px 14px;
+      color: #10121a;
+      background: var(--accent);
+      font-weight: 900;
+      letter-spacing: .02em;
+      box-shadow: 0 8px 22px rgba(0,0,0,.25);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button.secondary {
+      color: #fff;
+      background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.18);
+    }
+
+    button:active { transform: translateY(1px); }
+
+    .start-cover {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,226,106,.20), transparent 30%),
+        radial-gradient(circle at 20% 70%, rgba(82,231,255,.22), transparent 32%),
+        rgba(5,8,16,.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .start-card {
+      width: min(430px, 100%);
+      border-radius: 30px;
+      padding: 24px;
+      background: rgba(4,7,15,.70);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+      text-align: center;
+    }
+
+    .start-card h1 {
+      margin: 0 0 10px;
+      font-size: 26px;
+      line-height: 1.18;
+      letter-spacing: .04em;
+    }
+
+    .start-card p {
+      margin: 0 0 18px;
+      font-size: 14px;
+      line-height: 1.65;
+      color: rgba(255,255,255,.78);
+    }
+
+    .start-card .actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      top: calc(64px + var(--safe-top));
+      transform: translate(-50%, 0) scale(.96);
+      z-index: 28;
+      min-width: 132px;
+      max-width: min(420px, calc(100vw - 32px));
+      padding: 10px 16px;
+      border-radius: 999px;
+      color: #10121a;
+      background: var(--accent);
+      font-weight: 1000;
+      text-align: center;
+      letter-spacing: .04em;
+      opacity: 0;
+      pointer-events: none;
+      box-shadow: 0 12px 30px rgba(0,0,0,.28), 0 0 24px rgba(255,226,106,.26);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .mini-compass {
+      position: absolute;
+      left: 50%;
+      bottom: calc(88px + var(--safe-bottom));
+      transform: translateX(-50%);
+      width: min(320px, calc(100vw - 32px));
+      height: 40px;
+      z-index: 16;
+      border-radius: 999px;
+      background: rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.18);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .mini-compass::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,.72);
+    }
+
+    #compassTarget {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      width: 24px;
+      height: 24px;
+      margin-left: -12px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 18px rgba(255,226,106,.8);
+      transition: transform .1s linear;
+    }
+
+    .debug {
+      position: absolute;
+      right: calc(12px + var(--safe-right));
+      bottom: calc(150px + var(--safe-bottom));
+      z-index: 17;
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.38);
+      border: 1px solid rgba(255,255,255,.14);
+      font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: rgba(255,255,255,.72);
+      pointer-events: none;
+      white-space: pre;
+    }
+
+
+    /* UI 調整：隱藏左上說明、保留右上狀態、還原底部橫條羅盤 */
+    .hud {
+      left: auto;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+
+    .hud-card,
+    .bottom-panel,
+    .debug {
+      display: none !important;
+    }
+
+    .status-pill {
+      background: rgba(6, 10, 22, 0.72);
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: 0 10px 28px rgba(0,0,0,.24);
+      font-size: 12px;
+      padding: 10px 14px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+    }
+
+    .mini-compass {
+      display: block;
+      bottom: calc(12px + var(--safe-bottom));
+      width: min(250px, calc(100vw - 40px));
+      height: 30px;
+      border-radius: 999px;
+      background: rgba(3, 8, 20, .74);
+      border: 1px solid rgba(255,255,255,.14);
+      box-shadow: inset 0 0 0 1px rgba(66, 94, 160, .10);
+      opacity: 1;
+    }
+
+    .mini-compass::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 8px 8px;
+      opacity: .28;
+      pointer-events: none;
+    }
+
+    .mini-compass::before {
+      width: 2px;
+      background: rgba(255,255,255,.82);
+      box-shadow: 0 0 10px rgba(255,255,255,.18);
+      z-index: 2;
+    }
+
+    #compassTarget {
+      top: 6px;
+      width: 18px;
+      height: 18px;
+      margin-left: -9px;
+      background: #ffe26a;
+      box-shadow: 0 0 16px rgba(255,226,106,.45);
+      z-index: 2;
+    }
+
+    .edge-arrow {
+      width: 72px;
+      height: 72px;
+      margin-top: -36px;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .edge-arrow .arrow-symbol {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      font-size: 0;
+      line-height: 0;
+      color: var(--accent);
+      text-shadow: none;
+    }
+
+    .triangle-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+      filter: none;
+    }
+
+    .triangle-svg path {
+      fill: var(--accent);
+    }
+
+    .edge-arrow .distance {
+      display: none !important;
+    }
+
+    .show-now-btn {
+      position: absolute;
+      right: calc(12px + var(--safe-right));
+      bottom: calc(12px + var(--safe-bottom));
+      z-index: 31;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255,226,106,.92);
+      color: #11131b;
+      border: 1px solid rgba(255,255,255,.38);
+      box-shadow: 0 10px 26px rgba(0,0,0,.28);
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .edge-arrow {
+        width: 58px;
+        height: 58px;
+        margin-top: -29px;
+      }
+
+      .edge-arrow .arrow-symbol {
+        width: 46px;
+        height: 46px;
+      }
+    }
+
+    @media (max-width: 430px) {
+      .status-pill { font-size: 11px; padding: 9px 12px; }
+      .edge-arrow { width: 62px; height: 62px; margin-top: -31px; }
+      .edge-arrow .arrow-symbol { width: 50px; height: 50px; }
+      .mini-compass {
+        width: min(250px, calc(100vw - 28px));
+        height: 28px;
+        bottom: calc(68px + var(--safe-bottom));
+      }
+      #compassTarget {
+        width: 16px;
+        height: 16px;
+        margin-left: -8px;
+        top: 6px;
+      }
+      #toast {
+        top: calc(58px + var(--safe-top));
+        max-width: calc(100vw - 28px);
+        padding: 9px 14px;
+        font-size: 13px;
+      }
+      .show-now-btn {
+        right: calc(10px + var(--safe-right));
+        bottom: calc(14px + var(--safe-bottom));
+        padding: 9px 12px;
+        font-size: 12px;
+      }
+      #characterWrap { width: 132px; height: 190px; transform: translate(-50%, -50%) scale(.82); }
+    }
+  
+
+    /* 本版修正：純色黑底，只保留準心與天空球網格線；角色隨機位置固定在 pitch 0 水平線 */
+    #cameraFallback {
+      overflow: hidden;
+      background: #050816;
+    }
+
+    #cameraFallback::before,
+    #cameraFallback::after {
+      display: none !important;
+    }
+
+    #worldGridCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: .82;
+      pointer-events: none;
+    }
+
+    #toast {
+      top: calc(58px + var(--safe-top));
+      left: 50%;
+      right: auto;
+      bottom: auto;
+      transform: translate(-50%, 0) scale(.96);
+    }
+
+    #toast.show {
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .edge-arrow {
+      overflow: visible !important;
+      margin-top: 0 !important;
+    }
+
+    .dynamic-arrow,
+    .dynamic-arrow.visible {
+      margin-top: 0 !important;
+      transform-origin: 50% 50%;
+    }
+
+    .dynamic-arrow.visible {
+      transform: translate(-50%, -50%) rotate(var(--arrow-rot)) scale(1) !important;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .edge-arrow {
+        margin-top: 0 !important;
+      }
+    }
+
+
+    /* 本版細修：箭頭圖層在底部橫刻度下方，並以小到大的平滑縮放方式出現 */
+    .mini-compass {
+      z-index: 18 !important;
+    }
+
+    .edge-arrow {
+      z-index: 15 !important;
+      opacity: 0;
+      transform: translate(-50%, -50%) rotate(var(--arrow-rot, 0deg)) scale(.18) !important;
+      transform-origin: 50% 50% !important;
+      transition:
+        opacity .18s ease,
+        transform .42s cubic-bezier(.16, 1, .3, 1) !important;
+      will-change: transform, opacity;
+    }
+
+    .dynamic-arrow.visible {
+      opacity: 1;
+      transform: translate(-50%, -50%) rotate(var(--arrow-rot, 0deg)) scale(1) !important;
+    }
+
+  
+
+    /* 水平軸純色背景版：移除所有遊戲背景的中心漸層，只保留準心與網格線 */
+    #app, #cameraFallback { background: #050816 !important; }
+    .center-glow { display: none !important; }
+
+  </style>
+</head>
+<body>
+  <main id="app">
+    <video id="camera" autoplay playsinline muted></video>
+    <div id="cameraFallback"><canvas id="worldGridCanvas" aria-hidden="true"></canvas></div>
+    <div class="vignette"></div>
+
+    <section class="hud">
+      <div class="hud-card">
+        <div class="title">陀螺儀尋找角色 Demo</div>
+        <div id="hintText" class="hint">轉動與俯仰手機尋找角色；角色在畫面外時，邊緣箭頭會指向目標。</div>
+      </div>
+      <div id="statusPill" class="status-pill">
+        <span class="dot"></span><span id="statusText">尚未啟動</span>
+      </div>
+    </section>
+
+    <div class="center-reticle" aria-hidden="true"><span class="cross-h"></span><span class="cross-v"></span></div>
+
+    <div id="characterWrap" aria-hidden="true">
+      <div class="shadow"></div>
+      <div class="char" id="char">
+        <div class="ear left"></div>
+        <div class="ear right"></div>
+        <div class="head"></div>
+        <div class="eye left"></div>
+        <div class="eye right"></div>
+        <div class="snout"></div>
+        <div class="nose"></div>
+        <div class="body"></div>
+        <div class="belly"></div>
+        <div class="ring"></div>
+        <div class="arm left"></div>
+        <div class="arm right"></div>
+        <div class="leg left"></div>
+        <div class="leg right"></div>
+      </div>
+    </div>
+
+    <div id="directionArrow" class="edge-arrow dynamic-arrow" aria-hidden="true">
+      <div class="arrow-symbol" aria-hidden="true">
+        <svg class="triangle-svg" viewBox="0 0 100 100" focusable="false" aria-hidden="true">
+          <path d="M96 50 30 8c-5-3-11 2-9 8l12 27H8c-5 0-8 3-8 7s3 7 8 7h25L21 84c-2 6 4 11 9 8L96 50Z"></path>
+        </svg>
+      </div>
+      <div id="directionDistance" class="distance" aria-hidden="true"></div>
+    </div>
+
+    <div class="mini-compass" aria-hidden="true"><div id="compassTarget"></div></div>
+    <div id="debug" class="debug">yaw: --\ndiff: --</div>
+    <div id="toast">找到角色！</div>
+    <button id="showNowBtn" class="show-now-btn" type="button">直接顯示</button>
+
+    <section class="bottom-panel">
+      <div class="meter">
+        <div class="meter-top"><span id="meterLabel">距離目標</span><span id="meterDegree">--°</span></div>
+        <div class="meter-track"><div id="meterFill"></div></div>
+      </div>
+      <button id="resetBtn" class="secondary" type="button">重設正前方</button>
+      <button id="randomBtn" type="button">重新隨機</button>
+    </section>
+
+    <section id="startCover" class="start-cover">
+      <div class="start-card">
+        <h1>尋找隱藏角色</h1>
+        <p>
+          點擊開始後會開啟手機相機與方向感測器。<br>
+          角色會被隨機固定在真實 3D 世界中的某個水平與俯仰角度，請轉動 / 抬低手機尋找它。<br>
+          當角色在畫面外時，螢幕邊緣箭頭會指向它所在的方位。<br>
+          無相機模擬模式可用滑鼠拖曳調整水平與俯仰，也可用 WASD 或方向鍵控制。
+        </p>
+        <div class="actions">
+          <button id="startBtn" type="button">開始測試</button>
+          <button id="mockBtn" class="secondary" type="button">無相機模擬</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      // ====== 可調參數 ======
+      const H_FOV_DEGREES = 54;        // 水平可視角，越大越容易進入畫面
+      const V_FOV_DEGREES = 40;        // 垂直可視角，控制俯仰方向的可見範圍
+      const PITCH_LIMIT_DEGREES = 89.6;// 模擬 / 俯仰最大角度，接近正上與正下但避免投影奇異點
+      const TARGET_MIN_YAW_OFFSET = 42;// 隨機目標至少離正前方幾度，避免一開始就看到
+      const TARGET_PITCH_RANGE = 24;   // 角色可能出現在當前視線上方 / 下方的最大角度
+      const FOUND_YAW_THRESHOLD = 8;   // 水平角度差小於此數值，接近找到
+      const FOUND_PITCH_THRESHOLD = 7; // 俯仰角度差小於此數值，接近找到
+      const YAW_SMOOTHING = 0.18;      // 水平方向平滑，數字越大越靈敏
+      const PITCH_SMOOTHING = 0.20;    // 俯仰方向平滑，數字越大越靈敏
+      const MOCK_DRAG_YAW_SPEED = 0.32;// 模擬模式滑鼠水平拖曳靈敏度
+      const MOCK_DRAG_PITCH_SPEED = 0.26;// 模擬模式滑鼠垂直拖曳靈敏度
+      const MOCK_KEY_STEP = 8;         // 模擬模式鍵盤每次轉動角度
+      const USE_SELFIE_MIRROR = true;  // 前鏡頭畫面左右鏡像，純視覺效果
+
+      const $ = (id) => document.getElementById(id);
+      const els = {
+        app: $("app"),
+        camera: $("camera"),
+        cameraFallback: $("cameraFallback"),
+        worldGridCanvas: $("worldGridCanvas"),
+        startCover: $("startCover"),
+        startBtn: $("startBtn"),
+        mockBtn: $("mockBtn"),
+        randomBtn: $("randomBtn"),
+        showNowBtn: $("showNowBtn"),
+        resetBtn: $("resetBtn"),
+        characterWrap: $("characterWrap"),
+        char: $("char"),
+        directionArrow: $("directionArrow"),
+        directionDistance: $("directionDistance"),
+        statusPill: $("statusPill"),
+        statusText: $("statusText"),
+        hintText: $("hintText"),
+        meterFill: $("meterFill"),
+        meterDegree: $("meterDegree"),
+        meterLabel: $("meterLabel"),
+        compassTarget: $("compassTarget"),
+        toast: $("toast"),
+        debug: $("debug")
+      };
+
+      let started = false;
+      let mockMode = false;
+      let hasGyro = false;
+      let hasCamera = false;
+
+      let currentYaw = 0;
+      let rawYaw = 0;
+      let targetYaw = 0;
+
+      let currentPitch = 0;
+      let rawPitch = 0;
+      let targetPitch = 0;
+      let basePitchRaw = null;
+      let lastSensorPitchRaw = null;
+
+      let found = false;
+      let toastTimer = null;
+
+      // 沒有陀螺儀時，用拖曳模擬水平與俯仰轉動。
+      let dragging = false;
+      let pointerMoved = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+      let dragStartYaw = 0;
+      let dragStartPitch = 0;
+      let simulatedYaw = 0;
+      let simulatedPitch = 0;
+
+      const normalize360 = (deg) => ((deg % 360) + 360) % 360;
+      const signedAngleDiff = (target, current) => {
+        let diff = normalize360(target) - normalize360(current);
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        return diff;
+      };
+      const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+      const lerpAngle = (a, b, t) => normalize360(a + signedAngleDiff(b, a) * t);
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const isInteractiveElement = (target) => Boolean(target.closest?.("button, a, input, textarea, select, .start-cover"));
+      const canUseMockControl = () => started && (mockMode || !hasGyro);
+
+      function rotateMockBy(yawDelta = 0, pitchDelta = 0) {
+        if (!canUseMockControl()) return;
+        simulatedYaw = normalize360(simulatedYaw + yawDelta);
+        simulatedPitch = clamp(simulatedPitch + pitchDelta, -PITCH_LIMIT_DEGREES, PITCH_LIMIT_DEGREES);
+        rawYaw = simulatedYaw;
+        rawPitch = simulatedPitch;
+      }
+
+      function setStatus(type, text) {
+        els.statusPill.classList.remove("ready", "found");
+        if (type) els.statusPill.classList.add(type);
+        els.statusText.textContent = text;
+      }
+
+      function showToast(text, duration = 2400) {
+        els.toast.textContent = text;
+        els.toast.classList.add("show");
+        clearTimeout(toastTimer);
+        if (duration > 0) {
+          toastTimer = setTimeout(() => {
+            els.toast.classList.remove("show");
+          }, duration);
+        }
+      }
+
+      function getYawFromEvent(event) {
+        // iOS Safari 會提供 webkitCompassHeading，數值為 0~360，代表指南針方位。
+        if (typeof event.webkitCompassHeading === "number") {
+          return normalize360(event.webkitCompassHeading);
+        }
+
+        // 多數 Android 瀏覽器可用 alpha。不同瀏覽器座標定義略有差異，這裡用 360-alpha 讓右轉更直覺。
+        if (typeof event.alpha === "number") {
+          return normalize360(360 - event.alpha);
+        }
+        return null;
+      }
+
+      function getPitchFromEvent(event) {
+        // beta 是手機前後俯仰角。這裡不強制轉成絕對水平，而是用「啟動當下」作為基準，
+        // 因此不管使用者一開始拿直或平舉，都能得到相對俯仰差。
+        if (typeof event.beta === "number") return clamp(event.beta, -180, 180);
+        return null;
+      }
+
+      async function requestOrientationPermission() {
+        if (!("DeviceOrientationEvent" in window)) return false;
+
+        try {
+          if (typeof DeviceOrientationEvent.requestPermission === "function") {
+            const result = await DeviceOrientationEvent.requestPermission();
+            if (result !== "granted") return false;
+          }
+          window.addEventListener("deviceorientation", handleOrientation, true);
+          return true;
+        } catch (err) {
+          console.warn("Device orientation permission failed:", err);
+          return false;
+        }
+      }
+
+      function handleOrientation(event) {
+        const yaw = getYawFromEvent(event);
+        const pitchSensor = getPitchFromEvent(event);
+
+        if (yaw != null) {
+          hasGyro = true;
+          rawYaw = yaw;
+        }
+
+        if (pitchSensor != null) {
+          hasGyro = true;
+          lastSensorPitchRaw = pitchSensor;
+          if (basePitchRaw == null) basePitchRaw = pitchSensor;
+          rawPitch = clamp(pitchSensor - basePitchRaw, -PITCH_LIMIT_DEGREES, PITCH_LIMIT_DEGREES);
+        }
+      }
+
+      async function startCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          return false;
+        }
+
+        const constraintsList = [
+          { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+          { video: { facingMode: "environment" }, audio: false },
+          { video: true, audio: false }
+        ];
+
+        for (const constraints of constraintsList) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            els.camera.srcObject = stream;
+            await els.camera.play();
+            els.camera.classList.add("camera-on");
+            els.app.classList.add("camera-mode");
+            hasCamera = true;
+            if (!USE_SELFIE_MIRROR) els.camera.style.transform = "none";
+            return true;
+          } catch (err) {
+            console.warn("Camera constraint failed:", constraints, err);
+          }
+        }
+        return false;
+      }
+
+      function randomPitchOffset() {
+        return 0;
+      }
+
+      function randomizeTarget(forceAway = true) {
+        const sign = Math.random() < 0.5 ? -1 : 1;
+        const yawOffset = forceAway
+          ? sign * (TARGET_MIN_YAW_OFFSET + Math.random() * (165 - TARGET_MIN_YAW_OFFSET))
+          : (Math.random() * 360 - 180);
+
+        targetYaw = normalize360(currentYaw + yawOffset);
+        targetPitch = 0;
+        found = false;
+        els.characterWrap.classList.remove("found");
+        setStatus("ready", "尋找中");
+
+        const horizontalText = yawOffset > 0 ? "右側" : "左側";
+        showToast(`角色在水平線${horizontalText}`);
+      }
+
+      function calibrateForward() {
+        currentYaw = rawYaw || simulatedYaw || currentYaw || 0;
+
+        if (lastSensorPitchRaw != null) {
+          basePitchRaw = lastSensorPitchRaw;
+        }
+        rawPitch = 0;
+        currentPitch = 0;
+        simulatedPitch = 0;
+
+        randomizeTarget(true);
+        showToast("已重設目前角度為正前方");
+      }
+
+      async function start({ camera = true } = {}) {
+        if (started) return;
+        started = true;
+        mockMode = !camera;
+        setStatus(null, "啟動中");
+
+        // 無相機模擬模式要強制使用滑鼠 / 鍵盤控制，避免桌機瀏覽器回報 DeviceOrientationEvent
+        // 但沒有實際方向資料時，誤判成有陀螺儀而擋掉滑鼠拖曳。
+        if (mockMode) {
+          hasGyro = false;
+        } else {
+          const gyroOK = await requestOrientationPermission();
+          hasGyro = gyroOK;
+        }
+
+        if (camera) {
+          await startCamera();
+        }
+
+        rawYaw = 0;
+        currentYaw = 0;
+        simulatedYaw = 0;
+        rawPitch = 0;
+        currentPitch = 0;
+        simulatedPitch = 0;
+        targetYaw = 100;
+        targetPitch = 0;
+        randomizeTarget(true);
+
+        els.startCover.style.display = "none";
+        els.app.classList.toggle("mock-mode", mockMode || !hasGyro);
+        if (!camera || !hasCamera) els.app.classList.remove("camera-mode");
+        els.hintText.textContent = hasGyro
+          ? "轉動與俯仰手機尋找角色；邊緣箭頭會指向角色所在的 3D 方位。"
+          : "模擬模式：拖曳可同時控制水平與俯仰；也可用 WASD 或方向鍵。";
+
+        if (!hasCamera && camera) {
+          showToast("相機未開啟，改用背景模擬");
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      function showCharacterNow() {
+        if (!started) return;
+
+        // 避免「正在拖曳中」時，模擬角度還在更新造成置中後又偏移。
+        dragging = false;
+        pointerMoved = false;
+        els.app.classList.remove("dragging");
+
+        // 以目前實際視角作為目標位置，並同步 raw / current / simulated，讓角色立刻完全置中。
+        if (canUseMockControl()) {
+          rawYaw = simulatedYaw;
+          rawPitch = simulatedPitch;
+        }
+
+        currentYaw = normalize360(rawYaw || currentYaw || 0);
+        currentPitch = clamp(rawPitch || currentPitch || 0, -PITCH_LIMIT_DEGREES, PITCH_LIMIT_DEGREES);
+        simulatedYaw = currentYaw;
+        simulatedPitch = currentPitch;
+        rawYaw = currentYaw;
+        rawPitch = currentPitch;
+
+        targetYaw = currentYaw;
+        targetPitch = clamp(currentPitch, -82, 82);
+        found = true;
+        els.characterWrap.classList.add("found");
+        setStatus("found", "已找到");
+        showToast("找到角色！", 5000);
+        updateView();
+      }
+
+      function getDirectionLabel(yawDiff, pitchDiff, onScreen) {
+        if (onScreen) return "角色進入畫面";
+
+        const parts = [];
+        if (pitchDiff > V_FOV_DEGREES / 2) parts.push("往上");
+        if (pitchDiff < -V_FOV_DEGREES / 2) parts.push("往下");
+        if (yawDiff > H_FOV_DEGREES / 2) parts.push("往右");
+        if (yawDiff < -H_FOV_DEGREES / 2) parts.push("往左");
+        return `${parts.join("＋")}找` || "調整方向";
+      }
+
+      function updateDirectionArrow(projectedX, projectedY, yawDiff, pitchDiff, onScreen, angularDistance) {
+        els.directionArrow.classList.toggle("visible", !onScreen);
+        if (onScreen) return;
+
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        const cx = viewportW / 2;
+        const cy = viewportH / 2;
+
+        let dx = projectedX - cx;
+        let dy = projectedY - cy;
+        if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
+          dx = yawDiff >= 0 ? 1 : -1;
+          dy = pitchDiff >= 0 ? -0.2 : 0.2;
+        }
+
+        const length = Math.max(0.0001, Math.hypot(dx, dy));
+        const ux = dx / length;
+        const uy = dy / length;
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+        // 以箭頭「尖端」作為貼邊基準，而不是用外框貼邊。
+        // 這樣正上、正下、斜角、左右方向距離螢幕邊緣會更一致。
+        const arrowSymbol = els.directionArrow.querySelector(".arrow-symbol");
+        const symbolRect = arrowSymbol ? arrowSymbol.getBoundingClientRect() : els.directionArrow.getBoundingClientRect();
+        const tipLength = Math.max(20, (symbolRect.width || 50) * 0.5);
+        const edgeGap = 10;
+
+        const tx = ux > 0
+          ? (viewportW - edgeGap - cx) / ux
+          : ux < 0
+            ? (edgeGap - cx) / ux
+            : Infinity;
+        const ty = uy > 0
+          ? (viewportH - edgeGap - cy) / uy
+          : uy < 0
+            ? (edgeGap - cy) / uy
+            : Infinity;
+        const tTip = Math.max(0, Math.min(tx, ty));
+        const tipX = cx + ux * tTip;
+        const tipY = cy + uy * tTip;
+
+        const centerX = tipX - ux * tipLength;
+        const centerY = tipY - uy * tipLength;
+
+        els.directionArrow.style.left = `${centerX}px`;
+        els.directionArrow.style.top = `${centerY}px`;
+        els.directionArrow.style.setProperty("--arrow-rot", `${angle}deg`);
+        if (els.directionDistance) els.directionDistance.textContent = "";
+      }
+
+      function resizeWorldGridCanvas() {
+        const canvas = els.worldGridCanvas;
+        if (!canvas) return null;
+        const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        const w = Math.max(1, Math.floor(window.innerWidth));
+        const h = Math.max(1, Math.floor(window.innerHeight));
+        const targetW = Math.floor(w * dpr);
+        const targetH = Math.floor(h * dpr);
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+          canvas.style.width = `${w}px`;
+          canvas.style.height = `${h}px`;
+        }
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { canvas, ctx, w, h };
+      }
+
+      function rotateWorldToCamera(point, yawRad, pitchRad) {
+        // 這裡把「世界球面上的點」轉成目前視角的相機座標。
+        // 使用者站在球體中心往外看，因此只投影前方半球，不再畫成從外部觀看的球體輪廓。
+        const cosY = Math.cos(yawRad);
+        const sinY = Math.sin(yawRad);
+        const cosX = Math.cos(pitchRad);
+        const sinX = Math.sin(pitchRad);
+
+        const x1 = point.x * cosY - point.z * sinY;
+        const z1 = point.x * sinY + point.z * cosY;
+        const y1 = point.y;
+
+        const y2 = y1 * cosX - z1 * sinX;
+        const z2 = y1 * sinX + z1 * cosX;
+        return { x: x1, y: y2, z: z2 };
+      }
+
+      function skyPoint(latRad, lonRad) {
+        return {
+          x: Math.cos(latRad) * Math.sin(lonRad),
+          y: Math.sin(latRad),
+          z: Math.cos(latRad) * Math.cos(lonRad)
+        };
+      }
+
+      function projectSkyPoint(point, yawRad, pitchRad, cx, cy, focal) {
+        const r = rotateWorldToCamera(point, yawRad, pitchRad);
+        // z <= 0 代表該點在背後；因為是「人在球心內看天空球」，只保留前方視野。
+        if (r.z <= 0.004) return null;
+
+        const x = cx + (r.x / r.z) * focal;
+        const y = cy - (r.y / r.z) * focal;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        return { x, y, z: r.z };
+      }
+
+      function drawSkyCurve(ctx, sampler, steps, yawRad, pitchRad, cx, cy, focal, w, h, major = false) {
+        let prev = null;
+        const maxJump = Math.max(w, h) * 0.86;
+        const baseAlpha = major ? 0.58 : 0.34;
+        const baseWidth = major ? 1.35 : 0.92;
+
+        for (let i = 0; i <= steps; i++) {
+          const point = sampler(i / steps);
+          const q = projectSkyPoint(point, yawRad, pitchRad, cx, cy, focal);
+
+          if (prev && q) {
+            const dx = q.x - prev.x;
+            const dy = q.y - prev.y;
+            const jump = Math.sqrt(dx * dx + dy * dy);
+
+            // 接近背後半球邊界時投影會爆開，過長線段略過，避免產生外框球體感。
+            if (jump < maxJump) {
+              const zAvg = (q.z + prev.z) * 0.5;
+              const edgeX = Math.abs((q.x + prev.x) * 0.5 - cx) / (w * 0.55);
+              const edgeY = Math.abs((q.y + prev.y) * 0.5 - cy) / (h * 0.55);
+              const edgeFade = clamp(1 - Math.max(edgeX, edgeY) * 0.28, 0.52, 1);
+
+              ctx.globalAlpha = baseAlpha * (0.36 + clamp(zAvg, 0, 1) * 0.64) * edgeFade;
+              ctx.lineWidth = baseWidth * (0.72 + clamp(zAvg, 0, 1) * 0.38);
+              ctx.beginPath();
+              ctx.moveTo(prev.x, prev.y);
+              ctx.lineTo(q.x, q.y);
+              ctx.stroke();
+            }
+          }
+
+          prev = q;
+        }
+      }
+
+      function drawSkyLatitude(ctx, latDeg, yawRad, pitchRad, cx, cy, focal, w, h, major = false) {
+        const lat = latDeg * Math.PI / 180;
+        drawSkyCurve(ctx, (t) => skyPoint(lat, t * Math.PI * 2), 240, yawRad, pitchRad, cx, cy, focal, w, h, major);
+      }
+
+      function drawSkyLongitude(ctx, lonDeg, yawRad, pitchRad, cx, cy, focal, w, h, major = false) {
+        const lon = lonDeg * Math.PI / 180;
+        // 經線畫到真正的南北極，避免抬到最上 / 最下方時中央出現圓形空洞。
+        drawSkyCurve(ctx, (t) => {
+          const lat = (-90 + t * 180) * Math.PI / 180;
+          return skyPoint(lat, lon);
+        }, 260, yawRad, pitchRad, cx, cy, focal, w, h, major);
+      }
+
+      function drawWorldGrid() {
+        const data = resizeWorldGridCanvas();
+        if (!data) return;
+        const { ctx, w, h } = data;
+        ctx.clearRect(0, 0, w, h);
+
+        const cx = w / 2;
+        const cy = h / 2;
+        // 與 3D 角色投影方向保持一致：轉向右側時，固定在世界中的網格與角色都會往左移動。
+        const yawRad = currentYaw * Math.PI / 180;
+        const pitchRad = currentPitch * Math.PI / 180;
+
+        // 視角越大，越像站在球體中心觀看包覆自己的天空球。
+        const visualFov = (Math.min(w, h) < 520 ? 86 : 92) * Math.PI / 180;
+        const focal = (Math.min(w, h) * 0.5) / Math.tan(visualFov * 0.5);
+
+        // 純色背景由 #cameraFallback 提供，Canvas 只繪製網格線段，不再加入任何中心漸層。
+
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "rgba(224, 246, 255, 1)";
+
+        // 緯線：加入接近南北極的圈層，讓天空球頂部 / 底部仍有完整參考線。
+        const latitudes = [-85, -75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75, 85];
+        for (const lat of latitudes) {
+          drawSkyLatitude(ctx, lat, yawRad, pitchRad, cx, cy, focal, w, h, lat === 0 || Math.abs(lat) === 45 || Math.abs(lat) === 85);
+        }
+
+        // 經線：畫到極點，抬到最上 / 最下方時線條會收束連接，而不是留下圓形空洞。
+        for (let lon = 0; lon < 360; lon += 15) {
+          drawSkyLongitude(ctx, lon, yawRad, pitchRad, cx, cy, focal, w, h, lon % 45 === 0);
+        }
+
+        // 極點補強：當視角接近正上或正下時，把所有方位線收束處補成淡色節點。
+        for (const pole of [skyPoint(Math.PI / 2, 0), skyPoint(-Math.PI / 2, 0)]) {
+          const q = projectSkyPoint(pole, yawRad, pitchRad, cx, cy, focal);
+          if (q && q.x > -40 && q.x < w + 40 && q.y > -40 && q.y < h + 40) {
+            ctx.globalAlpha = 0.46;
+            ctx.fillStyle = "rgba(224, 246, 255, .70)";
+            ctx.beginPath();
+            ctx.arc(q.x, q.y, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function updateMockWorldGrid() {
+        drawWorldGrid();
+      }
+
+      function updateView() {
+        if (!hasGyro) {
+          rawYaw = simulatedYaw;
+          rawPitch = simulatedPitch;
+        }
+
+        currentYaw = lerpAngle(currentYaw, rawYaw, YAW_SMOOTHING);
+        currentPitch = clamp(lerp(currentPitch, rawPitch, PITCH_SMOOTHING), -PITCH_LIMIT_DEGREES, PITCH_LIMIT_DEGREES);
+        updateMockWorldGrid();
+
+        const yawDiff = signedAngleDiff(targetYaw, currentYaw);
+        const pitchDiff = targetPitch - currentPitch;
+        const absYawDiff = Math.abs(yawDiff);
+        const absPitchDiff = Math.abs(pitchDiff);
+        const halfHFov = H_FOV_DEGREES / 2;
+        const halfVFov = V_FOV_DEGREES / 2;
+        const onScreen = absYawDiff <= halfHFov && absPitchDiff <= halfVFov;
+        // 角色只要一進入畫面可視範圍，就直接視為找到。
+        const foundNow = onScreen;
+        const angularDistance = Math.sqrt(absYawDiff * absYawDiff + absPitchDiff * absPitchDiff);
+
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        const normalizedX = yawDiff / halfHFov;
+        const normalizedY = -pitchDiff / halfVFov;
+        const projectedX = viewportW * 0.5 + normalizedX * viewportW * 0.38;
+        const projectedY = viewportH * 0.5 + normalizedY * viewportH * 0.34;
+        const x = clamp(projectedX, -viewportW * 0.25, viewportW * 1.25);
+        const y = clamp(projectedY, -viewportH * 0.25, viewportH * 1.25);
+        const rot = clamp(yawDiff * -1.2, -28, 28);
+
+        // 角色固定大小：不再依照距離 / 角度差縮放，只根據螢幕位置移動。
+        els.characterWrap.style.left = `${x}px`;
+        els.characterWrap.style.top = `${y}px`;
+        els.characterWrap.style.transform = "translate(-50%, -50%) scale(1)";
+        els.char.style.setProperty("--char-rot", `${rot}deg`);
+        els.characterWrap.classList.toggle("visible", onScreen);
+
+        updateDirectionArrow(projectedX, projectedY, yawDiff, pitchDiff, onScreen, angularDistance);
+
+        // 小羅盤仍顯示水平差，方便觀察左右方向。
+        const compassX = clamp(yawDiff / 180, -1, 1) * 108;
+        els.compassTarget.style.transform = `translateX(${compassX}px)`;
+
+        const closeness = clamp(1 - angularDistance / 185, 0, 1);
+        els.meterFill.style.width = `${Math.round(closeness * 100)}%`;
+        els.meterDegree.textContent = `${Math.round(angularDistance)}°`;
+        els.meterLabel.textContent = getDirectionLabel(yawDiff, pitchDiff, onScreen);
+
+        if (foundNow && !found) {
+          found = true;
+          els.characterWrap.classList.add("found");
+          setStatus("found", "已找到");
+          showToast("找到角色！", 5000);
+        } else if (!foundNow && found) {
+          found = false;
+          els.characterWrap.classList.remove("found");
+          setStatus("ready", "尋找中");
+        }
+
+        els.debug.textContent = `yaw: ${Math.round(currentYaw)}° / Δ${Math.round(yawDiff)}°
+` +
+          `pitch: ${Math.round(currentPitch)}° / Δ${Math.round(pitchDiff)}°
+` +
+          `${hasGyro ? "gyro 3D" : "drag mock 3D"}`;
+      }
+
+      function tick() {
+        updateView();
+        requestAnimationFrame(tick);
+      }
+
+      function onPointerDown(e) {
+        if (!canUseMockControl() || isInteractiveElement(e.target)) return;
+        dragging = true;
+        pointerMoved = false;
+        dragStartX = e.clientX || 0;
+        dragStartY = e.clientY || 0;
+        dragStartYaw = simulatedYaw;
+        dragStartPitch = simulatedPitch;
+        els.app.classList.add("dragging");
+        try { els.app.setPointerCapture?.(e.pointerId); } catch (_) {}
+        e.preventDefault();
+      }
+
+      function onPointerMove(e) {
+        if (!dragging || !canUseMockControl()) return;
+        const x = e.clientX || 0;
+        const y = e.clientY || 0;
+        const dx = x - dragStartX;
+        const dy = y - dragStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) pointerMoved = true;
+        simulatedYaw = normalize360(dragStartYaw + dx * MOCK_DRAG_YAW_SPEED);
+        simulatedPitch = clamp(dragStartPitch - dy * MOCK_DRAG_PITCH_SPEED, -PITCH_LIMIT_DEGREES, PITCH_LIMIT_DEGREES);
+        rawYaw = simulatedYaw;
+        rawPitch = simulatedPitch;
+        e.preventDefault();
+      }
+
+      function onPointerUp(e) {
+        if (!dragging) return;
+        const wasMoved = pointerMoved;
+        dragging = false;
+        pointerMoved = false;
+        els.app.classList.remove("dragging");
+        try { els.app.releasePointerCapture?.(e.pointerId); } catch (_) {}
+
+        // 單純點一下也能控制：上 / 下三分之一調整俯仰，中間區域調整左右。
+        if (!wasMoved && canUseMockControl() && !isInteractiveElement(e.target)) {
+          const y = e.clientY || 0;
+          if (y < window.innerHeight * 0.34) rotateMockBy(0, MOCK_KEY_STEP);
+          else if (y > window.innerHeight * 0.66) rotateMockBy(0, -MOCK_KEY_STEP);
+          else rotateMockBy((e.clientX || 0) >= window.innerWidth / 2 ? MOCK_KEY_STEP : -MOCK_KEY_STEP, 0);
+        }
+      }
+
+      function onKeyDown(e) {
+        if (!canUseMockControl()) return;
+        const tag = document.activeElement?.tagName?.toLowerCase();
+        if (["input", "textarea", "select"].includes(tag)) return;
+
+        const key = e.key.toLowerCase();
+        if (e.key === "ArrowRight" || key === "d") {
+          rotateMockBy(MOCK_KEY_STEP, 0);
+          e.preventDefault();
+        } else if (e.key === "ArrowLeft" || key === "a") {
+          rotateMockBy(-MOCK_KEY_STEP, 0);
+          e.preventDefault();
+        } else if (e.key === "ArrowUp" || key === "w") {
+          rotateMockBy(0, MOCK_KEY_STEP);
+          e.preventDefault();
+        } else if (e.key === "ArrowDown" || key === "s") {
+          rotateMockBy(0, -MOCK_KEY_STEP);
+          e.preventDefault();
+        }
+      }
+
+      els.startBtn.addEventListener("click", () => start({ camera: true }));
+      els.mockBtn.addEventListener("click", () => start({ camera: false }));
+      els.randomBtn.addEventListener("click", () => randomizeTarget(true));
+      els.showNowBtn.addEventListener("click", showCharacterNow);
+      els.resetBtn.addEventListener("click", calibrateForward);
+
+      els.app.addEventListener("pointerdown", onPointerDown);
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
+      window.addEventListener("keydown", onKeyDown);
+
+      // 手機方向改變時重新刷新一次畫面位置。
+      window.addEventListener("resize", () => updateView());
+    })();
+  </script>
+</body>
+</html>
