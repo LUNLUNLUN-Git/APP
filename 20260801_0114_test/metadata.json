@@ -1,0 +1,5 @@
+{
+  "name": "WebAR測試空間",
+  "description": "純前端 WebAR 3D 模型預覽工具，使用 model-viewer 提供瀏覽器端模型載入、Android 與 iOS AR 預覽體驗。",
+  "requestFramePermissions": ["camera"]
+}
