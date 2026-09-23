@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+ <title>林間散策：屋頂、森林與小徑</title>
+ <path d="M8 54 23 13 38 54H26V75H20V54Z" fill="#658651"/>
+ <path d="M67 41 78 15 90 41H81V64H76V41Z" fill="#a9c77e"/>
+ <path d="M34 45H69V71H34Z" fill="#e7c78e"/>
+ <path d="M28 45 51 22 75 45H65L51 32 38 45Z" fill="#567869"/>
+ <path d="M59 18H65V34H59Z" fill="#567869"/>
+ <path d="M47 52H57V71H47Z" fill="#567869"/>
+ <path d="M52 71 42 78 45 85 67 92H82L56 82 53 78 59 71Z" fill="#9f7757"/>
+ <path d="M37 51H42V57H37ZM62 51H67V57H62Z" fill="#fff8d8"/>
+</svg>
